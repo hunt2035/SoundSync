@@ -1,15 +1,11 @@
 package com.example.ebook.ui.reader
 
 import android.app.Application
-import android.content.Context
-import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.ebook.data.repository.BookRepository
 import com.example.ebook.domain.model.Book
-import com.example.ebook.domain.model.BookFile
 import com.example.ebook.domain.model.BookType
-import com.example.ebook.util.PageDirection
 import com.example.ebook.util.ChapterInfo
 import com.example.ebook.util.EpubRenderer
 import com.example.ebook.util.EpubRenderer.EpubBook
@@ -21,7 +17,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
-import java.io.FileOutputStream
 import kotlinx.coroutines.withContext
 import android.graphics.Typeface
 import android.text.TextPaint

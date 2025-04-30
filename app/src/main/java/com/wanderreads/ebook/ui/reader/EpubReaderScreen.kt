@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.view.ViewGroup
-import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -96,7 +95,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.example.ebook.util.PageDirection
 import java.util.Locale
 import java.util.UUID
-import com.example.ebook.ui.reader.EpubReaderJsInterface
 
 /**
  * EPUB阅读器屏幕
