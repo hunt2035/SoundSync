@@ -1,4 +1,4 @@
-package com.example.ebook.data.local
+package com.wanderreads.ebook.data.local
 
 import android.content.Context
 import androidx.datastore.core.DataStore

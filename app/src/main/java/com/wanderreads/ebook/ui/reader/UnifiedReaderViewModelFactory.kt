@@ -1,9 +1,10 @@
-package com.example.ebook.ui.reader
+package com.wanderreads.ebook.ui.reader
 
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.data.repository.RecordRepository
 
 /**
  * 统一阅读器ViewModelFactory
@@ -12,13 +13,14 @@ import com.example.ebook.data.repository.BookRepository
 class UnifiedReaderViewModelFactory(
     private val application: Application,
     private val bookRepository: BookRepository,
+    private val recordRepository: RecordRepository,
     private val bookId: String
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(UnifiedReaderViewModel::class.java)) {
-            return UnifiedReaderViewModel(application, bookRepository, bookId) as T
+            return UnifiedReaderViewModel(application, bookRepository, recordRepository, bookId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

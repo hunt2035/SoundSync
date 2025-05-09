@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.ebook"
+    namespace = "com.wanderreads.ebook"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.ebook"
+        applicationId = "com.wanderreads.ebook"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
@@ -135,4 +135,7 @@ dependencies {
     
     // DocumentFile
     implementation("androidx.documentfile:documentfile:1.0.1")
+    
+    // 微信分享SDK
+    implementation("com.tencent.mm.opensdk:wechat-sdk-android-without-mta:6.8.0")
 }

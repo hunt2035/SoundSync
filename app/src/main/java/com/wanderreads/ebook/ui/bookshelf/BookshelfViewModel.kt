@@ -1,13 +1,13 @@
-package com.example.ebook.ui.bookshelf
+package com.wanderreads.ebook.ui.bookshelf
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.ebook.data.repository.BookRepository
-import com.example.ebook.domain.model.Book
-import com.example.ebook.domain.model.BookType
-import com.example.ebook.util.TextProcessor
-import com.example.ebook.util.WebBookImporter
+import com.wanderreads.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookType
+import com.wanderreads.ebook.util.TextProcessor
+import com.wanderreads.ebook.util.WebBookImporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,12 +22,23 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
+ * 书籍排序方式
+ */
+enum class BookSort {
+    ADDED_DATE, // 添加时间
+    LAST_OPENED, // 最后打开时间
+    TITLE, // 标题
+    AUTHOR // 作者
+}
+
+/**
  * 书架状态
  */
 data class BookshelfUiState(
     val books: List<Book> = emptyList(),
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val currentSort: BookSort = BookSort.ADDED_DATE
 )
 
 /**
@@ -67,9 +78,30 @@ class BookshelfViewModel(
                 .collect { books ->
                     _uiState.value = BookshelfUiState(
                         books = books,
-                        isLoading = false
+                        isLoading = false,
+                        currentSort = _uiState.value.currentSort
                     )
                 }
+        }
+    }
+    
+    /**
+     * 排序书籍
+     */
+    fun sortBooks(sortBy: BookSort) {
+        viewModelScope.launch {
+            val currentBooks = _uiState.value.books
+            val sortedBooks = when (sortBy) {
+                BookSort.ADDED_DATE -> currentBooks.sortedByDescending { it.addedDate }
+                BookSort.LAST_OPENED -> currentBooks.sortedByDescending { it.lastOpenedDate }
+                BookSort.TITLE -> currentBooks.sortedBy { it.title }
+                BookSort.AUTHOR -> currentBooks.sortedBy { it.author.ifBlank { "zzz" } } // 空作者放最后
+            }
+            
+            _uiState.value = _uiState.value.copy(
+                books = sortedBooks,
+                currentSort = sortBy
+            )
         }
     }
     
@@ -131,12 +163,17 @@ class BookshelfViewModel(
             try {
                 // 从网址导入内容并保存为文本文件
                 WebBookImporter.importFromUrl(context, url)
-                    .onSuccess { file ->
+                    .onSuccess { (file, urlPath) ->
+                        // 读取文件获取第一行作为标题
+                        val fileText = file.readText(Charsets.UTF_8)
+                        val firstLine = fileText.trim().split("\n").firstOrNull()?.trim() ?: file.nameWithoutExtension
+                        
                         // 创建书籍模型
                         val book = Book(
-                            title = file.nameWithoutExtension,
+                            title = firstLine,  // 使用第一行作为标题
                             filePath = file.absolutePath,
-                            type = BookType.TXT
+                            type = BookType.TXT,
+                            urlPath = urlPath  // 保存网址
                         )
                         
                         // 添加到书库

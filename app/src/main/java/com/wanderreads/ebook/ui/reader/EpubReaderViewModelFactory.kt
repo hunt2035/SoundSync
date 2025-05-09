@@ -1,9 +1,9 @@
-package com.example.ebook.ui.reader
+package com.wanderreads.ebook.ui.reader
 
 import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.example.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.data.repository.BookRepository
 
 /**
  * EPUB阅读器ViewModelFactory

@@ -1,4 +1,4 @@
-package com.example.ebook.ui.reader
+package com.wanderreads.ebook.ui.reader
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -27,10 +27,17 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MicNone
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,18 +65,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import android.content.Intent
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import com.example.ebook.util.PageDirection
-import com.example.ebook.util.reader.model.ReaderConfig
+import android.widget.Toast
+import com.wanderreads.ebook.R
+import com.wanderreads.ebook.util.PageDirection
+import com.wanderreads.ebook.util.WeChatShareUtil
+import com.wanderreads.ebook.util.reader.model.ReaderConfig
 import kotlinx.coroutines.launch
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.scale
+import kotlinx.coroutines.delay
 
 /**
  * 统一阅读器屏幕
@@ -100,11 +123,32 @@ fun UnifiedReaderScreen(
     val settingsSheetState = rememberModalBottomSheetState()
     var showSettings by remember { mutableStateOf(false) }
     
+    // 控制录音文件列表显示
+    var showRecords by remember { mutableStateOf(false) }
+    
+    // 控制菜单显示
+    var showMenu by remember { mutableStateOf(false) }
+    
     // 设置面板当前选项卡
     var currentSettingsTab by remember { mutableIntStateOf(0) }
     
     // TTS状态
     var isTtsActive by remember { mutableStateOf(false) }
+    
+    // 录音状态
+    var isRecording by remember { mutableStateOf(false) }
+    
+    // 创建无限循环的动画效果用于录音图标
+    val infiniteTransition = rememberInfiniteTransition(label = "recording animation")
+    val scale = infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "recording scale animation"
+    )
     
     // WebView引用 (用于EPUB)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
@@ -120,6 +164,22 @@ fun UnifiedReaderScreen(
     LaunchedEffect(Unit) {
         viewModel.initTts { status ->
             // TTS初始化完成
+        }
+    }
+    
+    // 初始化 - 检查当前录音状态
+    LaunchedEffect(Unit) {
+        isRecording = viewModel.isRecordingActive()
+    }
+    
+    // 定期检查录音状态 - 以处理自动停止录音的情况（例如静音检测）
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)  // 每秒检查一次
+            val currentRecordingState = viewModel.isRecordingActive()
+            if (isRecording != currentRecordingState) {
+                isRecording = currentRecordingState
+            }
         }
     }
     
@@ -194,11 +254,67 @@ fun UnifiedReaderScreen(
                             )
                         }
                         
+                        // 手动录音按钮
+                        IconButton(
+                            onClick = { 
+                                isRecording = viewModel.toggleManualRecording()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (isRecording) Icons.Default.Mic else Icons.Default.MicNone,
+                                contentDescription = if (isRecording) "停止录音" else "开始录音",
+                                tint = if (isRecording) Color.Red else whiteText,
+                                modifier = if (isRecording) Modifier.scale(scale.value) else Modifier
+                            )
+                        }
+                        
+                        // 录音文件按钮 - 更新图标以区分手动录音按钮
+                        IconButton(
+                            onClick = { showRecords = true }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = "录音文件列表",
+                                tint = whiteText
+                            )
+                        }
+                        
                         // 目录按钮
                         IconButton(
                             onClick = { showToc = true }
                         ) {
                             Icon(Icons.Default.List, contentDescription = "目录", tint = whiteText)
+                        }
+                        
+                        // 分享按钮 - 使用系统分享功能
+                        IconButton(
+                            onClick = { 
+                                // 获取当前页文本内容
+                                val currentText = uiState.currentContent?.text ?: ""
+                                if (currentText.isNotEmpty()) {
+                                    // 准备分享文本，包含书名和当前阅读内容
+                                    val bookTitle = uiState.book?.title ?: "电子书"
+                                    val shareText = "我正在阅读《$bookTitle》，分享一段内容：\n\n${
+                                        if (currentText.length > 300) 
+                                            currentText.substring(0, 300) + "..." 
+                                        else 
+                                            currentText
+                                    }"
+                                    
+                                    // 使用系统分享功能
+                                    val shareIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, shareText)
+                                        type = "text/plain"
+                                    }
+                                    
+                                    context.startActivity(Intent.createChooser(shareIntent, "分享到"))
+                                } else {
+                                    Toast.makeText(context, "当前页面没有可分享的文本内容", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = "分享", tint = whiteText)
                         }
                         
                         // 设置按钮
@@ -687,6 +803,65 @@ fun UnifiedReaderScreen(
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
+    }
+    
+    // 显示录音文件列表
+    if (showRecords) {
+        RecordsScreen(
+            records = uiState.records,
+            onDismiss = { showRecords = false },
+            onPlayRecord = { record ->
+                viewModel.playRecord(record)
+            },
+            onPauseRecord = { record ->
+                viewModel.pauseRecord(record)
+            },
+            currentPlayingRecordId = uiState.currentPlayingRecordId
+        )
+    }
+    
+    // 显示无障碍服务引导对话框
+    if (uiState.showAccessibilityGuide) {
+        AlertDialog(
+            onDismissRequest = { 
+                viewModel.dismissAccessibilityGuide() 
+            },
+            title = { 
+                Text(
+                    text = stringResource(R.string.huawei_accessibility_guide_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = { 
+                Text(
+                    text = stringResource(R.string.huawei_accessibility_guide_message),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.dismissAccessibilityGuide()
+                        val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        context.startActivity(intent)
+                    }
+                ) {
+                    Text(stringResource(R.string.go_to_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        viewModel.dismissAccessibilityGuide() 
+                    }
+                ) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
     }
     
     // 清理资源

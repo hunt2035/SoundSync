@@ -1,4 +1,4 @@
-package com.example.ebook.domain.model
+package com.wanderreads.ebook.domain.model
 
 import java.io.File
 import java.util.UUID
@@ -18,7 +18,8 @@ data class Book(
     val lastReadPosition: Float = 0f,
     val totalPages: Int = 0,
     val addedDate: Long = System.currentTimeMillis(),
-    val lastOpenedDate: Long = System.currentTimeMillis()
+    val lastOpenedDate: Long = System.currentTimeMillis(),
+    val urlPath: String? = null
 ) {
     val file: File
         get() = File(filePath)

@@ -1,7 +1,7 @@
-package com.example.ebook.ui.reader
+package com.wanderreads.ebook.ui.reader
 
 import android.webkit.JavascriptInterface
-import com.example.ebook.util.PageDirection
+import com.wanderreads.ebook.util.PageDirection
 
 /**
  * JavaScript接口类，用于WebView和Kotlin交互

@@ -1,4 +1,4 @@
-package com.example.ebook.util
+package com.wanderreads.ebook.util
 
 import android.content.Context
 import android.util.Log

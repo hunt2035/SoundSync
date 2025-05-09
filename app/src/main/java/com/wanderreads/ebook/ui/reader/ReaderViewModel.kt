@@ -1,14 +1,14 @@
-package com.example.ebook.ui.reader
+package com.wanderreads.ebook.ui.reader
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.ebook.data.repository.BookRepository
-import com.example.ebook.domain.model.Book
-import com.example.ebook.domain.model.BookType
-import com.example.ebook.util.ChapterInfo
-import com.example.ebook.util.EpubRenderer
-import com.example.ebook.util.EpubRenderer.EpubBook
+import com.wanderreads.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookType
+import com.wanderreads.ebook.util.ChapterInfo
+import com.wanderreads.ebook.util.EpubRenderer
+import com.wanderreads.ebook.util.EpubRenderer.EpubBook
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

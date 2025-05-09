@@ -1,4 +1,4 @@
-package com.example.ebook.domain.model
+package com.wanderreads.ebook.domain.model
 
 /**
  * 书籍类型枚举

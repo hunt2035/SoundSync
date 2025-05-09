@@ -1,18 +1,18 @@
-package com.example.ebook.ui.reader
+package com.wanderreads.ebook.ui.reader
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.ebook.data.repository.BookRepository
-import com.example.ebook.domain.model.Book
-import com.example.ebook.util.EpubRenderer
-import com.example.ebook.util.PageDirection
+import com.wanderreads.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.util.EpubRenderer
+import com.wanderreads.ebook.util.PageDirection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.example.ebook.util.EpubRenderer.EpubBook
+import com.wanderreads.ebook.util.EpubRenderer.EpubBook
 
 /**
  * EPUB阅读器视图模型
@@ -334,7 +334,7 @@ data class EpubReaderUiState(
     val currentChapterHtml: String? = null,
     val currentChapterIndex: Int = 0,
     val totalChapters: Int = 0,
-    val chapters: List<com.example.ebook.util.ChapterInfo> = emptyList(),
+    val chapters: List<com.wanderreads.ebook.util.ChapterInfo> = emptyList(),
     val chapterTitles: List<String> = emptyList(),
     val currentPage: Int = 0,
     val totalPages: Int = 0,

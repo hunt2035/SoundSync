@@ -1,15 +1,15 @@
-package com.example.ebook.util.reader
+package com.wanderreads.ebook.util.reader
 
 import android.content.Context
 import android.graphics.Bitmap
 import android.speech.tts.TextToSpeech
-import com.example.ebook.domain.model.Book
-import com.example.ebook.domain.model.BookFormat
-import com.example.ebook.domain.model.BookType
-import com.example.ebook.util.PageDirection
-import com.example.ebook.util.reader.model.BookChapter
-import com.example.ebook.util.reader.model.ReaderConfig
-import com.example.ebook.util.reader.model.ReaderContent
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookFormat
+import com.wanderreads.ebook.domain.model.BookType
+import com.wanderreads.ebook.util.PageDirection
+import com.wanderreads.ebook.util.reader.model.BookChapter
+import com.wanderreads.ebook.util.reader.model.ReaderConfig
+import com.wanderreads.ebook.util.reader.model.ReaderContent
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -78,6 +78,12 @@ interface BookReaderEngine {
      * 获取当前页面的纯文本内容（用于TTS）
      */
     fun getCurrentPageText(): String
+    
+    /**
+     * 检查是否有下一页
+     * @return 是否有下一页
+     */
+    fun hasNextPage(): Boolean
     
     /**
      * 更新阅读配置

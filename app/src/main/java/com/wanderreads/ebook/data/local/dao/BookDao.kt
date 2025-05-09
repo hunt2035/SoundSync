@@ -1,4 +1,4 @@
-package com.example.ebook.data.local.dao
+package com.wanderreads.ebook.data.local.dao
 
 import androidx.room.Dao
 import androidx.room.Delete
@@ -6,7 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
-import com.example.ebook.data.local.entity.BookEntity
+import com.wanderreads.ebook.data.local.entity.BookEntity
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -30,7 +30,7 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE fileHash = :fileHash LIMIT 1")
     suspend fun getBookByHash(fileHash: String): BookEntity?
     
-    @Query("SELECT * FROM books ORDER BY lastOpenedDate DESC")
+    @Query("SELECT * FROM books ORDER BY addedDate DESC")
     fun getAllBooks(): Flow<List<BookEntity>>
     
     @Query("SELECT * FROM books ORDER BY lastOpenedDate DESC LIMIT :limit")

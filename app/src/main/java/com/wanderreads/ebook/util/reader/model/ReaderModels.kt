@@ -1,4 +1,4 @@
-package com.example.ebook.util.reader.model
+package com.wanderreads.ebook.util.reader.model
 
 /**
  * 阅读器内容模型

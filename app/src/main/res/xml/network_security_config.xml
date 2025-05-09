@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- 基本配置，允许普通HTTP流量（非加密） -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <!-- 信任系统预装的CA证书 -->
+            <certificates src="system" />
+            <!-- 信任用户安装的CA证书 - 仅在调试模式下启用 -->
+            <certificates src="user" overridePins="true" />
+        </trust-anchors>
+    </base-config>
+    
+    <!-- 特定域名配置，为重要域名提供额外安全 -->
+    <domain-config>
+        <!-- 应用Google API域名 -->
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">google.com</domain>
+        <domain includeSubdomains="true">gstatic.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+        <!-- 连接重试配置 -->
+        <connection-config
+            cleartextTrafficPermitted="false"
+            requireTls="true" />
+    </domain-config>
+</network-security-config> 

@@ -1,4 +1,4 @@
-package com.example.ebook.domain.model
+package com.wanderreads.ebook.domain.model
 
 import java.io.File
 

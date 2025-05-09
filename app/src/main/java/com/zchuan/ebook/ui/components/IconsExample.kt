@@ -19,7 +19,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun IconsExample() {
+fun IconsWanderreads() {
     Column(modifier = Modifier.padding(16.dp)) {
         Text("材料图标示例")
         
@@ -75,6 +75,6 @@ fun IconsExample() {
 
 @Preview(showBackground = true)
 @Composable
-fun IconsExamplePreview() {
-    IconsExample()
+fun IconsWanderreadsPreview() {
+    IconsWanderreads()
 } 

@@ -1,6 +1,6 @@
-package com.example.ebook.data.repository
+package com.wanderreads.ebook.data.repository
 
-import com.example.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.Book
 import kotlinx.coroutines.flow.Flow
 
 /**

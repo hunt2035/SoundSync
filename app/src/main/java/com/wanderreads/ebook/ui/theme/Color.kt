@@ -1,4 +1,4 @@
-package com.example.ebook.ui.theme
+package com.wanderreads.ebook.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

@@ -1,4 +1,4 @@
-package com.example.ebook.worker
+package com.wanderreads.ebook.worker
 
 import android.content.Context
 import android.net.Uri
@@ -6,18 +6,18 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.WorkerParameters
-import com.example.ebook.data.local.AppDatabase
-import com.example.ebook.data.repository.BookRepositoryImpl
-import com.example.ebook.domain.model.Book
-import com.example.ebook.domain.model.BookFormat
-import com.example.ebook.domain.model.BookType
-import com.example.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_ERROR
-import com.example.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_FILENAME
-import com.example.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_PROGRESS
-import com.example.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_STEP
-import com.example.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_URI
-import com.example.ebook.util.FileUtil
-import com.example.ebook.util.MetadataExtractor
+import com.wanderreads.ebook.data.local.AppDatabase
+import com.wanderreads.ebook.data.repository.BookRepositoryImpl
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookFormat
+import com.wanderreads.ebook.domain.model.BookType
+import com.wanderreads.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_ERROR
+import com.wanderreads.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_FILENAME
+import com.wanderreads.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_PROGRESS
+import com.wanderreads.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_STEP
+import com.wanderreads.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_URI
+import com.wanderreads.ebook.util.FileUtil
+import com.wanderreads.ebook.util.MetadataExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext

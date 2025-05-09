@@ -1,4 +1,4 @@
-package com.example.ebook.ui.importbook
+package com.wanderreads.ebook.ui.importbook
 
 import android.content.Context
 import android.net.Uri
@@ -11,9 +11,9 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import com.example.ebook.data.repository.BookRepository
-import com.example.ebook.util.FileUtil
-import com.example.ebook.worker.BookImportWorker
+import com.wanderreads.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.util.FileUtil
+import com.wanderreads.ebook.worker.BookImportWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

@@ -1,5 +1,5 @@
 // 这是一个临时修复文件
-package com.example.ebook.ui.reader
+package com.wanderreads.ebook.ui.reader
 
 // 要修复的代码片段1 - 字体选项和列表项
 // 问题: String和Int类型不匹配

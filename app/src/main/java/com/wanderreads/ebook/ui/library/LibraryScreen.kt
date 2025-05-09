@@ -1,4 +1,4 @@
-package com.example.ebook.ui.library
+package com.wanderreads.ebook.ui.library
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize

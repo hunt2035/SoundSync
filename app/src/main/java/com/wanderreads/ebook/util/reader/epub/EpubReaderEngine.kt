@@ -1,18 +1,18 @@
-package com.example.ebook.util.reader.epub
+package com.wanderreads.ebook.util.reader.epub
 
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.speech.tts.TextToSpeech
 import android.util.Log
-import com.example.ebook.domain.model.Book
-import com.example.ebook.util.PageDirection
-import com.example.ebook.util.reader.BookReaderEngine
-import com.example.ebook.util.reader.ReaderEngineState
-import com.example.ebook.util.reader.SearchResult
-import com.example.ebook.util.reader.model.BookChapter
-import com.example.ebook.util.reader.model.ReaderConfig
-import com.example.ebook.util.reader.model.ReaderContent
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.util.PageDirection
+import com.wanderreads.ebook.util.reader.BookReaderEngine
+import com.wanderreads.ebook.util.reader.ReaderEngineState
+import com.wanderreads.ebook.util.reader.SearchResult
+import com.wanderreads.ebook.util.reader.model.BookChapter
+import com.wanderreads.ebook.util.reader.model.ReaderConfig
+import com.wanderreads.ebook.util.reader.model.ReaderContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -644,6 +644,13 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
      */
     override fun getCurrentPageText(): String {
         return contentCache[currentPage]?.text ?: "页面内容加载中..."
+    }
+    
+    /**
+     * 检查是否有下一页
+     */
+    override fun hasNextPage(): Boolean {
+        return currentPage < totalPages - 1
     }
     
     /**

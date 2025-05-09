@@ -1,4 +1,4 @@
-package com.example.ebook.ui.bookshelf
+package com.wanderreads.ebook.ui.bookshelf
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -22,6 +22,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.ArrowRight
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
@@ -32,7 +34,6 @@ import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.FormatTextdirectionLToR
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Sort
-import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,16 +65,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.ebook.domain.model.BookType
-import com.example.ebook.ui.components.NewTextDialog
-import com.example.ebook.ui.theme.AppAnimationSpec
+import com.wanderreads.ebook.domain.model.BookType
+import com.wanderreads.ebook.ui.components.NewTextDialog
+import com.wanderreads.ebook.ui.theme.AppAnimationSpec
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 // 使用类型别名解决命名冲突
-typealias EbookModel = com.example.ebook.domain.model.Book
+typealias EbookModel = com.wanderreads.ebook.domain.model.Book
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,7 +82,8 @@ fun BookshelfScreen(
     viewModel: BookshelfViewModel,
     onBookClick: (EbookModel) -> Unit,
     onImportClick: () -> Unit,
-    onWebImportClick: () -> Unit = {}
+    onWebImportClick: () -> Unit = {},
+    onOpenWebUrl: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
@@ -140,7 +142,7 @@ fun BookshelfScreen(
                             text = { Text("本地导入") },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Outlined.Storage,
+                                    imageVector = Icons.Filled.Storage,
                                     contentDescription = null
                                 )
                             },
@@ -201,6 +203,9 @@ fun BookshelfScreen(
                                 showMenu = false
                             }
                         )
+                        
+                        // 替换原来的排序菜单项
+                        var showSortMenu by remember { mutableStateOf(false) }
                         DropdownMenuItem(
                             text = { Text("书籍排序") },
                             leadingIcon = {
@@ -209,11 +214,58 @@ fun BookshelfScreen(
                                     contentDescription = null
                                 )
                             },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowRight,
+                                    contentDescription = null
+                                )
+                            },
                             onClick = { 
-                                // 书籍排序逻辑
-                                showMenu = false
+                                showSortMenu = true
                             }
                         )
+                        
+                        // 子菜单：排序选项
+                        if (showSortMenu) {
+                            DropdownMenu(
+                                expanded = showSortMenu,
+                                onDismissRequest = { showSortMenu = false },
+                                modifier = Modifier.width(200.dp)
+                            ) {
+                                val sortOptions = listOf(
+                                    BookSort.ADDED_DATE to "添加时间",
+                                    BookSort.LAST_OPENED to "最近阅读",
+                                    BookSort.TITLE to "书名",
+                                    BookSort.AUTHOR to "作者"
+                                )
+                                
+                                sortOptions.forEach { (sort, label) ->
+                                    DropdownMenuItem(
+                                        text = { 
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(label)
+                                                if (uiState.currentSort == sort) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onClick = { 
+                                            viewModel.sortBooks(sort)
+                                            showSortMenu = false
+                                            showMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -455,7 +507,7 @@ fun BookListItem(
                     modifier = Modifier.padding(vertical = 2.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Storage,
+                        imageVector = Icons.Filled.Storage,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)

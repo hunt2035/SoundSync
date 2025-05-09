@@ -1,4 +1,4 @@
-package com.example.ebook.ui.settings
+package com.wanderreads.ebook.ui.settings
 
 import android.content.Context
 import androidx.lifecycle.ViewModel

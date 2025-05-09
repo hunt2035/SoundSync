@@ -1,4 +1,4 @@
-﻿package com.example.ebook.ui.reader
+﻿package com.wanderreads.ebook.ui.reader
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -92,7 +92,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.example.ebook.util.PageDirection
+import com.wanderreads.ebook.util.PageDirection
 import java.util.Locale
 import java.util.UUID
 
@@ -852,7 +852,7 @@ fun EnhancedBottomEpubControls(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedTocBottomSheet(
-    chapters: List<com.example.ebook.util.ChapterInfo>,
+    chapters: List<com.wanderreads.ebook.util.ChapterInfo>,
     currentChapterIndex: Int,
     onChapterSelected: (Int) -> Unit,
     onDismiss: () -> Unit

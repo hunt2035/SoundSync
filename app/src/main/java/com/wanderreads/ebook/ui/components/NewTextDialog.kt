@@ -1,4 +1,4 @@
-package com.example.ebook.ui.components
+package com.wanderreads.ebook.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,11 +29,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.example.ebook.data.repository.BookRepository
-import com.example.ebook.data.repository.BookRepositoryImpl
-import com.example.ebook.domain.model.Book
-import com.example.ebook.domain.model.BookType
-import com.example.ebook.util.TextProcessor
+import com.wanderreads.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.data.repository.BookRepositoryImpl
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookType
+import com.wanderreads.ebook.util.TextProcessor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

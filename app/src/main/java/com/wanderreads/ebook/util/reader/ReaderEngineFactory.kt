@@ -1,9 +1,9 @@
-package com.example.ebook.util.reader
+package com.wanderreads.ebook.util.reader
 
 import android.content.Context
-import com.example.ebook.domain.model.BookFormat
-import com.example.ebook.util.reader.epub.EpubReaderEngine
-import com.example.ebook.util.reader.txt.TxtReaderEngine
+import com.wanderreads.ebook.domain.model.BookFormat
+import com.wanderreads.ebook.util.reader.epub.EpubReaderEngine
+import com.wanderreads.ebook.util.reader.txt.TxtReaderEngine
 
 /**
  * 阅读引擎工厂类

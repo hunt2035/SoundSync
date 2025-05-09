@@ -1,10 +1,10 @@
-package com.example.ebook.data.repository
+package com.wanderreads.ebook.data.repository
 
 import android.content.Context
-import com.example.ebook.data.local.dao.BookDao
-import com.example.ebook.data.local.entity.BookEntity
-import com.example.ebook.domain.model.Book
-import com.example.ebook.domain.model.BookType
+import com.wanderreads.ebook.data.local.dao.BookDao
+import com.wanderreads.ebook.data.local.entity.BookEntity
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map

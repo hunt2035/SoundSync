@@ -1,4 +1,4 @@
-package com.example.ebook.ui.components
+package com.wanderreads.ebook.ui.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -80,7 +80,7 @@ fun WebImportDialog(
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
                     label = { Text("网页地址") },
-                    placeholder = { Text("https://example.com") },
+                    placeholder = { Text("https://wanderreads.com") },
                     leadingIcon = { 
                         Icon(
                             imageVector = Icons.Outlined.Language,

@@ -1,4 +1,4 @@
-package com.example.ebook.ui.settings
+package com.wanderreads.ebook.ui.settings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -36,6 +37,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -60,8 +62,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.Image
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.ebook.R
-import com.example.ebook.ui.theme.Primary
+import com.wanderreads.ebook.R
+import com.wanderreads.ebook.ui.theme.Primary
 
 /**
  * 设置屏幕
@@ -168,13 +170,19 @@ fun SettingsScreen() {
                 )
             }
             
+            // TTS设置
+            item {
+                SettingsCategoryTitle(title = "文本朗读设置")
+                // TTS设置项将在未来添加
+            }
+            
             // 关于
             item {
-                SettingsCategoryTitle(title = "关于")
+                SettingsCategoryTitle(title = "其他")
                 SettingsItem(
                     icon = Icons.Default.Info,
-                    title = "关于应用",
-                    subtitle = "查看应用信息",
+                    title = "关于",
+                    subtitle = "应用版本和使用条款",
                     onClick = { showAboutDialog = true }
                 )
             }
@@ -188,8 +196,7 @@ fun SettingsScreen() {
             options = listOf(
                 "跟随系统",
                 "简体中文",
-                "繁体中文",
-                "英文"
+                "英语"
             ),
             selectedOption = settingsState.language,
             onOptionSelected = { settingsViewModel.setLanguage(it) },
@@ -202,9 +209,9 @@ fun SettingsScreen() {
         SettingsOptionDialog(
             title = "选择主题",
             options = listOf(
-                "跟随系统",
-                "亮色主题",
-                "暗色主题"
+                "浅色模式",
+                "深色模式",
+                "跟随系统"
             ),
             selectedOption = settingsState.theme,
             onOptionSelected = { settingsViewModel.setTheme(it) },
@@ -214,9 +221,15 @@ fun SettingsScreen() {
     
     // 字体大小对话框
     if (showFontSizeDialog) {
-        FontSizeDialog(
-            currentSize = settingsState.fontSize,
-            onSizeChanged = { settingsViewModel.setFontSize(it) },
+        SettingsOptionDialog(
+            title = "字体大小",
+            options = listOf(
+                "小",
+                "中",
+                "大"
+            ),
+            selectedOption = settingsState.fontSize,
+            onOptionSelected = { settingsViewModel.setFontSize(it) },
             onDismiss = { showFontSizeDialog = false }
         )
     }
@@ -348,7 +361,62 @@ fun SettingsItem(
 }
 
 /**
- * 选项设置对话框
+ * 带开关的设置项
+ */
+@Composable
+fun SettingsSwitchItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    isChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Switch(
+                checked = isChecked,
+                onCheckedChange = onCheckedChange
+            )
+        }
+    }
+}
+
+/**
+ * 选项对话框
  */
 @Composable
 fun SettingsOptionDialog(
@@ -360,7 +428,7 @@ fun SettingsOptionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { Text(text = title) },
         text = {
             Column {
                 options.forEachIndexed { index, option ->
@@ -369,93 +437,27 @@ fun SettingsOptionDialog(
                             .fillMaxWidth()
                             .clickable { 
                                 onOptionSelected(index)
-                                onDismiss()
+                                onDismiss() 
                             }
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
                             selected = selectedOption == index,
-                            onClick = {
+                            onClick = { 
                                 onOptionSelected(index)
-                                onDismiss()
+                                onDismiss() 
                             }
                         )
+                        
                         Spacer(modifier = Modifier.width(8.dp))
+                        
                         Text(text = option)
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
-    )
-}
-
-/**
- * 字体大小设置对话框
- */
-@Composable
-fun FontSizeDialog(
-    currentSize: Int,
-    onSizeChanged: (Int) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var sliderPosition by remember { mutableStateOf(currentSize.toFloat()) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("字体大小") },
-        text = {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "示例文本",
-                    style = when (sliderPosition.toInt()) {
-                        0 -> MaterialTheme.typography.bodySmall
-                        1 -> MaterialTheme.typography.bodyMedium
-                        2 -> MaterialTheme.typography.bodyLarge
-                        3 -> MaterialTheme.typography.titleMedium
-                        else -> MaterialTheme.typography.bodyMedium
-                    }
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                Slider(
-                    value = sliderPosition,
-                    onValueChange = { sliderPosition = it },
-                    valueRange = 0f..3f,
-                    steps = 2,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("小", style = MaterialTheme.typography.bodySmall)
-                    Text("中", style = MaterialTheme.typography.bodySmall)
-                    Text("大", style = MaterialTheme.typography.bodySmall)
-                    Text("特大", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onSizeChanged(sliderPosition.toInt())
-                    onDismiss()
-                }
-            ) {
-                Text("确定")
-            }
-        },
-        dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("取消")
             }
@@ -473,26 +475,27 @@ fun ColorPickerDialog(
     onColorSelected: (Color) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var selectedColor by remember { mutableStateOf(currentColor) }
-    
-    // 预定义的颜色列表
+    // 色彩选项
     val colorOptions = listOf(
-        Color(0xFF3F51B5), // Indigo
-        Color(0xFF2196F3), // Blue
-        Color(0xFF03A9F4), // Light Blue
-        Color(0xFF00BCD4), // Cyan
-        Color(0xFF009688), // Teal
-        Color(0xFF4CAF50), // Green
-        Color(0xFF8BC34A), // Light Green
-        Color(0xFFCDDC39), // Lime
-        Color(0xFFFFEB3B), // Yellow
-        Color(0xFFFFC107), // Amber
-        Color(0xFFFF9800), // Orange
-        Color(0xFFFF5722), // Deep Orange
-        Color(0xFFF44336), // Red
-        Color(0xFFE91E63), // Pink
-        Color(0xFF9C27B0)  // Purple
+        Color(0xFFE57373), // 红色
+        Color(0xFFF06292), // 粉红色
+        Color(0xFFBA68C8), // 紫色
+        Color(0xFF9575CD), // 深紫色
+        Color(0xFF7986CB), // 靛蓝色
+        Color(0xFF64B5F6), // 蓝色
+        Color(0xFF4FC3F7), // 浅蓝色
+        Color(0xFF4DD0E1), // 青色
+        Color(0xFF4DB6AC), // 蓝绿色
+        Color(0xFF81C784), // 绿色
+        Color(0xFFAED581), // 浅绿色
+        Color(0xFFFF8A65), // 橙色
+        Color(0xFF90A4AE), // 蓝灰色
+        Color(0xFF0091EA), // 亮蓝色
+        Color(0xFF1E3A5F), // 深蓝色
+        Color(0xFF212121)  // 黑色
     )
+    
+    var selectedColor by remember { mutableStateOf(currentColor) }
     
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -525,20 +528,26 @@ fun ColorPickerDialog(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    for (i in 0 until 3) {
+                    for (i in 0 until 4) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            for (j in 0 until 5) {
-                                val index = i * 5 + j
+                            for (j in 0 until 4) {
+                                val index = i * 4 + j
                                 if (index < colorOptions.size) {
                                     val color = colorOptions[index]
-                                    ColorOption(
-                                        color = color,
-                                        isSelected = selectedColor == color,
-                                        onClick = { selectedColor = color }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                            .clickable {
+                                                selectedColor = color
+                                            }
+                                            .padding(4.dp)
                                     )
+                                } else {
+                                    Box(modifier = Modifier.size(40.dp))
                                 }
                             }
                         }
@@ -551,7 +560,9 @@ fun ColorPickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(
+                        onClick = onDismiss
+                    ) {
                         Text("取消")
                     }
                     
@@ -570,114 +581,44 @@ fun ColorPickerDialog(
 }
 
 /**
- * 单个颜色选项
- */
-@Composable
-fun ColorOption(
-    color: Color,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(color)
-            .clickable(onClick = onClick)
-            .padding(4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        if (isSelected) {
-            Box(
-                modifier = Modifier
-                    .size(16.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-            )
-        }
-    }
-}
-
-/**
  * 关于对话框
  */
 @Composable
-fun AboutDialog(onDismiss: () -> Unit) {
+fun AboutDialog(
+    onDismiss: () -> Unit
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.app_icon),
-                    contentDescription = "App Logo",
-                    modifier = Modifier.size(40.dp)
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "漫阅",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Wander Reads",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = Primary,  // 使用应用主题的蓝色
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-            }
-        },
+        title = { Text("关于应用") },
         text = {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(16.dp))
-                
                 Text(
-                    text = "版本: 0.10",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "电子书阅读器",
+                    style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Center
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 Text(
-                    text = "作者: HuntLong",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "联系: hunt2035@qq.com",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
+                    text = "版本: 1.0.0",
+                    style = MaterialTheme.typography.bodyMedium
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 Text(
-                    text = "感谢您使用本应用",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "本应用是一个功能强大的电子书阅读器，支持多种格式的电子书，提供舒适的阅读体验。",
+                    style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭")
+                Text("确定")
             }
         }
     )
@@ -686,49 +627,47 @@ fun AboutDialog(onDismiss: () -> Unit) {
 /**
  * 获取语言文本
  */
-private fun getLanguageText(language: Int): String {
+fun getLanguageText(language: Int): String {
     return when (language) {
         SettingsViewModel.LANGUAGE_SYSTEM -> "跟随系统"
-        SettingsViewModel.LANGUAGE_SIMPLIFIED_CHINESE -> "简体中文"
-        SettingsViewModel.LANGUAGE_TRADITIONAL_CHINESE -> "繁体中文"
-        SettingsViewModel.LANGUAGE_ENGLISH -> "英文"
-        else -> "跟随系统"
+        SettingsViewModel.LANGUAGE_CHINESE -> "简体中文"
+        SettingsViewModel.LANGUAGE_ENGLISH -> "英语"
+        else -> "未知"
     }
 }
 
 /**
  * 获取主题文本
  */
-private fun getThemeText(theme: Int): String {
+fun getThemeText(theme: Int): String {
     return when (theme) {
+        SettingsViewModel.THEME_LIGHT -> "浅色模式"
+        SettingsViewModel.THEME_DARK -> "深色模式"
         SettingsViewModel.THEME_SYSTEM -> "跟随系统"
-        SettingsViewModel.THEME_LIGHT -> "亮色主题"
-        SettingsViewModel.THEME_DARK -> "暗色主题"
-        else -> "跟随系统"
+        else -> "未知"
     }
 }
 
 /**
  * 获取字体大小文本
  */
-private fun getFontSizeText(fontSize: Int): String {
+fun getFontSizeText(fontSize: Int): String {
     return when (fontSize) {
         SettingsViewModel.FONT_SIZE_SMALL -> "小"
         SettingsViewModel.FONT_SIZE_MEDIUM -> "中"
         SettingsViewModel.FONT_SIZE_LARGE -> "大"
-        SettingsViewModel.FONT_SIZE_XLARGE -> "特大"
-        else -> "中"
+        else -> "未知"
     }
 }
 
 /**
  * 获取封面样式文本
  */
-private fun getCoverStyleText(coverStyle: Int): String {
+fun getCoverStyleText(coverStyle: Int): String {
     return when (coverStyle) {
         SettingsViewModel.COVER_STYLE_DEFAULT -> "默认样式"
         SettingsViewModel.COVER_STYLE_CARD -> "卡片样式"
         SettingsViewModel.COVER_STYLE_MATERIAL -> "材质样式"
-        else -> "默认样式"
+        else -> "未知"
     }
 } 

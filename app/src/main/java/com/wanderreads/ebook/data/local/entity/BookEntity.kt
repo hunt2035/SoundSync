@@ -1,9 +1,9 @@
-package com.example.ebook.data.local.entity
+package com.wanderreads.ebook.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.example.ebook.domain.model.Book
-import com.example.ebook.domain.model.BookType
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookType
 
 /**
  * 电子书数据库实体
@@ -22,7 +22,8 @@ data class BookEntity(
     val lastReadPosition: Float,
     val totalPages: Int,
     val addedDate: Long,
-    val lastOpenedDate: Long
+    val lastOpenedDate: Long,
+    val urlPath: String? = null // 网页导入的URL
 ) {
     fun toBook(): Book {
         return Book(
@@ -37,7 +38,8 @@ data class BookEntity(
             lastReadPosition = lastReadPosition,
             totalPages = totalPages,
             addedDate = addedDate,
-            lastOpenedDate = lastOpenedDate
+            lastOpenedDate = lastOpenedDate,
+            urlPath = urlPath
         )
     }
     
@@ -55,7 +57,8 @@ data class BookEntity(
                 lastReadPosition = book.lastReadPosition,
                 totalPages = book.totalPages,
                 addedDate = book.addedDate,
-                lastOpenedDate = book.lastOpenedDate
+                lastOpenedDate = book.lastOpenedDate,
+                urlPath = book.urlPath
             )
         }
     }

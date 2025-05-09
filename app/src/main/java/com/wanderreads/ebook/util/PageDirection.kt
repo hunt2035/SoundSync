@@ -1,4 +1,4 @@
-package com.example.ebook.util
+package com.wanderreads.ebook.util
 
 /**
  * 页面导航方向

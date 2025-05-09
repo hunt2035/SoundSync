@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">漫阅</string>
+    <string name="accessibility_service_description">启用此服务以允许录制系统内部音频（如TTS朗读声音等）。华为设备必须开启此权限才能实现内录功能。</string>
+    <string name="app_name_audio_capture_service">漫阅内录服务</string>
+    <string name="huawei_accessibility_guide_title">开启无障碍服务</string>
+    <string name="huawei_accessibility_guide_message">在华为设备上实现内录功能需要开启"漫阅内录服务"无障碍权限。\n\n1. 点击"前往设置"\n2. 找到并点击"漫阅内录服务"\n3. 开启开关即可</string>
+    <string name="go_to_settings">前往设置</string>
 </resources> 

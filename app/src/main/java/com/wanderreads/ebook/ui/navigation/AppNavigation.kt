@@ -1,4 +1,4 @@
-package com.example.ebook.ui.navigation
+package com.wanderreads.ebook.ui.navigation
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -52,26 +52,31 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.ebook.data.local.AppDatabase
-import com.example.ebook.data.repository.BookRepositoryImpl
-import com.example.ebook.ui.bookshelf.BookshelfScreen
-import com.example.ebook.ui.bookshelf.BookshelfViewModel
-import com.example.ebook.ui.components.WebImportDialog
-import com.example.ebook.ui.history.HistoryScreen
-import com.example.ebook.ui.library.LibraryScreen
-import com.example.ebook.ui.settings.SettingsScreen
-import com.example.ebook.ui.importbook.ImportBookScreen
-import com.example.ebook.ui.reader.ReaderScreen
-import com.example.ebook.ui.reader.ReaderViewModel
-import com.example.ebook.ui.reader.ReaderViewModelFactory
-import com.example.ebook.ui.reader.EpubReaderScreen
-import com.example.ebook.ui.reader.EpubReaderViewModel
-import com.example.ebook.ui.reader.EpubReaderViewModelFactory
-import com.example.ebook.ui.settings.SettingsViewModelFactory
-import com.example.ebook.ui.settings.SettingsViewModel
-import com.example.ebook.ui.reader.UnifiedReaderScreen
-import com.example.ebook.ui.reader.UnifiedReaderViewModel
-import com.example.ebook.ui.reader.UnifiedReaderViewModelFactory
+import com.wanderreads.ebook.data.local.AppDatabase
+import com.wanderreads.ebook.data.repository.BookRepositoryImpl
+import com.wanderreads.ebook.ui.bookshelf.BookshelfScreen
+import com.wanderreads.ebook.ui.bookshelf.BookshelfViewModel
+import com.wanderreads.ebook.ui.bookshelf.BookshelfViewModelFactory
+import com.wanderreads.ebook.ui.components.WebImportDialog
+import com.wanderreads.ebook.ui.components.WebViewScreen
+import com.wanderreads.ebook.ui.history.HistoryScreen
+import com.wanderreads.ebook.ui.history.HistoryViewModel
+import com.wanderreads.ebook.ui.history.HistoryViewModelFactory
+import com.wanderreads.ebook.ui.library.LibraryScreen
+import com.wanderreads.ebook.ui.settings.SettingsScreen
+import com.wanderreads.ebook.ui.importbook.ImportBookScreen
+import com.wanderreads.ebook.ui.reader.ReaderScreen
+import com.wanderreads.ebook.ui.reader.ReaderViewModel
+import com.wanderreads.ebook.ui.reader.ReaderViewModelFactory
+import com.wanderreads.ebook.ui.reader.EpubReaderScreen
+import com.wanderreads.ebook.ui.reader.EpubReaderViewModel
+import com.wanderreads.ebook.ui.reader.EpubReaderViewModelFactory
+import com.wanderreads.ebook.ui.settings.SettingsViewModelFactory
+import com.wanderreads.ebook.ui.settings.SettingsViewModel
+import com.wanderreads.ebook.ui.reader.UnifiedReaderScreen
+import com.wanderreads.ebook.ui.reader.UnifiedReaderViewModel
+import com.wanderreads.ebook.ui.reader.UnifiedReaderViewModelFactory
+import com.wanderreads.ebook.domain.model.BookType
 import android.app.Application
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -160,6 +165,16 @@ sealed class Screen(
     ) {
         fun createRoute(bookId: String) = "unified_reader/$bookId"
     }
+    
+    data object WebView : Screen(
+        route = "webview?url={url}",
+        title = "网页浏览",
+        selectedIcon = Icons.AutoMirrored.Filled.List,
+        unselectedIcon = Icons.AutoMirrored.Outlined.List,
+        hasBottomBar = false
+    ) {
+        fun createRoute(url: String) = "webview?url=${url}"
+    }
 }
 
 /**
@@ -212,11 +227,12 @@ fun AppNavigation() {
     // 网址导入对话框状态
     var showWebImportDialog by remember { mutableStateOf(false) }
     
-    // 显示网址导入对话框
+    // 继续显示网址导入对话框
     if (showWebImportDialog) {
         WebImportDialog(
             onDismiss = { showWebImportDialog = false },
             onConfirm = { url ->
+                // 处理导入网页的逻辑
                 bookshelfViewModel.importBookFromUrl(url)
                 showWebImportDialog = false
             }
@@ -252,17 +268,31 @@ fun AppNavigation() {
         ) {
             // 书架屏幕
             composable(Screen.Bookshelf.route) {
+                val bookshelfViewModel = viewModel<BookshelfViewModel>(
+                    factory = BookshelfViewModelFactory(
+                        application = context.applicationContext as Application,
+                        bookRepository = bookRepository
+                    )
+                )
+                
                 BookshelfScreen(
                     viewModel = bookshelfViewModel,
                     onBookClick = { book ->
-                        // 使用统一阅读器打开所有格式的电子书
-                        navController.navigate(Screen.UnifiedReader.createRoute(book.id))
+                        when(book.type) {
+                            BookType.EPUB -> navController.navigate(Screen.EpubReader.createRoute(book.id))
+                            else -> navController.navigate(Screen.UnifiedReader.createRoute(book.id))
+                        }
                     },
                     onImportClick = {
                         navController.navigate(Screen.ImportBook.route)
                     },
                     onWebImportClick = {
+                        // 显示网址导入对话框
                         showWebImportDialog = true
+                    },
+                    onOpenWebUrl = { url ->
+                        // 这一部分代码会保留但不再被调用
+                        navController.navigate(Screen.WebView.createRoute(url))
                     }
                 )
             }
@@ -274,7 +304,27 @@ fun AppNavigation() {
             
             // 历史屏幕
             composable(Screen.History.route) {
-                HistoryScreen()
+                val application = context.applicationContext as Application
+                val historyViewModelFactory = remember { 
+                    HistoryViewModelFactory(
+                        application = application,
+                        bookRepository = bookRepository
+                    )
+                }
+                
+                val historyViewModel = viewModel<HistoryViewModel>(
+                    factory = historyViewModelFactory
+                )
+                
+                HistoryScreen(
+                    viewModel = historyViewModel,
+                    onBookClick = { book ->
+                        when(book.type) {
+                            BookType.EPUB -> navController.navigate(Screen.EpubReader.createRoute(book.id))
+                            else -> navController.navigate(Screen.UnifiedReader.createRoute(book.id))
+                        }
+                    }
+                )
             }
             
             // 设置屏幕
@@ -323,6 +373,9 @@ fun AppNavigation() {
             ) { backStackEntry ->
                 val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
                 val application = context.applicationContext as android.app.Application
+                val ebookApplication = context.applicationContext as com.wanderreads.ebook.EbookApplication
+                val dependencies = ebookApplication.provideDependencies()
+                val bookRepository = dependencies.bookRepository
                 val viewModelFactory = remember { 
                     EpubReaderViewModelFactory(
                         application = application,
@@ -382,10 +435,15 @@ fun AppNavigation() {
             ) { backStackEntry ->
                 val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
                 val application = context.applicationContext as android.app.Application
+                val ebookApplication = context.applicationContext as com.wanderreads.ebook.EbookApplication
+                val dependencies = ebookApplication.provideDependencies()
+                val bookRepository = dependencies.bookRepository
+                val recordRepository = dependencies.recordRepository
                 val viewModelFactory = remember { 
                     UnifiedReaderViewModelFactory(
                         application = application,
                         bookRepository = bookRepository,
+                        recordRepository = recordRepository,
                         bookId = bookId
                     )
                 }
@@ -399,6 +457,23 @@ fun AppNavigation() {
                     onNavigateBack = {
                         navController.popBackStack()
                     }
+                )
+            }
+            
+            // WebView 页面
+            composable(
+                route = Screen.WebView.route,
+                arguments = listOf(
+                    navArgument("url") {
+                        type = NavType.StringType
+                        nullable = false
+                    }
+                )
+            ) { backStackEntry ->
+                val url = backStackEntry.arguments?.getString("url") ?: ""
+                WebViewScreen(
+                    url = url,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

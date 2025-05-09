@@ -1,11 +1,12 @@
-package com.example.ebook.ui.settings
+package com.wanderreads.ebook.ui.settings
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.ebook.data.local.dataStore
+import com.wanderreads.ebook.data.local.dataStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -120,39 +121,31 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     }
 
     companion object {
-        // 语言
+        val LANGUAGE_KEY = stringPreferencesKey("language")
+        val THEME_KEY = stringPreferencesKey("theme")
+        val FONT_SIZE_KEY = stringPreferencesKey("font_size")
+        val COVER_STYLE_KEY = stringPreferencesKey("cover_style")
+        val PRIMARY_COLOR_KEY = stringPreferencesKey("primary_color")
+        val BACKGROUND_COLOR_KEY = stringPreferencesKey("background_color")
+        
         const val LANGUAGE_SYSTEM = 0
-        const val LANGUAGE_SIMPLIFIED_CHINESE = 1
-        const val LANGUAGE_TRADITIONAL_CHINESE = 2
-        const val LANGUAGE_ENGLISH = 3
-
-        // 主题
-        const val THEME_SYSTEM = 0
-        const val THEME_LIGHT = 1
-        const val THEME_DARK = 2
-
-        // 字体大小
+        const val LANGUAGE_CHINESE = 1
+        const val LANGUAGE_ENGLISH = 2
+        
+        const val THEME_LIGHT = 0
+        const val THEME_DARK = 1
+        const val THEME_SYSTEM = 2
+        
         const val FONT_SIZE_SMALL = 0
         const val FONT_SIZE_MEDIUM = 1
         const val FONT_SIZE_LARGE = 2
-        const val FONT_SIZE_XLARGE = 3
-
-        // 封面样式
+        
         const val COVER_STYLE_DEFAULT = 0
         const val COVER_STYLE_CARD = 1
         const val COVER_STYLE_MATERIAL = 2
-
-        // 默认颜色
-        const val PRIMARY_COLOR_DEFAULT = "#1E3A5F" // 深蓝色
-        const val BACKGROUND_COLOR_DEFAULT = "#0F1824" // 深蓝背景色
-
-        // 设置键
-        private val LANGUAGE_KEY = stringPreferencesKey("language")
-        private val THEME_KEY = stringPreferencesKey("theme")
-        private val FONT_SIZE_KEY = stringPreferencesKey("font_size")
-        private val COVER_STYLE_KEY = stringPreferencesKey("cover_style")
-        private val PRIMARY_COLOR_KEY = stringPreferencesKey("primary_color")
-        private val BACKGROUND_COLOR_KEY = stringPreferencesKey("background_color")
+        
+        const val PRIMARY_COLOR_DEFAULT = "#0091EA"
+        const val BACKGROUND_COLOR_DEFAULT = "#FFFFFF"
     }
 }
 

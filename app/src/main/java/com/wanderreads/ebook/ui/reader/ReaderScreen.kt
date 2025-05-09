@@ -1,4 +1,4 @@
-package com.example.ebook.ui.reader
+package com.wanderreads.ebook.ui.reader
 
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener

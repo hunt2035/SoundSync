@@ -1,4 +1,4 @@
-package com.example.ebook.ui.components
+package com.wanderreads.ebook.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -52,7 +52,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.ebook.ui.theme.AppAnimationSpec
+import com.wanderreads.ebook.ui.theme.AppAnimationSpec
 
 /**
  * A stylized primary button with hover and press animations

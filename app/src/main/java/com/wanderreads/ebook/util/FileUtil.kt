@@ -1,4 +1,4 @@
-package com.example.ebook.util
+package com.wanderreads.ebook.util
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -7,7 +7,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
-import com.example.ebook.domain.model.BookFormat
+import com.wanderreads.ebook.domain.model.BookFormat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

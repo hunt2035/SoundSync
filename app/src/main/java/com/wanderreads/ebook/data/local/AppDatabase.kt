@@ -1,24 +1,27 @@
-package com.example.ebook.data.local
+package com.wanderreads.ebook.data.local
 
 import android.content.Context
 import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.example.ebook.data.local.dao.BookDao
-import com.example.ebook.data.local.entity.BookEntity
+import com.wanderreads.ebook.data.local.dao.BookDao
+import com.wanderreads.ebook.data.local.dao.RecordDao
+import com.wanderreads.ebook.data.local.entity.BookEntity
+import com.wanderreads.ebook.data.local.entity.RecordEntity
 
 /**
  * 应用数据库
  */
 @Database(
-    entities = [BookEntity::class],
-    version = 3,
+    entities = [BookEntity::class, RecordEntity::class],
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     
     abstract fun bookDao(): BookDao
+    abstract fun recordDao(): RecordDao
     
     companion object {
         private const val DATABASE_NAME = "ebook_database"
