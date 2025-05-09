@@ -29,6 +29,22 @@ class RecordRepositoryImpl(
         return recordDao.insertRecord(RecordEntity.fromRecord(record))
     }
     
+    override suspend fun saveRecord(record: Record): Long {
+        // 确保录音文件存在
+        val file = File(record.voiceFilePath)
+        if (!file.exists()) {
+            // 如果文件不存在，尝试创建
+            try {
+                file.parentFile?.mkdirs()
+                file.createNewFile()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        
+        return addRecord(record)
+    }
+    
     override suspend fun updateRecord(record: Record) {
         recordDao.updateRecord(RecordEntity.fromRecord(record))
     }

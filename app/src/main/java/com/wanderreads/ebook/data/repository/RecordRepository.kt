@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
  */
 interface RecordRepository {
     suspend fun addRecord(record: Record): Long
+    suspend fun saveRecord(record: Record): Long
     suspend fun updateRecord(record: Record)
     suspend fun deleteRecord(record: Record)
     suspend fun getRecordById(recordId: String): Record?

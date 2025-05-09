@@ -83,7 +83,7 @@ fun RecordsScreen(
                         .heightIn(max = 400.dp)
                 ) {
                     items(records) { record ->
-                        val isPlaying = currentPlayingRecordId == record.recId
+                        val isPlaying = currentPlayingRecordId == record.id
                         RecordItem(
                             record = record,
                             isPlaying = isPlaying,
@@ -115,10 +115,10 @@ private fun RecordItem(
     onPlayPause: () -> Unit
 ) {
     val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-    val formattedDate = dateFormat.format(Date(record.createdAt))
+    val formattedDate = dateFormat.format(Date(record.addedDate))
     
     // 格式化录音时长
-    val totalSeconds = (record.duration / 1000).toInt()
+    val totalSeconds = record.voiceLength
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     val duration = String.format("%02d:%02d", minutes, seconds)

@@ -29,19 +29,19 @@ data class RecordEntity(
     val book_id: String,
     val title: String,
     val voiceFilePath: String,
-    val createdAt: Long,
-    val duration: Long,
+    val addedDate: Long,
+    val voiceLength: Int,
     val chapterIndex: Long?,
     val pageIndex: Long?
 ) {
     fun toRecord(): Record {
         return Record(
-            recId = rec_id,
+            id = rec_id,
             bookId = book_id,
             title = title,
             voiceFilePath = voiceFilePath,
-            createdAt = createdAt,
-            duration = duration,
+            addedDate = addedDate,
+            voiceLength = voiceLength,
             chapterIndex = chapterIndex,
             pageIndex = pageIndex
         )
@@ -50,12 +50,12 @@ data class RecordEntity(
     companion object {
         fun fromRecord(record: Record): RecordEntity {
             return RecordEntity(
-                rec_id = record.recId,
+                rec_id = record.id,
                 book_id = record.bookId,
                 title = record.title,
                 voiceFilePath = record.voiceFilePath,
-                createdAt = record.createdAt,
-                duration = record.duration,
+                addedDate = record.addedDate,
+                voiceLength = record.voiceLength,
                 chapterIndex = record.chapterIndex,
                 pageIndex = record.pageIndex
             )

@@ -27,10 +27,10 @@ interface RecordDao {
     @Query("SELECT * FROM records WHERE rec_id = :recordId")
     suspend fun getRecordById(recordId: String): RecordEntity?
     
-    @Query("SELECT * FROM records WHERE book_id = :bookId ORDER BY createdAt DESC")
+    @Query("SELECT * FROM records WHERE book_id = :bookId ORDER BY addedDate DESC")
     fun getRecordsByBookId(bookId: String): Flow<List<RecordEntity>>
     
-    @Query("SELECT * FROM records ORDER BY createdAt DESC")
+    @Query("SELECT * FROM records ORDER BY addedDate DESC")
     fun getAllRecords(): Flow<List<RecordEntity>>
     
     @Query("DELETE FROM records WHERE book_id = :bookId")

@@ -310,9 +310,20 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun checkAndRequestPermissions() {
-        val permissions = mutableListOf(
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        )
+        val permissions = mutableListOf<String>()
+        
+        // 根据Android版本选择合适的存储权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ 使用分类媒体权限
+            permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ 使用READ_EXTERNAL_STORAGE
+            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        } else {
+            // Android 10及以下 使用READ_EXTERNAL_STORAGE和WRITE_EXTERNAL_STORAGE
+            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
         
         // 添加录音权限
         permissions.add(Manifest.permission.RECORD_AUDIO)

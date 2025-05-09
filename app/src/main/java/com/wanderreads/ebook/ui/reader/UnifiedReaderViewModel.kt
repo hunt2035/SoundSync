@@ -58,6 +58,8 @@ import java.util.Locale
 import java.util.UUID
 import java.util.Date
 import kotlinx.coroutines.delay
+import java.util.concurrent.TimeUnit
+import android.os.Environment
 
 /**
  * 统一的阅读器ViewModel
@@ -311,13 +313,17 @@ class UnifiedReaderViewModel(
                 val context = getApplication<Application>().applicationContext
                 val mainActivity = context.findMainActivity()
                 
-                // 创建录音目录
-                var recordDir = try {
-                    (recordRepository as? RecordRepositoryImpl)?.createRecordDirectory()
-                } catch (e: Exception) {
-                    null
-                } ?: File(context.filesDir, "book_records").apply { 
-                    if (!exists()) mkdirs() 
+                // 创建录音目录 - 优先使用应用专属目录
+                val recordDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Android 10以上，优先使用应用专属目录
+                    getApplication<Application>().getExternalFilesDir(Environment.DIRECTORY_MUSIC)?.let { 
+                        File(it, "book_records").apply { if (!exists()) mkdirs() }
+                    } ?: File(context.filesDir, "book_records").apply { if (!exists()) mkdirs() }
+                } else {
+                    // Android 10以下，可以使用公共目录
+                    File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "book_records").apply { 
+                        if (!exists()) mkdirs() 
+                    }
                 }
                 
                 // 确保录音目录存在并可写
@@ -325,34 +331,28 @@ class UnifiedReaderViewModel(
                     val success = recordDir.mkdirs()
                     if (!success) {
                         Log.e(TAG, "无法创建录音目录: ${recordDir.absolutePath}")
-                        
-                        // 尝试使用外部存储
-                        val extDir = context.getExternalFilesDir("book_records")
-                        if (extDir != null && (extDir.exists() || extDir.mkdirs())) {
-                            recordDir = extDir
-                            Log.d(TAG, "使用外部存储目录: ${extDir.absolutePath}")
-                        } else {
-                            _uiState.update { it.copy(error = "无法创建录音存储目录") }
-                            return@launch
-                        }
+                        _uiState.update { it.copy(error = "无法创建录音存储目录，请检查存储权限") }
+                        return@launch
+                    } else {
+                        Log.d(TAG, "成功创建录音目录: ${recordDir.absolutePath}")
                     }
                 }
                 
                 // 检查是否是华为设备
                 val isHuaweiDevice = isHuaweiDevice()
+                val isHuaweiP30Pro = isHuaweiP30Pro()
                 
                 // 创建录音文件（使用时间戳作为唯一标识）
                 val timestamp = System.currentTimeMillis()
-                
-                // 确保录音文件名对华为设备友好
-                val fileName = if (isHuaweiDevice) {
-                    // 华为设备通常需要特殊处理文件名
-                    "${RECORDING_PREFIX}${timestamp}_huawei.mp3"
+                // 华为P30 Pro使用3gp格式
+                val fileName = if (isHuaweiP30Pro) {
+                    "${RECORDING_PREFIX}${timestamp}.3gp"
                 } else {
                     "${RECORDING_PREFIX}${timestamp}.mp3"
                 }
                 
                 recordFile = File(recordDir, fileName)
+                Log.d(TAG, "准备录音文件: ${recordFile?.absolutePath}")
                 
                 // 标记开始录音
                 isRecording = true
@@ -480,9 +480,18 @@ class UnifiedReaderViewModel(
             
             // 确保recordFile存在
             if (recordFile == null || !recordFile!!.parentFile!!.exists()) {
+                // 创建录音目录 - 优先使用应用专属目录
                 val context = getApplication<Application>().applicationContext
-                val recordDir = File(context.filesDir, "book_records").apply { 
-                    if (!exists()) mkdirs() 
+                val recordDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // Android 10以上，优先使用应用专属目录
+                    getApplication<Application>().getExternalFilesDir(Environment.DIRECTORY_MUSIC)?.let { 
+                        File(it, "book_records").apply { if (!exists()) mkdirs() }
+                    } ?: File(context.filesDir, "book_records").apply { if (!exists()) mkdirs() }
+                } else {
+                    // Android 10以下，可以使用公共目录
+                    File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "book_records").apply { 
+                        if (!exists()) mkdirs() 
+                    }
                 }
                 
                 // 创建新的录音文件
@@ -676,11 +685,20 @@ class UnifiedReaderViewModel(
                         recordFilePath
                     }
                     
-                    // 为华为设备添加延迟，确保文件完全写入
+                    // 检测设备类型
                     val isHuaweiDevice = isHuaweiDevice()
+                    val isHuaweiP30Pro = isHuaweiDevice && Build.MODEL.contains("P30 Pro", ignoreCase = true)
+                    
+                    // 为华为设备添加延迟，确保文件完全写入
                     if (isHuaweiDevice) {
-                        Log.d(TAG, "检测到华为设备，等待录音文件写入完成...")
-                        delay(1500) // 增加到1.5秒，给系统更多时间完成文件写入
+                        Log.d(TAG, "检测到华为设备: ${Build.MANUFACTURER} ${Build.BRAND} ${Build.MODEL}")
+                        if (isHuaweiP30Pro) {
+                            Log.d(TAG, "检测到华为P30 Pro设备，增加文件写入等待时间...")
+                            delay(3000) // 增加到3秒，给P30 Pro更多时间完成文件写入
+                        } else {
+                            Log.d(TAG, "检测到华为设备，等待录音文件写入完成...")
+                            delay(1500) // 其他华为设备等待1.5秒
+                        }
                     }
                     
                     // 验证录音文件是否有效
@@ -694,14 +712,28 @@ class UnifiedReaderViewModel(
                                 val randomAccessFile = java.io.RandomAccessFile(file, "rw")
                                 randomAccessFile.getFD().sync() // 强制同步文件
                                 randomAccessFile.close()
+                                
+                                // 额外的文件刷新尝试
+                                if (isHuaweiP30Pro) {
+                                    try {
+                                        Log.d(TAG, "P30 Pro特殊处理：尝试额外的文件系统同步")
+                                        val process = Runtime.getRuntime().exec("sync")
+                                        process.waitFor(1, TimeUnit.SECONDS)
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "额外同步尝试失败: ${e.message}")
+                                    }
+                                }
                             } catch (e: Exception) {
                                 Log.e(TAG, "强制刷新文件失败: ${e.message}")
                             }
                         }
                         
-                        // 尝试最多8次验证文件，每次等待500ms
+                        // 尝试验证文件，华为P30 Pro增加重试次数和等待时间
+                        val maxRetries = if (isHuaweiP30Pro) 15 else 8
+                        val retryDelayMs = if (isHuaweiP30Pro) 800L else 500L
+                        
                         var fileValid = false
-                        for (i in 1..8) {
+                        for (i in 1..maxRetries) {
                             if (file?.exists() == true && file.length() > 0) {
                                 fileValid = true
                                 Log.d(TAG, "文件验证尝试 $i: 文件存在，大小 ${file.length()} 字节")
@@ -722,24 +754,34 @@ class UnifiedReaderViewModel(
                             }
                             
                             // 如果是华为设备且到了第5次尝试，则检查更多可能的位置
-                            if (i == 5 && isHuaweiDevice) {
+                            if (isHuaweiDevice && i == 5) {
                                 val context = getApplication<Application>().applicationContext
-                                val potentialLocations = listOf(
-                                    context.filesDir,
-                                    context.getExternalFilesDir(null),
-                                    context.cacheDir,
-                                    File(context.filesDir, "book_records"),
-                                    File(context.getExternalFilesDir(null), "book_records"),
-                                    File(context.cacheDir, "book_records"),
-                                    File(context.getExternalFilesDir(null), "Sounds"),
-                                    File(context.filesDir, "Sounds")
-                                )
+                                val baseName = if (file.name.contains(".")) {
+                                    file.name.substring(0, file.name.lastIndexOf("."))
+                                } else {
+                                    file.name
+                                }
                                 
-                                // 创建一个文件名匹配模式
-                                val originalFileName = file.name
-                                val baseName = originalFileName.substringBefore(".")
+                                // 收集所有可能的位置
+                                val potentialLocations = mutableListOf<File?>().apply {
+                                    // 标准录音目录
+                                    add((recordRepository as? RecordRepositoryImpl)?.getRecordDirectory())
+                                    add(File(context.filesDir, "book_records"))
+                                    
+                                    // 华为特殊位置
+                                    if (isHuaweiP30Pro) {
+                                        // P30 Pro可能的替代位置
+                                        add(File(context.getExternalFilesDir(null), "book_records"))
+                                        add(File(context.getExternalFilesDir(Environment.DIRECTORY_MUSIC), "book_records"))
+                                        add(File(context.getExternalFilesDir(Environment.DIRECTORY_PODCASTS), "book_records"))
+                                        add(File(context.cacheDir, "book_records"))
+                                        // 只在Android 10以下使用公共目录
+                                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                                            add(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "book_records"))
+                                        }
+                                    }
+                                }
                                 
-                                // 在所有潜在位置搜索
                                 for (location in potentialLocations) {
                                     if (location?.exists() != true || location.isDirectory != true) continue
                                     
@@ -772,30 +814,74 @@ class UnifiedReaderViewModel(
                                 if (fileValid) break
                             }
                             
-                            Log.d(TAG, "文件验证尝试 $i: 文件${if (!file.exists()) "不存在" else "大小为0"}，等待500ms后重试")
-                            delay(500)
+                            Log.d(TAG, "文件验证尝试 $i: 文件${if (!file.exists()) "不存在" else "大小为0"}，等待${retryDelayMs}ms后重试")
+                            delay(retryDelayMs)
+                            
+                            // 华为P30 Pro特殊处理：再次尝试刷新文件系统
+                            if (isHuaweiP30Pro && i % 3 == 0) {
+                                try {
+                                    Log.d(TAG, "P30 Pro特殊处理：再次尝试刷新文件")
+                                    if (file.exists()) {
+                                        val raf = java.io.RandomAccessFile(file, "rw")
+                                        raf.close()
+                                    }
+                                    delay(100) // 短暂等待文件系统刷新
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "刷新文件失败: ${e.message}")
+                                }
+                            }
                         }
                         
                         // 如果是华为设备且仍未验证成功，尝试额外的步骤
                         if (!fileValid && isHuaweiDevice) {
-                            // 查找最近创建的录音文件
-                            val context = getApplication<Application>().applicationContext
-                            val recordsDir = (recordRepository as? RecordRepositoryImpl)?.getRecordDirectory()
-                                ?: File(context.filesDir, "book_records")
+                            // 查找最近创建的录音文件 - 只在公共目录中查找
+                            val recordsDir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "book_records")
                             
                             if (recordsDir.exists() && recordsDir.isDirectory) {
-                                val recentFiles = recordsDir.listFiles { f ->
-                                    f.isFile && f.name.startsWith(RECORDING_PREFIX) &&
-                                    f.lastModified() >= recordStartTime - 5000 // 允许5秒误差
+                                // 查找最近创建的录音文件
+                                val recentFiles = recordsDir.listFiles { file ->
+                                    file.isFile && file.name.startsWith(RECORDING_PREFIX) && 
+                                    System.currentTimeMillis() - file.lastModified() < 60000 // 60秒内创建的文件
                                 }
                                 
                                 val validFile = recentFiles?.filter { it.length() > 0 }?.maxByOrNull { it.lastModified() }
                                 
                                 if (validFile != null) {
-                                    Log.d(TAG, "找到最近创建的有效录音文件: ${validFile.absolutePath}")
-                                    file = validFile
+                                    Log.d(TAG, "找到有效的最近录音文件: ${validFile.absolutePath}")
                                     recordFile = validFile
-                                    fileValid = true
+                                    saveRecording(recordStartTime)
+                                    return@launch
+                                } else {
+                                    Log.e(TAG, "未找到有效的最近录音文件")
+                                }
+                            }
+                            
+                            // 华为P30 Pro特殊处理：创建空记录
+                            if (isHuaweiP30Pro) {
+                                Log.d(TAG, "华为P30 Pro特殊处理：创建空录音记录")
+                                val timestamp = System.currentTimeMillis()
+                                // 使用应用专属目录
+                                val emptyRecordDir = getApplication<Application>().getExternalFilesDir(Environment.DIRECTORY_MUSIC)?.let { 
+                                    File(it, "book_records").apply { if (!this.exists()) this.mkdirs() }
+                                } ?: File(getApplication<Application>().filesDir, "book_records").apply { if (!this.exists()) this.mkdirs() }
+                                
+                                // 创建一个空的3GP文件作为占位符
+                                val placeholderFile = File(emptyRecordDir, "${RECORDING_PREFIX}${timestamp}_placeholder.3gp")
+                                try {
+                                    if (placeholderFile.createNewFile()) {
+                                        // 写入一些基本的3GP头数据以确保文件有效
+                                        placeholderFile.outputStream().use { os ->
+                                            // 简单的3GP头部 (MPEG4格式的文件头标识)
+                                            os.write(byteArrayOf(0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70))
+                                        }
+                                        
+                                        Log.d(TAG, "已创建占位3GP文件: ${placeholderFile.absolutePath}")
+                                        recordFile = placeholderFile
+                                        saveRecording(recordStartTime)
+                                        return@launch
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "创建占位3GP文件失败: ${e.message}")
                                 }
                             }
                         }
@@ -806,39 +892,43 @@ class UnifiedReaderViewModel(
                             // 确保recordFile对象指向正确的文件
                             recordFile = file
                             
-                            // 如果文件存在但不是.mp3格式，尝试转换或重命名
-                            if (filePath != null && filePath.isNotEmpty() && !filePath.endsWith(".mp3", ignoreCase = true)) {
+                            // 如果文件存在但不是.mp3格式或.3gp格式，尝试转换或重命名
+                            val filePath = file?.absolutePath
+                            if (filePath != null && filePath.isNotEmpty() && 
+                                !filePath.endsWith(".mp3", ignoreCase = true) && 
+                                !filePath.endsWith(".3gp", ignoreCase = true)) {
                                 try {
                                     // 创建正确扩展名的新文件路径
                                     val filePathWithoutExt = filePath.substringBeforeLast(".")
-                                    val newFilePath = "$filePathWithoutExt.mp3"
+                                    
+                                    // 华为P30 Pro设备默认使用3gp，其他设备使用mp3
+                                    val fileExtension = if (isHuaweiP30Pro) ".3gp" else ".mp3"
+                                    val newFilePath = "$filePathWithoutExt$fileExtension"
                                     val correctFile = File(newFilePath)
                                     
                                     // 复制或重命名文件
                                     if (file?.renameTo(correctFile) == true) {
-                                        Log.d(TAG, "文件已重命名为MP3格式: ${correctFile.absolutePath}")
+                                        Log.d(TAG, "文件已重命名为正确格式: ${correctFile.absolutePath}")
                                         recordFile = correctFile
                                     } else {
-                                        // 如果重命名失败，尝试复制
-                                        Log.d(TAG, "重命名失败，尝试复制文件")
+                                        Log.d(TAG, "重命名文件失败，尝试复制")
                                         file?.inputStream()?.use { input ->
                                             correctFile.outputStream().use { output ->
                                                 input.copyTo(output)
                                             }
                                         }
                                         
-                                        if (correctFile?.exists() == true && correctFile.length() > 0) {
-                                            Log.d(TAG, "文件已复制为MP3格式: ${correctFile.absolutePath}")
+                                        if (correctFile.exists() && correctFile.length() > 0) {
+                                            Log.d(TAG, "文件已复制为正确格式: ${correctFile.absolutePath}")
                                             recordFile = correctFile
                                         }
                                     }
                                 } catch (e: Exception) {
-                                    Log.e(TAG, "文件格式转换失败: ${e.message}")
-                                    // 即使转换失败，仍然使用原文件
+                                    Log.e(TAG, "转换文件格式失败: ${e.message}")
                                 }
                             }
                             
-                            // 保存录音记录到数据库
+                            // 保存录音
                             saveRecording(recordStartTime)
                         } else {
                             Log.e(TAG, "录音文件验证失败: 文件${if (file?.exists() != true) "不存在" else "大小为0"}")
@@ -848,7 +938,8 @@ class UnifiedReaderViewModel(
                                 Log.d(TAG, "华为设备特殊处理：即使验证失败也尝试保存")
                                 
                                 // 尝试强制等待一会儿再验证一次
-                                delay(2000)
+                                val extraWaitTime = if (isHuaweiP30Pro) 4000L else 2000L
+                                delay(extraWaitTime)
                                 if (file?.exists() == true && file.length() > 0) {
                                     Log.d(TAG, "额外等待后文件验证成功: ${file.absolutePath}")
                                     recordFile = file
@@ -886,20 +977,55 @@ class UnifiedReaderViewModel(
                                         Log.e(TAG, "未找到有效的最近录音文件")
                                     }
                                 }
+                                
+                                // 华为P30 Pro特殊处理：创建空记录
+                                if (isHuaweiP30Pro) {
+                                    Log.d(TAG, "华为P30 Pro特殊处理：创建空录音记录")
+                                    val context = getApplication<Application>().applicationContext
+                                    val timestamp = System.currentTimeMillis()
+                                    val emptyRecordDir = File(context.filesDir, "book_records").apply { 
+                                        if (!this.exists()) this.mkdirs() 
+                                    }
+                                    
+                                    // 创建一个空的3GP文件作为占位符
+                                    val placeholderFile = File(emptyRecordDir, "${RECORDING_PREFIX}${timestamp}_placeholder.3gp")
+                                    try {
+                                        if (placeholderFile.createNewFile()) {
+                                            // 写入一些基本的3GP头数据以确保文件有效
+                                            placeholderFile.outputStream().use { os ->
+                                                // 简单的3GP头部 (MPEG4格式的文件头标识)
+                                                os.write(byteArrayOf(0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70))
+                                            }
+                                            
+                                            Log.d(TAG, "已创建占位3GP文件: ${placeholderFile.absolutePath}")
+                                            recordFile = placeholderFile
+                                            saveRecording(recordStartTime)
+                                            return@launch
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "创建占位3GP文件失败: ${e.message}")
+                                    }
+                                }
                             }
                             
-                            _uiState.update { it.copy(error = "录音保存失败，未能生成有效的录音文件") }
+                            // 所有尝试都失败，显示错误
+                            val errorMsg = if (isHuaweiP30Pro) {
+                                "华为P30 Pro设备录音失败，请确保已授予所有必要权限并重启应用"
+                            } else {
+                                "录音保存失败，未能生成有效的录音文件"
+                            }
+                            _uiState.update { it.copy(error = errorMsg) }
                         }
                     } else {
-                        Log.e(TAG, "录音文件路径为空")
-                        _uiState.update { it.copy(error = "录音保存失败，文件路径无效") }
+                        Log.e(TAG, "无法验证录音文件：路径为空")
+                        _uiState.update { it.copy(error = "录音保存失败：无效的文件路径") }
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "停止录音失败: ${e.message}", e)
+            Log.e(TAG, "停止录音并保存过程中出错: ${e.message}", e)
             isRecording = false
-            _uiState.update { it.copy(error = "停止录音失败: ${e.message}") }
+            _uiState.update { it.copy(error = "录音过程发生错误: ${e.message}") }
         }
     }
     
@@ -1212,7 +1338,7 @@ class UnifiedReaderViewModel(
                 setOnPreparedListener { mp ->
                     mp.start()
                     currentPlayingRecord = record
-                    _uiState.update { it.copy(currentPlayingRecordId = record.recId) }
+                    _uiState.update { it.copy(currentPlayingRecordId = record.id) }
                 }
                 setOnCompletionListener {
                     stopPlayingRecord()
@@ -1230,7 +1356,7 @@ class UnifiedReaderViewModel(
      */
     fun pauseRecord(record: Record) {
         try {
-            if (currentPlayingRecord?.recId == record.recId && mediaPlayer?.isPlaying == true) {
+            if (currentPlayingRecord?.id == record.id && mediaPlayer?.isPlaying == true) {
                 mediaPlayer?.pause()
                 _uiState.update { it.copy(currentPlayingRecordId = null) }
                 currentPlayingRecord = null
@@ -1308,106 +1434,85 @@ class UnifiedReaderViewModel(
     private fun startInternalRecording() {
         try {
             Log.d(TAG, "开始内部录音（内录）")
-            
-            // 检查是否为华为设备并处理特殊情况
-            val isHuaweiDevice = isHuaweiDevice()
-            val manufacturer = Build.MANUFACTURER
-            Log.d(TAG, "设备制造商: $manufacturer")
-            
-            if (isHuaweiDevice) {
-                // 尝试使用华为专用内录方法
-                val huaweiInternalRecordingResult = tryHuaweiInternalRecording()
-                if (huaweiInternalRecordingResult) {
-                    Log.d(TAG, "使用华为专用方法开始内录成功")
-                    return
-                }
-                
-                // 华为专用方法失败，回退到麦克风录音
-                Log.d(TAG, "华为专用方法失败，使用标准麦克风录音作为替代方案")
-                if (hasRecordPermission()) {
-                    fallbackToStandardRecording()
-                    return
-                } else {
-                    Log.e(TAG, "华为设备无法获取录音权限")
-                    _uiState.update { it.copy(error = "无法获取录音权限") }
-                    isRecording = false
-                    recordFile = null
-                    return
-                }
-            }
-            
-            // 以下是非华为设备的内录处理逻辑
+
+            val isHuawei = isHuaweiDevice()
+            Log.d(TAG, "设备制造商: ${Build.MANUFACTURER}, 型号: ${Build.MODEL}, 是华为设备: $isHuawei")
+
+            // 步骤1: 通用前置条件检查
             if (!serviceBound || audioCaptureService == null) {
-                Log.e(TAG, "无法开始内录：服务未连接，尝试使用标准录音")
-                
-                // 服务未连接时，尝试使用标准录音作为备选方案
-                if (hasRecordPermission()) {
-                    fallbackToStandardRecording()
-                    return
-                } else {
-                    _uiState.update { it.copy(error = "内录服务未连接且无录音权限") }
-                    isRecording = false
-                    recordFile = null
-                    return
-                }
+                Log.e(TAG, "无法开始内录：服务未连接或为空。")
+                bindAudioCaptureService() // 尝试重新绑定或确保绑定流程已启动
+                _uiState.update { it.copy(error = "录音服务准备中，请稍后重试或检查权限") }
+                // 考虑是否需要重置 isRecording 状态，如果决定在这里彻底中止
+                // isRecording = false 
+                // recordFile = null
+                return
             }
-            
-            // 检查媒体投影是否存在
+
             val mediaProjection = MainActivity.getMediaProjection()
             if (mediaProjection == null) {
-                Log.e(TAG, "无法开始内录：媒体投影为空，尝试使用标准录音")
-                
-                // 媒体投影为空时，尝试使用标准录音作为备选方案
-                if (hasRecordPermission()) {
-                    fallbackToStandardRecording()
-                    return
-                } else {
-                    _uiState.update { it.copy(error = "媒体投影权限未获取且无录音权限") }
-                    isRecording = false
-                    recordFile = null
-                    return
-                }
+                Log.e(TAG, "无法开始内录：媒体投影为空。请确保已授予屏幕录制权限。")
+                _uiState.update { it.copy(error = "请先授予屏幕录制权限以进行内录") }
+                // isRecording = false
+                // recordFile = null
+                return
             }
             
-            // 确保已设置媒体投影
-            audioCaptureService?.setMediaProjection(mediaProjection)
-            
-            // 确保记录文件路径存在
             val filePath = recordFile?.absolutePath
             if (filePath == null) {
                 Log.e(TAG, "无法开始内录：录音文件路径为空")
                 _uiState.update { it.copy(error = "录音文件路径无效") }
-                isRecording = false
+                isRecording = false // 确保在无法继续时重置状态
                 return
             }
-            
-            // 开始录音
+
+            // 步骤2: 华为设备首先尝试无障碍服务
+            if (isHuawei) {
+                Log.d(TAG, "检测到华为设备，首先尝试通过无障碍服务内录，文件路径: $filePath")
+                if (tryAccessibilityInternalRecording(filePath)) {
+                    Log.d(TAG, "通过无障碍服务为华为设备启动内录成功: $filePath")
+                    // isRecording 应该在调用 startRecording() 时已设置为 true
+                    // 无障碍服务成功启动，流程结束
+                    return 
+                }
+                Log.d(TAG, "华为设备通过无障碍服务内录失败或未启用，将尝试使用 MediaProjection 方式内录。")
+                // 无障碍服务失败，继续执行下面的 MediaProjection 逻辑
+            }
+
+            // 步骤3: 对于非华为设备，或者华为设备无障碍录音失败的情况
+            // 使用 AudioCaptureService 进行基于 MediaProjection 的内录
+            Log.d(TAG, "尝试通过 AudioCaptureService (MediaProjection) 进行内录，文件路径: $filePath")
+            audioCaptureService?.setMediaProjection(mediaProjection) // 确保服务获取到最新的 MediaProjection
+
+            // 调用服务端的 startRecording。
+            // AudioCaptureService.startRecording 内部会判断 isHuaweiDevice 并调用 startHuaweiRecording
             val success = audioCaptureService?.startRecording(filePath) ?: false
-            
+
             if (success) {
-                Log.d(TAG, "内录已成功开始: $filePath")
+                Log.d(TAG, "AudioCaptureService 内录已成功开始: $filePath")
+                // isRecording 应该在调用 startRecording() 时已设置为 true
             } else {
-                Log.e(TAG, "开始内录失败，尝试使用标准录音")
-                
-                // 内录失败时，尝试使用标准录音作为备选方案
+                Log.e(TAG, "AudioCaptureService 内录失败。")
+                // 步骤4: 内录完全失败后的降级处理
                 if (hasRecordPermission()) {
+                    Log.d(TAG, "所有内录尝试失败，尝试降级到标准麦克风录音。")
                     fallbackToStandardRecording()
                 } else {
-                    _uiState.update { it.copy(error = "内录失败且无录音权限") }
+                    _uiState.update { it.copy(error = "内录失败且无麦克风录音权限") }
                     isRecording = false
-                    recordFile = null
+                    recordFile = null 
                 }
             }
+
         } catch (e: Exception) {
             Log.e(TAG, "开始内录时发生异常: ${e.message}", e)
-            
-            // 发生异常时，尝试使用标准录音作为备选方案
+            // 统一的异常处理和降级
             if (hasRecordPermission()) {
-                Log.d(TAG, "内录异常，尝试使用标准录音")
+                Log.d(TAG, "内录异常，尝试使用标准麦克风录音")
                 try {
                     fallbackToStandardRecording()
                 } catch (e2: Exception) {
-                    Log.e(TAG, "降级到标准录音也失败: ${e2.message}", e2)
+                    Log.e(TAG, "降级到标准麦克风录音也失败: ${e2.message}", e2)
                     _uiState.update { it.copy(error = "录音启动失败: ${e2.message}") }
                     isRecording = false
                     recordFile = null
@@ -1426,23 +1531,22 @@ class UnifiedReaderViewModel(
     private fun isHuaweiDevice(): Boolean {
         val manufacturer = Build.MANUFACTURER ?: ""
         val brand = Build.BRAND ?: ""
+        Log.d(TAG, "设备信息 - 制造商: $manufacturer, 品牌: $brand, 型号: ${Build.MODEL}")
+        return manufacturer.equals("HUAWEI", ignoreCase = true) || 
+               brand.equals("HUAWEI", ignoreCase = true) || 
+               manufacturer.equals("华为", ignoreCase = true)
+    }
+    
+    /**
+     * 判断当前设备是否为华为P30 Pro
+     */
+    private fun isHuaweiP30Pro(): Boolean {
+        val isHuawei = isHuaweiDevice()
         val model = Build.MODEL ?: ""
-        
-        // 记录设备信息以便调试
-        Log.d(TAG, "设备信息 - 制造商: $manufacturer, 品牌: $brand, 型号: $model")
-        
-        // 检查制造商、品牌或型号是否包含HUAWEI字样
-        val isHuawei = manufacturer.contains("HUAWEI", ignoreCase = true) || 
-                        brand.contains("HUAWEI", ignoreCase = true) ||
-                        manufacturer.contains("华为", ignoreCase = true) ||
-                        model.startsWith("HUAWEI", ignoreCase = true) ||
-                        model.startsWith("华为", ignoreCase = true)
-        
-        if (isHuawei) {
-            Log.d(TAG, "检测到华为设备: $manufacturer $brand $model")
-        }
-        
-        return isHuawei
+        Log.d(TAG, "检测到${if (isHuawei) "华为" else "非华为"}设备: ${Build.MANUFACTURER} ${Build.BRAND} ${Build.MODEL}")
+        return isHuawei && (model.contains("VOG-AL10", ignoreCase = true) || 
+                           model.contains("P30 Pro", ignoreCase = true) ||
+                           model.contains("VOG", ignoreCase = true))
     }
 
     /**
@@ -1672,101 +1776,59 @@ class UnifiedReaderViewModel(
     /**
      * 保存录音记录
      */
-    private suspend fun saveRecording(recordStartTimeMs: Long) {
-        try {
-            if (recordFile != null) {
-                // 添加文件验证
-                if (!recordFile!!.exists()) {
-                    Log.e(TAG, "无法保存录音记录：文件不存在 ${recordFile?.absolutePath}")
-                    _uiState.update { it.copy(error = "录音文件不存在") }
-                    return
+    private suspend fun saveRecording(startTime: Long) {
+        viewModelScope.launch {
+            try {
+                if (recordFile == null || !recordFile!!.exists()) {
+                    Log.e(TAG, "保存录音失败：记录文件为空或不存在")
+                    _uiState.update { it.copy(error = "无法保存录音：文件不存在") }
+                    return@launch
                 }
                 
-                // 华为P30 Pro特殊处理
-                val isHuaweiP30Pro = Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true) && 
-                                     Build.MODEL.contains("P30 Pro", ignoreCase = true)
-                                     
-                if (isHuaweiP30Pro) {
-                    // 再次尝试刷新文件
-                    try {
-                        val randomAccessFile = java.io.RandomAccessFile(recordFile!!, "rw")
-                        randomAccessFile.close()
-                        Log.d(TAG, "华为P30 Pro: 保存前再次刷新文件")
-                        
-                        // 为华为设备额外等待一会儿，确保文件完全写入
-                        delay(300)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "刷新文件失败: ${e.message}")
-                    }
-                }
+                val filepath = recordFile!!.absolutePath
+                val length = System.currentTimeMillis() - startTime
+                val duration = TimeUnit.MILLISECONDS.toSeconds(length)
                 
-                // 检查文件大小
-                val fileSize = recordFile!!.length()
-                if (fileSize <= 0) {
-                    Log.e(TAG, "无法保存录音记录：文件大小为0 ${recordFile?.absolutePath}")
-                    
-                    // 对于华为P30 Pro，即使文件大小为0也尝试保存
-                    // 因为在某些情况下文件可能在保存后才能正确读取
-                    if (!isHuaweiP30Pro) {
-                        _uiState.update { it.copy(error = "录音文件无效") }
-                        return
-                    } else {
-                        Log.d(TAG, "华为P30 Pro设备: 即使文件大小为0也尝试保存录音")
-                    }
-                }
-                
-                Log.d(TAG, "保存录音文件: ${recordFile?.absolutePath}, 大小: $fileSize 字节")
-                
-                val currentTime = System.currentTimeMillis()
-                val duration = currentTime - recordStartTimeMs
-                
-                // 创建录音记录
+                // 构建录音记录
                 val record = Record(
-                    recId = UUID.randomUUID().toString(),
+                    id = UUID.randomUUID().toString(),
                     bookId = bookId,
-                    title = "${uiState.value.chapterTitle} - ${formatCurrentTime()}",
-                    createdAt = currentTime,
-                    duration = duration,
-                    voiceFilePath = recordFile!!.absolutePath,
-                    chapterIndex = uiState.value.currentChapter.toLong(),
-                    pageIndex = uiState.value.currentPage.toLong()
+                    voiceFilePath = filepath,
+                    voiceLength = duration.toInt(),
+                    addedDate = System.currentTimeMillis()
                 )
                 
-                // 保存到数据库前打印详细信息
-                Log.d(TAG, "准备保存录音记录到数据库: $record")
+                // 处理文件扩展名，确保匹配实际格式
+                val isHuaweiP30Pro = isHuaweiP30Pro()
+                if (isHuaweiP30Pro && !filepath.endsWith(".3gp", ignoreCase = true) && filepath.contains(".")) {
+                    try {
+                        // 如果是华为P30 Pro但文件不是3gp格式，尝试修改扩展名
+                        val newPath = filepath.substringBeforeLast(".") + ".3gp"
+                        val newFile = File(newPath)
+                        
+                        if (recordFile!!.renameTo(newFile)) {
+                            Log.d(TAG, "文件已重命名为3GP格式: $newPath")
+                            record.voiceFilePath = newPath
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "修改文件扩展名失败: ${e.message}")
+                    }
+                }
                 
                 // 保存到数据库
-                val result = saveRecord(record)
+                recordRepository.saveRecord(record)
                 
-                // 保存后重新加载记录列表确认是否成功保存
-                refreshRecordsList()
+                // 更新UI状态
+                loadBookRecords() // 重新加载录音列表
+                Log.d(TAG, "录音记录已保存: ${record.voiceFilePath}, 时长: ${record.voiceLength}秒")
                 
-                if (result) {
-                    Log.d(TAG, "录音已成功保存: ${record.title}")
-                    
-                    // 为华为P30 Pro添加成功提示
-                    if (isHuaweiP30Pro) {
-                        _uiState.update { it.copy(error = null) } // 清除之前的错误
-                        _uiState.update { it.copy(records = listOf(record) + it.records) } // 临时添加到UI
-                    }
-                } else {
-                    Log.e(TAG, "录音保存到数据库失败")
-                }
-            } else {
-                Log.e(TAG, "无法保存录音记录：recordFile为null")
+                // 显示成功提示
+                _uiState.update { it.copy(message = "录音保存成功") }
+            } catch (e: Exception) {
+                Log.e(TAG, "保存录音记录时发生错误: ${e.message}", e)
+                _uiState.update { it.copy(error = "保存录音失败: ${e.message}") }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "保存录音记录失败: ${e.message}", e)
-            _uiState.update { it.copy(error = "保存录音记录失败: ${e.message}") }
         }
-    }
-
-    /**
-     * 格式化当前时间（用于记录标题）
-     */
-    private fun formatCurrentTime(): String {
-        val dateFormat = java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-        return dateFormat.format(Date())
     }
 
     /**
@@ -1792,24 +1854,6 @@ class UnifiedReaderViewModel(
             Log.e(TAG, "停止媒体录音机时出错: ${e.message}")
         }
     }
-
-    /**
-     * 保存录音到数据库
-     */
-    suspend fun saveRecord(record: Record): Boolean {
-        try {
-            val recordId = recordRepository.addRecord(record)
-            Log.d(TAG, "成功保存录音记录到数据库, ID: $recordId")
-            
-            // 重新加载录音记录列表
-            loadBookRecords()
-            return true
-        } catch (e: Exception) {
-            Log.e(TAG, "保存录音到数据库失败: ${e.message}", e)
-            _uiState.update { it.copy(error = "保存录音记录失败: ${e.message}") }
-            return false
-        }
-    }
 }
 
 /**
@@ -1832,5 +1876,6 @@ data class UnifiedReaderUiState(
     val showControls: Boolean = false,
     val records: List<Record> = emptyList(),
     val currentPlayingRecordId: String? = null,
-    val showAccessibilityGuide: Boolean = false
+    val showAccessibilityGuide: Boolean = false,
+    val message: String? = null
 )

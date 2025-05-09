@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
 import java.lang.ref.WeakReference
+import android.os.Environment
 
 /**
  * 无障碍服务用于实现华为设备的内录功能
@@ -85,16 +86,38 @@ class AudioCaptureAccessibilityService : AccessibilityService() {
     }
     
     /**
-     * 开始录制内录
+     * 开始录音
      */
-    fun startRecording(outputFilePath: String): Boolean {
+    fun startRecording(): Boolean {
         if (isRecording) {
             Log.e(TAG, "已经在录音中")
             return false
         }
         
         try {
-            outputFile = File(outputFilePath)
+            // 创建录音目录 - 优先使用应用专属目录
+            val recordDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10以上，优先使用应用专属目录
+                getExternalFilesDir(Environment.DIRECTORY_MUSIC)?.let { 
+                    File(it, "book_records").apply { if (!exists()) mkdirs() }
+                } ?: File(filesDir, "book_records").apply { if (!exists()) mkdirs() }
+            } else {
+                // Android 10以下，可以使用公共目录
+                File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "book_records").apply { 
+                    if (!exists()) mkdirs() 
+                }
+            }
+            
+            // 确保目录存在
+            if (!recordDir.exists() && !recordDir.mkdirs()) {
+                Log.e(TAG, "无法创建录音目录")
+                return false
+            }
+            
+            // 创建录音文件
+            val fileName = "TTS_${java.util.UUID.randomUUID()}.mp3"
+            outputFile = File(recordDir, fileName)
+            
             Log.d(TAG, "准备创建内录文件: ${outputFile?.absolutePath}")
             
             // 初始化录音器
@@ -135,7 +158,7 @@ class AudioCaptureAccessibilityService : AccessibilityService() {
                     mediaRecorder?.apply {
                         setAudioSource(audioSource)
                         setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                        setOutputFile(outputFilePath)
+                        setOutputFile(outputFile?.absolutePath)
                         setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                         setAudioSamplingRate(44100)
                         setAudioEncodingBitRate(128000)
@@ -147,7 +170,123 @@ class AudioCaptureAccessibilityService : AccessibilityService() {
                             isRecording = true
                             recordingStarted = true
                             
-                            Log.d(TAG, "通过无障碍服务成功开始内录 (音源: $audioSource): $outputFilePath")
+                            Log.d(TAG, "通过无障碍服务成功开始内录 (音源: $audioSource): ${outputFile?.absolutePath}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "尝试音源 $audioSource 失败: ${e.message}")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "设置音源 $audioSource 失败: ${e.message}")
+                }
+            }
+            
+            if (recordingStarted) {
+                // 启动协程处理录音数据
+                recordingJob = CoroutineScope(Dispatchers.IO).launch {
+                    // 监控录音状态
+                    monitorRecording()
+                }
+                return true
+            } else {
+                Log.e(TAG, "所有尝试均失败，无法启动内录")
+                releaseRecorder()
+                return false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "无障碍服务内录失败: ${e.message}", e)
+            releaseRecorder()
+            return false
+        }
+    }
+    
+    /**
+     * 开始录音（指定路径）
+     */
+    fun startRecording(outputFilePath: String): Boolean {
+        if (isRecording) {
+            Log.e(TAG, "已经在录音中")
+            return false
+        }
+        
+        try {
+            // 检查输出路径是否在应用专属目录中
+            val context = applicationContext
+            val appMusicDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                getExternalFilesDir(Environment.DIRECTORY_MUSIC)
+            } else {
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
+            }
+            
+            val targetFile = File(outputFilePath)
+            
+            // 创建新文件
+            val recordDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // Android 10以上，优先使用应用专属目录
+                getExternalFilesDir(Environment.DIRECTORY_MUSIC)?.let { 
+                    File(it, "book_records").apply { if (!exists()) mkdirs() }
+                } ?: File(filesDir, "book_records").apply { if (!exists()) mkdirs() }
+            } else {
+                // Android 10以下，可以使用公共目录
+                File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "book_records").apply { 
+                    if (!exists()) mkdirs() 
+                }
+            }
+            
+            val fileName = "TTS_${java.util.UUID.randomUUID()}.mp3"
+            outputFile = File(recordDir, fileName)
+            Log.d(TAG, "将使用新的录音路径: ${outputFile?.absolutePath}")
+            
+            // 初始化录音器
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+            
+            // 尝试多种华为特殊音源
+            // 参考: https://developer.huawei.com/consumer/cn/forum/topic/0202480730432430050
+            val audioSources = listOf(
+                1998, // 华为特殊音源
+                1999, // 另一种华为特殊音源
+                MediaRecorder.AudioSource.REMOTE_SUBMIX, // REMOTE_SUBMIX (8)
+                MediaRecorder.AudioSource.VOICE_RECOGNITION, // VOICE_RECOGNITION (7)
+                MediaRecorder.AudioSource.VOICE_COMMUNICATION // VOICE_COMMUNICATION (0)
+            )
+            
+            var recordingStarted = false
+            
+            for (audioSource in audioSources) {
+                if (recordingStarted) break
+                
+                try {
+                    // 释放之前的mediaRecorder实例（如果有）
+                    releaseRecorder(false)
+                    
+                    // 重新创建mediaRecorder
+                    mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        MediaRecorder(this)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        MediaRecorder()
+                    }
+                    
+                    mediaRecorder?.apply {
+                        setAudioSource(audioSource)
+                        setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                        setOutputFile(outputFile?.absolutePath)
+                        setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                        setAudioSamplingRate(44100)
+                        setAudioEncodingBitRate(128000)
+                        
+                        try {
+                            prepare()
+                            start()
+                            
+                            isRecording = true
+                            recordingStarted = true
+                            
+                            Log.d(TAG, "通过无障碍服务成功开始内录 (音源: $audioSource): ${outputFile?.absolutePath}")
                         } catch (e: Exception) {
                             Log.e(TAG, "尝试音源 $audioSource 失败: ${e.message}")
                         }

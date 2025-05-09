@@ -15,7 +15,7 @@ import com.wanderreads.ebook.data.local.entity.RecordEntity
  */
 @Database(
     entities = [BookEntity::class, RecordEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
