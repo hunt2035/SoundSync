@@ -819,61 +819,6 @@ fun UnifiedReaderScreen(
             currentPlayingRecordId = uiState.currentPlayingRecordId
         )
     }
-    
-    // 显示无障碍服务引导对话框
-    if (uiState.showAccessibilityGuide) {
-        AlertDialog(
-            onDismissRequest = { 
-                viewModel.dismissAccessibilityGuide() 
-            },
-            title = { 
-                Text(
-                    text = stringResource(R.string.huawei_accessibility_guide_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = { 
-                Text(
-                    text = stringResource(R.string.huawei_accessibility_guide_message),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.dismissAccessibilityGuide()
-                        val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                        context.startActivity(intent)
-                    }
-                ) {
-                    Text(stringResource(R.string.go_to_settings))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { 
-                        viewModel.dismissAccessibilityGuide() 
-                    }
-                ) {
-                    Text(stringResource(android.R.string.cancel))
-                }
-            }
-        )
-    }
-    
-    // 清理资源
-    DisposableEffect(Unit) {
-        onDispose {
-            webViewInstance?.let { webView ->
-                webView.loadUrl("about:blank")
-                (webView.parent as? ViewGroup)?.removeView(webView)
-                webView.destroy()
-            }
-        }
-    }
 }
 
 @Composable

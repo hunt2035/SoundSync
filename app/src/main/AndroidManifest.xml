@@ -31,9 +31,6 @@
     
     <!-- 添加Android 14+权限 -->
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
-    
-    <!-- 无障碍服务权限 - 用于华为设备内录 -->
-    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
 
     <application
         android:name=".EbookApplication"
@@ -68,20 +65,6 @@
             android:foregroundServiceType="mediaProjection"
             android:exported="false" />
             
-        <!-- 无障碍服务 - 用于华为设备内录 -->
-        <service
-            android:name=".service.AudioCaptureAccessibilityService"
-            android:exported="false"
-            android:label="@string/app_name_audio_capture_service"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-        
         <!-- 微信分享回调Activity -->
         <activity
             android:name=".wxapi.WXEntryActivity"

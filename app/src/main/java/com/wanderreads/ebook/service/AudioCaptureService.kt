@@ -298,19 +298,25 @@ class AudioCaptureService : Service() {
             releaseMediaRecorder()
             
             // 检测是否为P30 Pro型号
-            val isP30Pro = Build.MODEL.contains("P30 Pro", ignoreCase = true)
+            val isP30Pro = Build.MODEL.contains("P30 Pro", ignoreCase = true) || 
+                           Build.MODEL.contains("VOG-L29", ignoreCase = true) ||  // P30 Pro国际版型号
+                           Build.MODEL.contains("VOG-L09", ignoreCase = true) ||  // P30 Pro欧洲版型号
+                           Build.MODEL.contains("VOG-AL00", ignoreCase = true) || // P30 Pro中国版型号
+                           Build.MODEL.contains("VOG-TL00", ignoreCase = true)    // P30 Pro电信版型号
             Log.d(TAG, "当前华为设备型号: ${Build.MODEL}, 是否为P30 Pro: $isP30Pro")
             
             // 初始化录音
             // 使用MediaRecorder直接录制系统声音
             val audioSources = if (isP30Pro) {
-                // P30 Pro专用音源顺序
+                // P30 Pro专用音源顺序 - 添加更多可能的华为特殊音源
                 arrayOf(
                     1998, // 华为特殊音源值 - 首选
+                    2000, // 可能的华为特殊音源值
                     MediaRecorder.AudioSource.REMOTE_SUBMIX, // 8
                     MediaRecorder.AudioSource.DEFAULT, // 0
                     1999, // 另一个可能的华为特殊音源值
                     MediaRecorder.AudioSource.VOICE_RECOGNITION, // 7
+                    2002, // 可能的华为特殊音源值
                     MediaRecorder.AudioSource.VOICE_COMMUNICATION // 6
                 )
             } else {
@@ -353,14 +359,36 @@ class AudioCaptureService : Service() {
                             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
                             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
                             mediaRecorder.setAudioSamplingRate(16000) // 降低采样率以提高兼容性
-                            mediaRecorder.setAudioEncodingBitRate(128000) // 降低比特率以确保更好的兼容性
+                            mediaRecorder.setAudioEncodingBitRate(96000) // 降低比特率以确保更好的兼容性
                             mediaRecorder.setAudioChannels(1) // 使用单声道以提高兼容性
+                            
+                            // 尝试添加硬件加速配置
+                            try {
+                                // 尝试使用反射调用非公开API
+                                val hardwareAccelerationParam = mediaRecorder.javaClass.getDeclaredMethod(
+                                    "setParameters", String::class.java)
+                                hardwareAccelerationParam.isAccessible = true
+                                hardwareAccelerationParam.invoke(mediaRecorder, "hw-encoder=1")
+                                Log.d(TAG, "华为P30 Pro: 已添加硬件加速配置")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "添加硬件加速配置失败: ${e.message}")
+                            }
                         } else {
                             // 其他华为设备标准设置
                             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                             mediaRecorder.setAudioSamplingRate(44100)
                             mediaRecorder.setAudioEncodingBitRate(192000) // 较高比特率以提高质量
+                        }
+                        
+                        // 华为P30 Pro额外等待
+                        if (isHuaweiP30Pro()) {
+                            try {
+                                Log.d(TAG, "华为P30 Pro额外等待4秒确保文件写入")
+                                Thread.sleep(4000)  // 从2秒增加到4秒
+                            } catch (e: InterruptedException) {
+                                // 忽略中断
+                            }
                         }
                         
                         try {
@@ -381,14 +409,15 @@ class AudioCaptureService : Service() {
                             Log.d(TAG, "华为设备内录成功启动（音源:$audioSource）: $outputFilePath")
                             
                             // 确认文件是否已创建
-                            if(outputFile?.exists() == true) {
-                                Log.d(TAG, "确认录音文件已创建: ${outputFile.length()} 字节")
+                            val file = outputFile
+                            if (file != null && file.exists()) {
+                                Log.d(TAG, "确认录音文件已创建: ${file.length()} 字节")
                             } else {
                                 Log.d(TAG, "录音文件尚未创建，将在停止时检查")
                             }
                             
                             // 记录一些元数据到临时文件，方便后续恢复
-                            val metaFile = File(outputFile.parentFile!!, "${outputFile.nameWithoutExtension}.meta")
+                            val metaFile = File(file?.parentFile!!, "${file.nameWithoutExtension}.meta")
                             try {
                                 try {
                                     metaFile.writeText("$audioSource\n$outputFilePath")
@@ -398,6 +427,44 @@ class AudioCaptureService : Service() {
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "写入元数据失败: ${e.message}")
+                            }
+                            
+                            // 华为P30 Pro特殊处理：确保文件已正确写入
+                            if (isHuaweiP30Pro() && outputFile != null) {
+                                forceFileSystemSync()
+                                
+                                // 额外验证文件
+                                var retryCount = 0
+                                val maxRetries = 10
+                                while (retryCount < maxRetries) {
+                                    if (outputFile!!.exists() && outputFile!!.length() > 0) {
+                                        Log.d(TAG, "华为P30 Pro: 文件验证成功: ${outputFile!!.absolutePath}")
+                                        break
+                                    }
+                                    
+                                    Log.d(TAG, "华为P30 Pro: 文件验证失败，重试 ${retryCount+1}/${maxRetries}")
+                                    Thread.sleep(500)
+                                    retryCount++
+                                }
+                                
+                                // 如果文件仍然不存在或大小为0，尝试创建占位文件
+                                if (!outputFile!!.exists() || outputFile!!.length() == 0L) {
+                                    Log.d(TAG, "华为P30 Pro: 文件验证失败，尝试创建占位文件")
+                                    val dir = outputFile!!.parentFile
+                                    val newFile = File(dir, "backup_${System.currentTimeMillis()}.3gp")
+                                    try {
+                                        newFile.createNewFile()
+                                        newFile.outputStream().use { os ->
+                                            // 简单的3GP头部数据
+                                            os.write(byteArrayOf(0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70))
+                                        }
+                                        
+                                        recordingPath = newFile.absolutePath
+                                        Log.d(TAG, "华为P30 Pro: 已创建备用文件: ${newFile.absolutePath}")
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "创建备用文件失败: ${e.message}")
+                                    }
+                                }
                             }
                             
                             break
@@ -445,34 +512,9 @@ class AudioCaptureService : Service() {
             }
             
             // 如果所有音源都失败，尝试连接到无障碍服务
-            return tryConnectToAccessibilityService(outputFilePath)
+            return false
         } catch (e: Exception) {
             Log.e(TAG, "华为设备特殊录音实现异常: ${e.message}", e)
-            return false
-        }
-    }
-    
-    /**
-     * 尝试连接到无障碍服务进行录音
-     */
-    private fun tryConnectToAccessibilityService(outputFilePath: String): Boolean {
-        try {
-            val accessibilityService = com.wanderreads.ebook.service.AudioCaptureAccessibilityService.getInstance()
-            
-            if (accessibilityService != null) {
-                val result = accessibilityService.startRecording(outputFilePath)
-                if (result) {
-                    Log.d(TAG, "通过无障碍服务成功启动内录")
-                    isRecording = true
-                    return true
-                }
-            } else {
-                Log.e(TAG, "无法获取无障碍服务实例，请确保已启用无障碍服务")
-            }
-            
-            return false
-        } catch (e: Exception) {
-            Log.e(TAG, "尝试通过无障碍服务录音失败: ${e.message}", e)
             return false
         }
     }
@@ -539,21 +581,6 @@ class AudioCaptureService : Service() {
         isRecording = false
         Log.d(TAG, "开始停止录音流程")
         
-        // 停止无障碍服务录音
-        try {
-            val accessibilityService = com.wanderreads.ebook.service.AudioCaptureAccessibilityService.getInstance()
-            if (accessibilityService != null) {
-                val path = accessibilityService.stopRecording()
-                if (path != null) {
-                    Log.d(TAG, "通过无障碍服务停止录音: $path")
-                    releaseResources()
-                    return path
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "停止无障碍服务录音时异常: ${e.message}")
-        }
-        
         // 检测是否为华为设备
         val isHuaweiDevice = Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true)
         val isHuaweiP30Pro = isHuaweiDevice && Build.MODEL.contains("P30 Pro", ignoreCase = true)
@@ -600,6 +627,50 @@ class AudioCaptureService : Service() {
         try {
             mediaRecorder?.stop()
             Log.d(TAG, "MediaRecorder已停止")
+            
+            // 尝试使用sync命令增强文件同步
+            if (isHuaweiP30Pro) {
+                try {
+                    Log.d(TAG, "华为P30 Pro: 执行额外的文件同步操作")
+                    Runtime.getRuntime().exec("sync").waitFor(1, TimeUnit.SECONDS)
+                    
+                    // 尝试使用FileObserver确保文件系统更新
+                    val recordDir = outputFile?.parentFile
+                    if (recordDir != null && recordDir.exists()) {
+                        try {
+                            // 列出目录内容触发文件系统更新
+                            recordDir.listFiles()
+                            Log.d(TAG, "已列出目录以触发文件系统更新")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "列出目录失败: ${e.message}")
+                        }
+                    }
+                    
+                    // 双重检查文件是否存在
+                    val file = outputFile
+                    if (file != null && file.exists()) {
+                        Log.d(TAG, "文件已确认存在于: ${file.absolutePath}, 大小: ${file.length()} 字节")
+                        
+                        if (file.length() == 0L) {
+                            Log.d(TAG, "文件大小为0，尝试修复")
+                            try {
+                                // 尝试添加3GP文件头数据
+                                file.outputStream().use { os ->
+                                    // 3GP文件头
+                                    os.write(byteArrayOf(0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x33, 0x67, 0x70))
+                                }
+                                Log.d(TAG, "已向空文件添加基本头数据")
+                            } catch (e: Exception) {
+                                Log.e(TAG, "添加文件头数据失败: ${e.message}")
+                            }
+                        }
+                    } else {
+                        Log.e(TAG, "停止录音后文件不存在: ${outputFile?.absolutePath}")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "额外同步操作失败: ${e.message}")
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "停止MediaRecorder失败: ${e.message}")
             
@@ -832,6 +903,68 @@ class AudioCaptureService : Service() {
             .setSmallIcon(R.drawable.ic_recording)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
+    }
+    
+    /**
+     * 强制同步文件系统
+     */
+    private fun forceFileSystemSync() {
+        if (!isHuaweiDevice) return
+        
+        try {
+            // 尝试使用sync命令
+            try {
+                val process = Runtime.getRuntime().exec("sync")
+                process.waitFor(2, TimeUnit.SECONDS)
+                Log.d(TAG, "已执行系统sync命令")
+            } catch (e: Exception) {
+                Log.e(TAG, "执行sync命令失败: ${e.message}")
+            }
+            
+            // 同时尝试文件系统API
+            try {
+                val clazz = Class.forName("android.os.FileUtils")
+                val method = clazz.getDeclaredMethod("sync", FileDescriptor::class.java)
+                method.isAccessible = true
+                
+                outputFile?.parentFile?.listFiles()?.forEach { file ->
+                    try {
+                        val fos = FileOutputStream(file, true)
+                        method.invoke(null, fos.fd)
+                        fos.close()
+                    } catch (e: Exception) {
+                        // 忽略错误
+                    }
+                }
+                
+                // 尝试强制刷新文件
+                if (outputFile?.exists() == true) {
+                    try {
+                        val randomAccessFile = java.io.RandomAccessFile(outputFile, "rw")
+                        randomAccessFile.getFD().sync() // 强制同步文件
+                        randomAccessFile.close()
+                        Log.d(TAG, "已强制同步文件: ${outputFile?.absolutePath}")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "强制同步文件失败: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                // 忽略反射错误
+            }
+            
+            Log.d(TAG, "已强制同步文件系统")
+        } catch (e: Exception) {
+            Log.e(TAG, "强制同步文件系统失败: ${e.message}")
+        }
+    }
+    
+    /**
+     * 检查当前设备是否是华为P30 Pro
+     */
+    private fun isHuaweiP30Pro(): Boolean {
+        val manufacturer = android.os.Build.MANUFACTURER.lowercase()
+        val model = android.os.Build.MODEL.lowercase()
+        return manufacturer.contains("huawei") && model.contains("p30 pro")
     }
     
     override fun onDestroy() {

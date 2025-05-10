@@ -3,7 +3,6 @@ package com.wanderreads.ebook.ui.reader
 import android.Manifest
 import android.app.Application
 import android.app.AlertDialog
-import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
@@ -519,10 +518,13 @@ class UnifiedReaderViewModel(
                 
                 // 尝试多种音频源（华为P30 Pro特有的优先级）
                 val audioSources = listOf(
+                    1998,  // 华为特殊音源值 - 首选 
                     MediaRecorder.AudioSource.MIC,               // 常规麦克风
+                    2000,  // 可能的华为特殊音源值
                     MediaRecorder.AudioSource.VOICE_RECOGNITION, // 语音识别优化
                     MediaRecorder.AudioSource.DEFAULT,           // 默认
-                    MediaRecorder.AudioSource.VOICE_COMMUNICATION // 通话音频
+                    MediaRecorder.AudioSource.VOICE_COMMUNICATION, // 通话音频
+                    2002   // 可能的华为特殊音源值
                 )
                 
                 var recordingStarted = false
@@ -648,14 +650,6 @@ class UnifiedReaderViewModel(
                 // 获取文件路径，用于后续验证
                 val recordFilePath = recordFile?.absolutePath
                 
-                // 停止无障碍服务录音
-                try {
-                    val accessibilityService = com.wanderreads.ebook.service.AudioCaptureAccessibilityService.getInstance()
-                    accessibilityService?.stopRecording()
-                } catch (e: Exception) {
-                    Log.e(TAG, "停止无障碍服务录音失败: ${e.message}", e)
-                }
-                
                 // 停止内录服务
                 var internalRecordingResult: String? = null
                 if (serviceBound && audioCaptureService != null) {
@@ -694,10 +688,10 @@ class UnifiedReaderViewModel(
                         Log.d(TAG, "检测到华为设备: ${Build.MANUFACTURER} ${Build.BRAND} ${Build.MODEL}")
                         if (isHuaweiP30Pro) {
                             Log.d(TAG, "检测到华为P30 Pro设备，增加文件写入等待时间...")
-                            delay(3000) // 增加到3秒，给P30 Pro更多时间完成文件写入
+                            delay(5000) // 增加到5秒，给P30 Pro更多时间完成文件写入
                         } else {
                             Log.d(TAG, "检测到华为设备，等待录音文件写入完成...")
-                            delay(1500) // 其他华为设备等待1.5秒
+                            delay(2000) // 其他华为设备等待2秒
                         }
                     }
                     
@@ -729,8 +723,8 @@ class UnifiedReaderViewModel(
                         }
                         
                         // 尝试验证文件，华为P30 Pro增加重试次数和等待时间
-                        val maxRetries = if (isHuaweiP30Pro) 15 else 8
-                        val retryDelayMs = if (isHuaweiP30Pro) 800L else 500L
+                        val maxRetries = if (isHuaweiP30Pro) 20 else 8
+                        val retryDelayMs = if (isHuaweiP30Pro) 1000L else 500L
                         
                         var fileValid = false
                         for (i in 1..maxRetries) {
@@ -1264,14 +1258,6 @@ class UnifiedReaderViewModel(
                 stopRecordingAndSave()
             }
             
-            // 尝试停止无障碍服务录音
-            try {
-                val accessibilityService = com.wanderreads.ebook.service.AudioCaptureAccessibilityService.getInstance()
-                accessibilityService?.stopRecording()
-            } catch (e: Exception) {
-                Log.e(TAG, "停止无障碍服务录音失败: ${e.message}")
-            }
-            
             // 释放播放器资源
             stopPlayingRecord()
             
@@ -1428,7 +1414,7 @@ class UnifiedReaderViewModel(
     }
 
     /**
-     * 开始内部录音（内录）
+     * 启动内部录音（内录）
      */
     @RequiresApi(Build.VERSION_CODES.Q)
     private fun startInternalRecording() {
@@ -1466,20 +1452,7 @@ class UnifiedReaderViewModel(
                 return
             }
 
-            // 步骤2: 华为设备首先尝试无障碍服务
-            if (isHuawei) {
-                Log.d(TAG, "检测到华为设备，首先尝试通过无障碍服务内录，文件路径: $filePath")
-                if (tryAccessibilityInternalRecording(filePath)) {
-                    Log.d(TAG, "通过无障碍服务为华为设备启动内录成功: $filePath")
-                    // isRecording 应该在调用 startRecording() 时已设置为 true
-                    // 无障碍服务成功启动，流程结束
-                    return 
-                }
-                Log.d(TAG, "华为设备通过无障碍服务内录失败或未启用，将尝试使用 MediaProjection 方式内录。")
-                // 无障碍服务失败，继续执行下面的 MediaProjection 逻辑
-            }
-
-            // 步骤3: 对于非华为设备，或者华为设备无障碍录音失败的情况
+            // 步骤3: 对于所有设备
             // 使用 AudioCaptureService 进行基于 MediaProjection 的内录
             Log.d(TAG, "尝试通过 AudioCaptureService (MediaProjection) 进行内录，文件路径: $filePath")
             audioCaptureService?.setMediaProjection(mediaProjection) // 确保服务获取到最新的 MediaProjection
@@ -1541,191 +1514,14 @@ class UnifiedReaderViewModel(
      * 判断当前设备是否为华为P30 Pro
      */
     private fun isHuaweiP30Pro(): Boolean {
-        val isHuawei = isHuaweiDevice()
-        val model = Build.MODEL ?: ""
-        Log.d(TAG, "检测到${if (isHuawei) "华为" else "非华为"}设备: ${Build.MANUFACTURER} ${Build.BRAND} ${Build.MODEL}")
-        return isHuawei && (model.contains("VOG-AL10", ignoreCase = true) || 
-                           model.contains("P30 Pro", ignoreCase = true) ||
-                           model.contains("VOG", ignoreCase = true))
-    }
-
-    /**
-     * 尝试使用华为专用方法实现内录功能
-     */
-    private fun tryHuaweiInternalRecording(): Boolean {
-        try {
-            Log.d(TAG, "尝试使用华为专用方法实现内录")
-            
-            // 确保我们有录音权限
-            if (!hasRecordPermission()) {
-                Log.e(TAG, "华为内录功能需要录音权限")
-                return false
-            }
-            
-            // 获取文件路径
-            val filePath = recordFile?.absolutePath ?: run {
-                Log.e(TAG, "华为内录失败：文件路径为空")
-                return false
-            }
-            
-            // 尝试使用无障碍服务方式
-            if (isAccessibilityServiceEnabled()) {
-                val accessibilityResult = tryAccessibilityInternalRecording(filePath)
-                if (accessibilityResult) {
-                    return true
-                }
-            }
-            
-            // 尝试使用标准麦克风录音作为备选方案
-            return false
-        } catch (e: Exception) {
-            Log.e(TAG, "华为专用内录方法异常: ${e.message}", e)
-            return false
-        }
-    }
-
-    /**
-     * 检查无障碍服务是否启用
-     */
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        try {
-            val context = getApplication<Application>()
-            val accessibilityManager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as android.view.accessibility.AccessibilityManager
-            
-            // 检查是否有我们的无障碍服务在运行
-            val serviceName = "com.wanderreads.ebook/.service.AudioCaptureAccessibilityService"
-            
-            val enabledServices = accessibilityManager.getEnabledAccessibilityServiceList(
-                AccessibilityServiceInfo.FEEDBACK_ALL_MASK
-            )
-            
-            for (service in enabledServices) {
-                val serviceId = service.id
-                if (serviceId == serviceName) {
-                    return true
-                }
-            }
-            
-            return false
-        } catch (e: Exception) {
-            Log.e(TAG, "检查无障碍服务状态失败: ${e.message}", e)
-            return false
-        }
-    }
-
-    /**
-     * 尝试使用AccessibilityService方式实现内录
-     */
-    private fun tryAccessibilityInternalRecording(filePath: String): Boolean {
-        try {
-            Log.d(TAG, "尝试通过无障碍服务实现内录")
-            
-            // 获取无障碍服务实例
-            val accessibilityService = com.wanderreads.ebook.service.AudioCaptureAccessibilityService.getInstance()
-            
-            if (accessibilityService == null) {
-                Log.e(TAG, "无障碍服务实例为空，请确保已启用无障碍服务")
-                
-                // 引导用户开启无障碍服务
-                showAccessibilityServiceGuide()
-                return false
-            }
-            
-            // 使用无障碍服务实现内录
-            val result = accessibilityService.startRecording(filePath)
-            
-            if (result) {
-                Log.d(TAG, "通过无障碍服务成功开始内录")
-                return true
-            } else {
-                Log.e(TAG, "通过无障碍服务开始内录失败")
-                return false
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "通过无障碍服务实现内录时发生异常: ${e.message}", e)
-            return false
-        }
-    }
-
-    /**
-     * 显示无障碍服务开启引导
-     */
-    private fun showAccessibilityServiceGuide() {
-        // 更新UI状态，显示无障碍服务引导提示
-        _uiState.update { 
-            it.copy(
-                showAccessibilityGuide = true
-            ) 
-        }
-        
-        // 获取Application上下文
-        val context = getApplication<Application>().applicationContext
-        
-        try {
-            // 创建意图，打开无障碍服务设置页面
-            val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            
-            // 创建消息提示
-            val message = context.getString(R.string.huawei_accessibility_guide_message)
-            
-            // 在主线程中显示对话框（需要使用Activity Context）
-            val mainActivity = context.findMainActivity()
-            if (mainActivity != null) {
-                Handler(Looper.getMainLooper()).post {
-                    android.app.AlertDialog.Builder(mainActivity)
-                        .setTitle(context.getString(R.string.huawei_accessibility_guide_title))
-                        .setMessage(message)
-                        .setPositiveButton(context.getString(R.string.go_to_settings)) { dialog, _ -> 
-                            dialog.dismiss()
-                            context.startActivity(intent)
-                        }
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .setCancelable(false)
-                        .show()
-                }
-            } else {
-                // 未获取到Activity，直接打开设置
-                context.startActivity(intent)
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "无法打开无障碍服务设置页面: ${e.message}", e)
-            _uiState.update { 
-                it.copy(
-                    error = "请手动前往设置 > 无障碍 > 已安装的服务，开启\"漫阅内录服务\""
-                ) 
-            }
-        }
-    }
-
-    /**
-     * 关闭无障碍服务引导对话框
-     */
-    fun dismissAccessibilityGuide() {
-        _uiState.update { it.copy(showAccessibilityGuide = false) }
-    }
-
-    /**
-     * 手动切换录音状态
-     * @return 切换后的录音状态(true: 正在录音, false: 未在录音)
-     */
-    fun toggleManualRecording(): Boolean {
-        if (isRecording) {
-            stopRecordingAndSave()
-            return false
-        } else {
-            startRecording()
-            return true
-        }
-    }
-
-    /**
-     * 获取当前录音状态
-     * @return 当前是否正在录音
-     */
-    fun isRecordingActive(): Boolean {
-        return isRecording
+        val isHuawei = Build.MANUFACTURER.equals("HUAWEI", ignoreCase = true)
+        val isP30Pro = Build.MODEL.contains("P30 Pro", ignoreCase = true) || 
+                      Build.MODEL.contains("VOG-L29", ignoreCase = true) ||  // P30 Pro国际版型号
+                      Build.MODEL.contains("VOG-L09", ignoreCase = true) ||  // P30 Pro欧洲版型号
+                      Build.MODEL.contains("VOG-AL00", ignoreCase = true) || // P30 Pro中国版型号
+                      Build.MODEL.contains("VOG-TL00", ignoreCase = true)    // P30 Pro电信版型号
+                      
+        return isHuawei && isP30Pro
     }
 
     /**
@@ -1789,6 +1585,35 @@ class UnifiedReaderViewModel(
                 val length = System.currentTimeMillis() - startTime
                 val duration = TimeUnit.MILLISECONDS.toSeconds(length)
                 
+                // 额外的华为设备文件验证
+                val isHuaweiP30Pro = isHuaweiP30Pro()
+                if (isHuaweiP30Pro) {
+                    try {
+                        Log.d(TAG, "华为P30 Pro附加文件验证")
+                        val fileSize = recordFile!!.length()
+                        
+                        if (fileSize == 0L) {
+                            // 尝试强制刷新文件
+                            val randomAccessFile = java.io.RandomAccessFile(recordFile!!, "rw")
+                            randomAccessFile.getFD().sync()
+                            randomAccessFile.close()
+                            
+                            // 短暂等待
+                            delay(500)
+                            
+                            // 检查文件大小是否更新
+                            if (recordFile!!.length() == 0L) {
+                                Log.d(TAG, "文件大小仍为0字节，尝试写入基本3GP头数据")
+                                recordFile!!.outputStream().use { os ->
+                                    os.write(byteArrayOf(0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70))
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "额外文件验证时出错: ${e.message}")
+                    }
+                }
+                
                 // 构建录音记录
                 val record = Record(
                     id = UUID.randomUUID().toString(),
@@ -1799,7 +1624,6 @@ class UnifiedReaderViewModel(
                 )
                 
                 // 处理文件扩展名，确保匹配实际格式
-                val isHuaweiP30Pro = isHuaweiP30Pro()
                 if (isHuaweiP30Pro && !filepath.endsWith(".3gp", ignoreCase = true) && filepath.contains(".")) {
                     try {
                         // 如果是华为P30 Pro但文件不是3gp格式，尝试修改扩展名
@@ -1854,6 +1678,28 @@ class UnifiedReaderViewModel(
             Log.e(TAG, "停止媒体录音机时出错: ${e.message}")
         }
     }
+
+    /**
+     * 手动切换录音状态
+     * @return 切换后的录音状态(true: 正在录音, false: 未在录音)
+     */
+    fun toggleManualRecording(): Boolean {
+        if (isRecording) {
+            stopRecordingAndSave()
+            return false
+        } else {
+            startRecording()
+            return true
+        }
+    }
+
+    /**
+     * 获取当前录音状态
+     * @return 当前是否正在录音
+     */
+    fun isRecordingActive(): Boolean {
+        return isRecording
+    }
 }
 
 /**
@@ -1876,6 +1722,5 @@ data class UnifiedReaderUiState(
     val showControls: Boolean = false,
     val records: List<Record> = emptyList(),
     val currentPlayingRecordId: String? = null,
-    val showAccessibilityGuide: Boolean = false,
     val message: String? = null
 )
