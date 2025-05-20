@@ -62,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -96,6 +97,7 @@ fun UnifiedReaderScreen(
     val navyBlueBackground = Color(0xFF0A1929) // 墨蓝色背景
     val themeBlue = Color(0xFF1976D2) // 主题蓝色（工具栏）
     val whiteText = Color.White // 白色文字
+    val statusBarBackground = Color.White.copy(alpha = 0.7f) // 半透明白色背景
     
     val uiState by viewModel.uiState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
@@ -348,253 +350,290 @@ fun UnifiedReaderScreen(
             }
         }
     ) { paddingValues ->
-        Box(
+        // 使用Column替代Box作为主布局
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(navyBlueBackground)
                 .padding(paddingValues)
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { offset ->
-                            // 点击左侧1/3区域，向前翻页
-                            if (offset.x < size.width / 3) {
-                                viewModel.navigatePage(PageDirection.PREVIOUS)
-                            } 
-                            // 点击右侧1/3区域，向后翻页
-                            else if (offset.x > 2 * size.width / 3) {
-                                viewModel.navigatePage(PageDirection.NEXT)
-                            } 
-                            // 点击中间区域，显示/隐藏控制栏
-                            else {
-                                showControls = !showControls
-                            }
-                        }
-                    )
-                }
         ) {
-            // 内容加载指示器
-            if (uiState.isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = whiteText
-                )
-            } 
-            // 错误信息
-            else if (uiState.error != null) {
-                Text(
-                    text = uiState.error ?: "未知错误",
-                    color = Color.Red,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(16.dp)
-                )
-            } 
-            // 内容显示
-            else {
-                // 检查是否为HTML内容（通常是EPUB格式）
-                if (uiState.currentContent?.html != null) {
-                    // 使用WebView渲染HTML内容
-                    AndroidView(
-                        factory = { context ->
-                            WebView(context).apply {
-                                settings.javaScriptEnabled = true
-                                settings.useWideViewPort = true
-                                settings.loadWithOverviewMode = true
-                                settings.textZoom = currentConfig.fontSize * 5
-                                settings.allowFileAccess = true
-                                settings.allowContentAccess = true
-                                settings.domStorageEnabled = true
-                                settings.defaultTextEncodingName = "UTF-8"
-                                webViewClient = object : WebViewClient() {
-                                    override fun onPageFinished(view: WebView?, url: String?) {
-                                        super.onPageFinished(view, url)
-                                        // 注入JavaScript以支持点击事件
-                                        view?.loadUrl("""
-                                            javascript:(function() {
-                                                document.body.addEventListener('click', function(e) {
-                                                    var x = e.clientX;
-                                                    var width = window.innerWidth;
-                                                    Android.onPageTap(x, width);
-                                                });
-                                            })()
-                                        """.trimIndent())
-                                    }
+            // 内容区域 - 占据90%的空间
+            Box(
+                modifier = Modifier
+                    .weight(0.9f)
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { offset ->
+                                // 点击左侧1/3区域，向前翻页
+                                if (offset.x < size.width / 3) {
+                                    viewModel.navigatePage(PageDirection.PREVIOUS)
+                                } 
+                                // 点击右侧1/3区域，向后翻页
+                                else if (offset.x > 2 * size.width / 3) {
+                                    viewModel.navigatePage(PageDirection.NEXT)
+                                } 
+                                // 点击中间区域，显示/隐藏控制栏
+                                else {
+                                    showControls = !showControls
                                 }
-                                webChromeClient = WebChromeClient()
-                                setBackgroundColor(android.graphics.Color.parseColor("#0A1929"))
-                                
-                                // 添加JavaScript接口
-                                addJavascriptInterface(object {
-                                    @JavascriptInterface
-                                    fun onPageTap(x: Float, width: Float) {
-                                        // 区分左右点击，用于翻页
-                                        if (x < width / 3) {
-                                            coroutineScope.launch {
-                                                viewModel.navigatePage(PageDirection.PREVIOUS)
-                                            }
-                                        } else if (x > 2 * width / 3) {
-                                            coroutineScope.launch {
-                                                viewModel.navigatePage(PageDirection.NEXT)
-                                            }
-                                        } else {
-                                            showControls = !showControls
+                            }
+                        )
+                    }
+            ) {
+                // 内容加载指示器
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = whiteText
+                    )
+                } 
+                // 错误信息
+                else if (uiState.error != null) {
+                    Text(
+                        text = uiState.error ?: "未知错误",
+                        color = Color.Red,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(16.dp)
+                    )
+                } 
+                // 内容显示
+                else {
+                    // 检查是否为HTML内容（通常是EPUB格式）
+                    if (uiState.currentContent?.html != null) {
+                        // 使用WebView渲染HTML内容
+                        AndroidView(
+                            factory = { context ->
+                                WebView(context).apply {
+                                    settings.javaScriptEnabled = true
+                                    settings.useWideViewPort = true
+                                    settings.loadWithOverviewMode = true
+                                    settings.textZoom = currentConfig.fontSize * 5
+                                    settings.allowFileAccess = true
+                                    settings.allowContentAccess = true
+                                    settings.domStorageEnabled = true
+                                    settings.defaultTextEncodingName = "UTF-8"
+                                    webViewClient = object : WebViewClient() {
+                                        override fun onPageFinished(view: WebView?, url: String?) {
+                                            super.onPageFinished(view, url)
+                                            // 注入JavaScript以支持点击事件
+                                            view?.loadUrl("""
+                                                javascript:(function() {
+                                                    document.body.addEventListener('click', function(e) {
+                                                        var x = e.clientX;
+                                                        var width = window.innerWidth;
+                                                        Android.onPageTap(x, width);
+                                                    });
+                                                })()
+                                            """.trimIndent())
                                         }
                                     }
+                                    webChromeClient = WebChromeClient()
+                                    setBackgroundColor(android.graphics.Color.parseColor("#0A1929"))
                                     
-                                    @JavascriptInterface
-                                    fun getTextContent(): String {
-                                        return uiState.currentContent?.text ?: ""
+                                    // 添加JavaScript接口
+                                    addJavascriptInterface(object {
+                                        @JavascriptInterface
+                                        fun onPageTap(x: Float, width: Float) {
+                                            // 区分左右点击，用于翻页
+                                            if (x < width / 3) {
+                                                coroutineScope.launch {
+                                                    viewModel.navigatePage(PageDirection.PREVIOUS)
+                                                }
+                                            } else if (x > 2 * width / 3) {
+                                                coroutineScope.launch {
+                                                    viewModel.navigatePage(PageDirection.NEXT)
+                                                }
+                                            } else {
+                                                showControls = !showControls
+                                            }
+                                        }
+                                        
+                                        @JavascriptInterface
+                                        fun getTextContent(): String {
+                                            return uiState.currentContent?.text ?: ""
+                                        }
+                                    }, "Android")
+                                    
+                                    // 加载初始内容（带样式）
+                                    uiState.currentContent?.html?.let { html ->
+                                        val enhancedStyle = """
+                                            <style>
+                                                body {
+                                                    background-color: #0A1929;
+                                                    color: white;
+                                                    font-family: system-ui, -apple-system, sans-serif;
+                                                    line-height: 1.5;
+                                                    padding: 16px;
+                                                    margin: 0;
+                                                }
+                                                p {
+                                                    margin-bottom: 1em;
+                                                    text-indent: 2em;
+                                                    line-height: 1.5;
+                                                }
+                                                h1, h2, h3, h4, h5, h6 {
+                                                    margin-top: 1.5em;
+                                                    margin-bottom: 0.5em;
+                                                    color: white;
+                                                }
+                                                a {
+                                                    color: #64B5F6;
+                                                    text-decoration: none;
+                                                }
+                                                img {
+                                                    max-width: 100%;
+                                                    height: auto;
+                                                    display: block;
+                                                    margin: 1em auto;
+                                                }
+                                            </style>
+                                        """.trimIndent()
+                                        
+                                        val htmlWithStyle = if (html.contains("<head>")) {
+                                            html.replace("<head>", "<head>$enhancedStyle")
+                                        } else {
+                                            "<html><head>$enhancedStyle</head><body>$html</body></html>"
+                                        }
+                                        
+                                        loadDataWithBaseURL(
+                                            "file:///android_asset/",
+                                            htmlWithStyle,
+                                            "text/html",
+                                            "UTF-8",
+                                            null
+                                        )
                                     }
-                                }, "Android")
-                                
-                                // 加载初始内容（带样式）
+                                    
+                                    // 保存WebView实例
+                                    webViewInstance = this
+                                }
+                            },
+                            update = { webView ->
+                                // 更新内容
                                 uiState.currentContent?.html?.let { html ->
-                                    val enhancedStyle = """
-                                        <style>
-                                            body {
-                                                background-color: #0A1929;
-                                                color: white;
-                                                font-family: system-ui, -apple-system, sans-serif;
-                                                line-height: 1.5;
-                                                padding: 16px;
-                                                margin: 0;
-                                            }
-                                            p {
-                                                margin-bottom: 1em;
-                                                text-indent: 2em;
-                                                line-height: 1.5;
-                                            }
-                                            h1, h2, h3, h4, h5, h6 {
-                                                margin-top: 1.5em;
-                                                margin-bottom: 0.5em;
-                                                color: white;
-                                            }
-                                            a {
-                                                color: #64B5F6;
-                                                text-decoration: none;
-                                            }
-                                            img {
-                                                max-width: 100%;
-                                                height: auto;
-                                                display: block;
-                                                margin: 1em auto;
-                                            }
-                                        </style>
-                                    """.trimIndent()
-                                    
-                                    val htmlWithStyle = if (html.contains("<head>")) {
-                                        html.replace("<head>", "<head>$enhancedStyle")
-                                    } else {
-                                        "<html><head>$enhancedStyle</head><body>$html</body></html>"
+                                    if (webView.url == null) {
+                                        val enhancedStyle = """
+                                            <style>
+                                                body {
+                                                    background-color: #0A1929;
+                                                    color: white;
+                                                    font-family: system-ui, -apple-system, sans-serif;
+                                                    line-height: 1.5;
+                                                    padding: 16px;
+                                                    margin: 0;
+                                                }
+                                                p {
+                                                    margin-bottom: 1em;
+                                                    text-indent: 2em;
+                                                    line-height: 1.5;
+                                                }
+                                                h1, h2, h3, h4, h5, h6 {
+                                                    margin-top: 1.5em;
+                                                    margin-bottom: 0.5em;
+                                                    color: white;
+                                                }
+                                                a {
+                                                    color: #64B5F6;
+                                                    text-decoration: none;
+                                                }
+                                                img {
+                                                    max-width: 100%;
+                                                    height: auto;
+                                                    display: block;
+                                                    margin: 1em auto;
+                                                }
+                                            </style>
+                                        """.trimIndent()
+                                        
+                                        val htmlWithStyle = if (html.contains("<head>")) {
+                                            html.replace("<head>", "<head>$enhancedStyle")
+                                        } else {
+                                            "<html><head>$enhancedStyle</head><body>$html</body></html>"
+                                        }
+                                        
+                                        webView.loadDataWithBaseURL(
+                                            "file:///android_asset/",
+                                            htmlWithStyle,
+                                            "text/html",
+                                            "UTF-8",
+                                            null
+                                        )
                                     }
-                                    
-                                    loadDataWithBaseURL(
-                                        "file:///android_asset/",
-                                        htmlWithStyle,
-                                        "text/html",
-                                        "UTF-8",
-                                        null
-                                    )
                                 }
                                 
-                                // 保存WebView实例
-                                webViewInstance = this
-                            }
-                        },
-                        update = { webView ->
-                            // 更新内容
-                            uiState.currentContent?.html?.let { html ->
-                                if (webView.url == null) {
-                                    val enhancedStyle = """
-                                        <style>
-                                            body {
-                                                background-color: #0A1929;
-                                                color: white;
-                                                font-family: system-ui, -apple-system, sans-serif;
-                                                line-height: 1.5;
-                                                padding: 16px;
-                                                margin: 0;
-                                            }
-                                            p {
-                                                margin-bottom: 1em;
-                                                text-indent: 2em;
-                                                line-height: 1.5;
-                                            }
-                                            h1, h2, h3, h4, h5, h6 {
-                                                margin-top: 1.5em;
-                                                margin-bottom: 0.5em;
-                                                color: white;
-                                            }
-                                            a {
-                                                color: #64B5F6;
-                                                text-decoration: none;
-                                            }
-                                            img {
-                                                max-width: 100%;
-                                                height: auto;
-                                                display: block;
-                                                margin: 1em auto;
-                                            }
-                                        </style>
-                                    """.trimIndent()
-                                    
-                                    val htmlWithStyle = if (html.contains("<head>")) {
-                                        html.replace("<head>", "<head>$enhancedStyle")
-                                    } else {
-                                        "<html><head>$enhancedStyle</head><body>$html</body></html>"
-                                    }
-                                    
-                                    webView.loadDataWithBaseURL(
-                                        "file:///android_asset/",
-                                        htmlWithStyle,
-                                        "text/html",
-                                        "UTF-8",
-                                        null
-                                    )
-                                }
-                            }
-                            
-                            // 更新字体大小
-                            webView.settings.textZoom = currentConfig.fontSize * 5
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    // 纯文本内容（TXT等格式）
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(navyBlueBackground)
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        val textContent = uiState.currentContent?.text ?: ""
-                        val formattedText = remember(textContent) {
-                            formatTextContent(textContent)
-                        }
-                        
-                        Column(
+                                // 更新字体大小
+                                webView.settings.textZoom = currentConfig.fontSize * 5
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        // 纯文本内容（TXT等格式）
+                        Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
+                                .background(navyBlueBackground)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            formattedText.forEach { paragraph ->
-                                if (paragraph.isNotBlank()) {
-                                    Text(
-                                        text = paragraph,
-                                        fontSize = currentConfig.fontSize.sp,
-                                        lineHeight = (currentConfig.fontSize * 1.5).sp,
-                                        color = whiteText,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 8.dp)
-                                    )
-                                } else {
-                                    Spacer(modifier = Modifier.height(16.dp))
+                            val textContent = uiState.currentContent?.text ?: ""
+                            val formattedText = remember(textContent) {
+                                formatTextContent(textContent)
+                            }
+                            
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                formattedText.forEach { paragraph ->
+                                    if (paragraph.isNotBlank()) {
+                                        Text(
+                                            text = paragraph,
+                                            fontSize = currentConfig.fontSize.sp,
+                                            lineHeight = (currentConfig.fontSize * 1.5).sp,
+                                            color = whiteText,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp)
+                                        )
+                                    } else {
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                    }
                                 }
                             }
                         }
                     }
                 }
+            }
+            
+            // 底部状态栏 - 固定高度32dp
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .background(statusBarBackground) // 使用半透明白色背景
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 左侧2/3显示书名
+                Text(
+                    text = uiState.book?.title ?: "",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(2f)
+                )
+                
+                // 右侧1/3显示页码和阅读百分比
+                Text(
+                    text = "${uiState.currentPage + 1}/${uiState.totalPages} (${(uiState.readingProgress * 100).toInt()}%)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Black,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
         
