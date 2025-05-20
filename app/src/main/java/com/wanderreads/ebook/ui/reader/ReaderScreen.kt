@@ -66,6 +66,11 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import android.util.Log
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBarsPadding
 
 /**
  * 阅读器屏幕组件
@@ -167,80 +172,15 @@ fun ReaderScreen(
         showControls = !showControls
     }
     
-    Scaffold(
-        topBar = {
-            AnimatedVisibility(
-                visible = showControls,
-                enter = fadeIn(animationSpec = tween(durationMillis = 300)),
-                exit = fadeOut(animationSpec = tween(durationMillis = 300))
-            ) {
-                TopAppBar(
-                    title = { 
-                        Text(
-                            text = uiState.book?.title ?: "阅读器",
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1
-                        ) 
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBackClick) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "返回"
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                        actionIconContentColor = MaterialTheme.colorScheme.onSurface
-                    )
-                )
-            }
-        },
-        bottomBar = {
-            AnimatedVisibility(
-                visible = showControls,
-                enter = fadeIn(animationSpec = tween(durationMillis = 300)) +
-                        slideInVertically(animationSpec = tween(durationMillis = 300)) { it },
-                exit = fadeOut(animationSpec = tween(durationMillis = 300)) +
-                        slideOutVertically(animationSpec = tween(durationMillis = 300)) { it }
-            ) {
-                EnhancedBottomControls(
-                    currentPage = uiState.currentPage + 1,
-                    totalPages = uiState.totalPages,
-                    isTtsActive = isTtsActive.value,
-                    onPreviousPage = { viewModel.previousPage() },
-                    onNextPage = { viewModel.nextPage() },
-                    onToggleTts = { 
-                        if (isTtsActive.value) {
-                            // 停止朗读
-                            ttsEngine.value?.stop()
-                            isTtsActive.value = false
-                        } else {
-                            // 开始朗读当前页
-                            isTtsActive.value = true
-                            val currentPageContent = viewModel.getContentForCurrentPage()
-                            if (currentPageContent.isNotEmpty()) {
-                                val params = Bundle()
-                                val utteranceId = UUID.randomUUID().toString()
-                                ttsEngine.value?.speak(currentPageContent, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
-                            } else {
-                                isTtsActive.value = false
-                                Log.d("TextToSpeech", "当前页没有内容，无法朗读")
-                            }
-                        }
-                    }
-                )
-            }
-        }
-    ) { paddingValues ->
+    // 使用Box作为根布局容器，可以更好地控制绝对定位
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // 内容区域，使用嵌套的Box避免内容和状态栏重叠
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .background(MaterialTheme.colorScheme.background)
+                .padding(bottom = 32.dp) // 为底部状态栏预留空间
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { position ->
@@ -344,35 +284,27 @@ fun ReaderScreen(
                 }
                 uiState.pages.isNotEmpty() -> {
                     // 内容显示
-                    Box(
-                        modifier = Modifier.fillMaxSize()
+                    val currentPageContent = uiState.pages.getOrNull(uiState.currentPage) ?: ""
+                    val scrollState = rememberScrollState()
+                    // 每次页面变化时重置滚动位置
+                    LaunchedEffect(uiState.currentPage) {
+                        scrollState.scrollTo(0)
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 24.dp)
                     ) {
-                        // 当前页内容
-                        val currentPageContent = uiState.pages.getOrNull(uiState.currentPage) ?: ""
-                        
-                        val scrollState = rememberScrollState()
-                        
-                        // 每次页面变化时重置滚动位置
-                        LaunchedEffect(uiState.currentPage) {
-                            scrollState.scrollTo(0)
-                        }
-                        
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 16.dp, vertical = 24.dp)
-                                .verticalScroll(scrollState)
-                        ) {
-                            Text(
-                                text = currentPageContent,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontSize = 18.sp,
-                                    lineHeight = 28.sp,
-                                    fontFamily = FontFamily.Serif
-                                ),
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
+                        Text(
+                            text = currentPageContent,
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = 18.sp,
+                                lineHeight = 28.sp,
+                                fontFamily = FontFamily.Serif
+                            ),
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
                     }
                 }
                 else -> {
@@ -390,6 +322,75 @@ fun ReaderScreen(
                 }
             }
         }
+        
+        // 底部状态栏 - 始终位于底部固定位置
+        if (!showControls) {
+            SimpleReaderStatusBar(
+                bookTitle = uiState.book?.title ?: "阅读书籍",
+                currentPage = uiState.currentPage + 1,
+                totalPages = uiState.totalPages,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+        
+        // 顶部工具栏 - 仅在控制模式下显示
+        if (showControls) {
+            TopAppBar(
+                title = { 
+                    Text(
+                        text = uiState.book?.title ?: "阅读器",
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1
+                    ) 
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "返回"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        }
+        
+        // 底部工具栏 - 仅在控制模式下显示
+        if (showControls) {
+            EnhancedBottomControls(
+                currentPage = uiState.currentPage + 1,
+                totalPages = uiState.totalPages,
+                isTtsActive = isTtsActive.value,
+                onPreviousPage = { viewModel.previousPage() },
+                onNextPage = { viewModel.nextPage() },
+                onToggleTts = { 
+                    if (isTtsActive.value) {
+                        // 停止朗读
+                        ttsEngine.value?.stop()
+                        isTtsActive.value = false
+                    } else {
+                        // 开始朗读当前页
+                        isTtsActive.value = true
+                        val currentPageContent = viewModel.getContentForCurrentPage()
+                        if (currentPageContent.isNotEmpty()) {
+                            val params = Bundle()
+                            val utteranceId = UUID.randomUUID().toString()
+                            ttsEngine.value?.speak(currentPageContent, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
+                        } else {
+                            isTtsActive.value = false
+                            Log.d("TextToSpeech", "当前页没有内容，无法朗读")
+                        }
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
@@ -403,10 +404,11 @@ fun EnhancedBottomControls(
     isTtsActive: Boolean,
     onPreviousPage: () -> Unit,
     onNextPage: () -> Unit,
-    onToggleTts: () -> Unit
+    onToggleTts: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(16.dp),
         shape = RoundedCornerShape(16.dp),
@@ -519,6 +521,72 @@ fun EnhancedBottomControls(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 阅读界面底部状态栏 - 简化版，常驻显示
+ * @param bookTitle 书名
+ * @param currentPage 当前页码（从1开始）
+ * @param totalPages 总页数
+ * @param modifier 外部修饰符
+ */
+@Composable
+fun SimpleReaderStatusBar(
+    bookTitle: String,
+    currentPage: Int,
+    totalPages: Int,
+    modifier: Modifier = Modifier
+) {
+    val percent = if (totalPages > 0) (currentPage.toFloat() / totalPages * 100f) else 0f
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(32.dp)
+    ) {
+        // 阴影背景
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f))
+        )
+        
+        // 状态栏内容
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 左2/3：书名
+            Text(
+                text = bookTitle,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.weight(2f)
+            )
+            
+            // 右1/3：页码和百分比
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (totalPages > 0) "$currentPage/$totalPages" else "-/-",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = String.format("%.1f%%", percent),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
             }
         }
     }
