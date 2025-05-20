@@ -222,6 +222,32 @@ class UnifiedReaderViewModel(
     }
     
     /**
+     * 暂停朗读
+     */
+    fun pauseTts() {
+        if (tts?.isSpeaking == true) {
+            tts?.stop()
+        }
+    }
+    
+    /**
+     * 继续朗读
+     */
+    fun resumeTts() {
+        if (tts?.isSpeaking == false) {
+            speakCurrentPage()
+        }
+    }
+    
+    /**
+     * 停止朗读
+     */
+    fun stopTts() {
+        isTtsActive = false
+        tts?.stop()
+    }
+    
+    /**
      * 朗读当前页面
      */
     private fun speakCurrentPage() {

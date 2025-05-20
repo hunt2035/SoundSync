@@ -8,6 +8,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.forEachGesture
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,7 +37,14 @@ import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +53,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -58,7 +71,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -66,6 +81,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Popup
 import android.content.Intent
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -81,6 +97,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import kotlinx.coroutines.delay
 
 /**
@@ -133,6 +150,15 @@ fun UnifiedReaderScreen(
         ),
         label = "recording scale animation"
     )
+    
+    // 控制朗读悬浮窗的显示
+    var showTtsFloatingWindow by remember { mutableStateOf(false) }
+    
+    // 控制朗读悬浮窗的位置
+    var ttsWindowPosition by remember { mutableStateOf(Offset(100f, 100f)) }
+    
+    // 记录朗读悬浮窗的拖动状态
+    var isDraggingTtsWindow by remember { mutableStateOf(false) }
     
     // WebView引用 (用于EPUB)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
@@ -196,6 +222,13 @@ fun UnifiedReaderScreen(
     
     var isTtsActive by remember { mutableStateOf(false) }
     
+    // 监听TTS状态变化
+    LaunchedEffect(isTtsActive) {
+        if (isTtsActive) {
+            showTtsFloatingWindow = true
+        }
+    }
+    
     Scaffold(
         topBar = {
             AnimatedVisibility(
@@ -211,62 +244,89 @@ fun UnifiedReaderScreen(
                         }
                     },
                     actions = {
-                        // TTS按钮
+                        // 三个点菜单按钮
                         IconButton(
-                            onClick = {
-                                isTtsActive = viewModel.toggleTts()
-                            }
+                            onClick = { showMenu = !showMenu }
                         ) {
                             Icon(
-                                imageVector = if (isTtsActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                                contentDescription = if (isTtsActive) "停止朗读" else "开始朗读",
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "更多选项",
                                 tint = whiteText
                             )
                         }
                         
-                        // 目录按钮
-                        IconButton(
-                            onClick = { showToc = true }
+                        // 下拉菜单
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier.background(navyBlueBackground)
                         ) {
-                            Icon(Icons.Default.List, contentDescription = "目录", tint = whiteText)
-                        }
-                        
-                        // 分享按钮 - 使用系统分享功能
-                        IconButton(
-                            onClick = { 
-                                // 获取当前页文本内容
-                                val currentText = uiState.currentContent?.text ?: ""
-                                if (currentText.isNotEmpty()) {
-                                    // 准备分享文本，包含书名和当前阅读内容
-                                    val bookTitle = uiState.book?.title ?: "电子书"
-                                    val shareText = "我正在阅读《$bookTitle》，分享一段内容：\n\n${
-                                        if (currentText.length > 300) 
-                                            currentText.substring(0, 300) + "..." 
-                                        else 
-                                            currentText
-                                    }"
-                                    
-                                    // 使用系统分享功能
-                                    val shareIntent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, shareText)
-                                        type = "text/plain"
-                                    }
-                                    
-                                    context.startActivity(Intent.createChooser(shareIntent, "分享到"))
-                                } else {
-                                    Toast.makeText(context, "当前页面没有可分享的文本内容", Toast.LENGTH_SHORT).show()
+                            DropdownMenuItem(
+                                text = { Text("查看目录", color = whiteText) },
+                                onClick = { 
+                                    showMenu = false
+                                    showToc = true 
                                 }
-                            }
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = "分享", tint = whiteText)
-                        }
-                        
-                        // 设置按钮
-                        IconButton(
-                            onClick = { showSettings = true }
-                        ) {
-                            Icon(Icons.Default.Settings, contentDescription = "设置", tint = whiteText)
+                            )
+                            DropdownMenuItem(
+                                text = { Text("开始朗读", color = whiteText) },
+                                onClick = { 
+                                    showMenu = false
+                                    isTtsActive = viewModel.toggleTts() 
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("合成语音", color = whiteText) },
+                                onClick = { 
+                                    showMenu = false
+                                    // 合成语音功能后续实现
+                                    Toast.makeText(context, "合成语音功能开发中", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("语音列表", color = whiteText) },
+                                onClick = { 
+                                    showMenu = false
+                                    // 语音列表功能后续实现
+                                    Toast.makeText(context, "语音列表功能开发中", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("分享内容", color = whiteText) },
+                                onClick = { 
+                                    showMenu = false
+                                    // 获取当前页文本内容
+                                    val currentText = uiState.currentContent?.text ?: ""
+                                    if (currentText.isNotEmpty()) {
+                                        // 准备分享文本，包含书名和当前阅读内容
+                                        val bookTitle = uiState.book?.title ?: "电子书"
+                                        val shareText = "我正在阅读《$bookTitle》，分享一段内容：\n\n${
+                                            if (currentText.length > 300) 
+                                                currentText.substring(0, 300) + "..." 
+                                            else 
+                                                currentText
+                                        }"
+                                        
+                                        // 使用系统分享功能
+                                        val shareIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, shareText)
+                                            type = "text/plain"
+                                        }
+                                        
+                                        context.startActivity(Intent.createChooser(shareIntent, "分享到"))
+                                    } else {
+                                        Toast.makeText(context, "当前页面没有可分享的文本内容", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("阅读设置", color = whiteText) },
+                                onClick = { 
+                                    showMenu = false
+                                    showSettings = true 
+                                }
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -281,69 +341,146 @@ fun UnifiedReaderScreen(
                 enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
                 exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
             ) {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(themeBlue)
                         .padding(8.dp)
                 ) {
-                    Column {
-                        // 阅读进度条
-                        LinearProgressIndicator(
-                            progress = { uiState.readingProgress },
-                            modifier = Modifier.fillMaxWidth(),
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.3f)
-                        )
-                        
-                        Spacer(modifier = Modifier.height(4.dp))
-                        
-                        // 页码信息
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    // 底部工具栏第一行：翻页控制
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // 上一页按钮
+                        IconButton(
+                            onClick = { viewModel.navigatePage(PageDirection.PREVIOUS) },
+                            enabled = uiState.currentPage > 0
                         ) {
-                            Text(
-                                text = "${uiState.currentPage + 1}/${uiState.totalPages}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = whiteText
-                            )
-                            
-                            Text(
-                                text = "${(uiState.readingProgress * 100).toInt()}%",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = whiteText
+                            Icon(
+                                Icons.Default.KeyboardArrowLeft,
+                                contentDescription = "上一页",
+                                tint = whiteText
                             )
                         }
                         
-                        // 翻页按钮
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                        // 滑杆控制翻页进度
+                        Slider(
+                            value = uiState.readingProgress,
+                            onValueChange = { progress ->
+                                val targetPage = (progress * (uiState.totalPages - 1)).toInt()
+                                viewModel.goToPage(targetPage)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = SliderDefaults.colors(
+                                thumbColor = whiteText,
+                                activeTrackColor = whiteText,
+                                inactiveTrackColor = whiteText.copy(alpha = 0.3f)
+                            )
+                        )
+                        
+                        // 下一页按钮
+                        IconButton(
+                            onClick = { viewModel.navigatePage(PageDirection.NEXT) },
+                            enabled = uiState.currentPage < uiState.totalPages - 1
                         ) {
-                            IconButton(
-                                onClick = { viewModel.navigatePage(PageDirection.PREVIOUS) },
-                                enabled = uiState.currentPage > 0
-                            ) {
-                                Icon(
-                                    Icons.Default.KeyboardArrowLeft,
-                                    contentDescription = "上一页",
-                                    tint = whiteText
-                                )
+                            Icon(
+                                Icons.Default.KeyboardArrowRight,
+                                contentDescription = "下一页",
+                                tint = whiteText
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    // 底部工具栏第二行：功能图标
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 目录图标
+                        IconButton(onClick = { showToc = true }) {
+                            Icon(
+                                Icons.Default.List,
+                                contentDescription = "目录",
+                                tint = whiteText
+                            )
+                        }
+                        
+                        // 朗读图标
+                        IconButton(onClick = { isTtsActive = viewModel.toggleTts() }) {
+                            Icon(
+                                imageVector = if (isTtsActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                                contentDescription = if (isTtsActive) "停止朗读" else "开始朗读",
+                                tint = whiteText
+                            )
+                        }
+                        
+                        // 合成语音图标
+                        IconButton(onClick = { 
+                            Toast.makeText(context, "合成语音功能开发中", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(
+                                Icons.Default.Mic,
+                                contentDescription = "合成语音",
+                                tint = whiteText
+                            )
+                        }
+                        
+                        // 语音列表图标
+                        IconButton(onClick = { 
+                            Toast.makeText(context, "语音列表功能开发中", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(
+                                Icons.Default.MicNone,
+                                contentDescription = "语音列表",
+                                tint = whiteText
+                            )
+                        }
+                        
+                        // 分享图标
+                        IconButton(onClick = { 
+                            // 获取当前页文本内容
+                            val currentText = uiState.currentContent?.text ?: ""
+                            if (currentText.isNotEmpty()) {
+                                // 准备分享文本，包含书名和当前阅读内容
+                                val bookTitle = uiState.book?.title ?: "电子书"
+                                val shareText = "我正在阅读《$bookTitle》，分享一段内容：\n\n${
+                                    if (currentText.length > 300) 
+                                        currentText.substring(0, 300) + "..." 
+                                    else 
+                                        currentText
+                                }"
+                                
+                                // 使用系统分享功能
+                                val shareIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                    type = "text/plain"
+                                }
+                                
+                                context.startActivity(Intent.createChooser(shareIntent, "分享到"))
+                            } else {
+                                Toast.makeText(context, "当前页面没有可分享的文本内容", Toast.LENGTH_SHORT).show()
                             }
-                            
-                            IconButton(
-                                onClick = { viewModel.navigatePage(PageDirection.NEXT) },
-                                enabled = uiState.currentPage < uiState.totalPages - 1
-                            ) {
-                                Icon(
-                                    Icons.Default.KeyboardArrowRight,
-                                    contentDescription = "下一页",
-                                    tint = whiteText
-                                )
-                            }
+                        }) {
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = "分享",
+                                tint = whiteText
+                            )
+                        }
+                        
+                        // 阅读设置图标
+                        IconButton(onClick = { showSettings = true }) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "阅读设置",
+                                tint = whiteText
+                            )
                         }
                     }
                 }
@@ -357,6 +494,136 @@ fun UnifiedReaderScreen(
                 .background(navyBlueBackground)
                 .padding(paddingValues)
         ) {
+            // TTS朗读控制悬浮窗
+            if (showTtsFloatingWindow) {
+                Popup {
+                    Box(
+                        modifier = Modifier
+                            .graphicsLayer {
+                                translationX = ttsWindowPosition.x
+                                translationY = ttsWindowPosition.y
+                            }
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .shadow(4.dp, shape = MaterialTheme.shapes.medium)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onPress = { offset ->
+                                            isDraggingTtsWindow = true
+                                            awaitRelease()
+                                            isDraggingTtsWindow = false
+                                        }
+                                    )
+                                }
+                                .pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val dragEvent = event.changes.firstOrNull()
+                                            if (dragEvent != null && dragEvent.pressed && isDraggingTtsWindow) {
+                                                dragEvent.consume()
+                                                val dragAmount = dragEvent.position - dragEvent.previousPosition
+                                                ttsWindowPosition = Offset(
+                                                    x = (ttsWindowPosition.x + dragAmount.x).coerceIn(0f, screenWidth - 280f),
+                                                    y = (ttsWindowPosition.y + dragAmount.y).coerceIn(0f, 800f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                            shape = MaterialTheme.shapes.medium,
+                            color = Color(0xFF2C3E50).copy(alpha = 0.85f)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .width(280.dp)
+                                    .padding(12.dp)
+                            ) {
+                                // 标题和拖动图标
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = uiState.book?.title ?: "正在朗读",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    
+                                    Icon(
+                                        imageVector = Icons.Default.DragHandle,
+                                        contentDescription = "拖动",
+                                        tint = Color.White.copy(alpha = 0.7f)
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                // 控制按钮
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // 播放/暂停按钮
+                                    IconButton(
+                                        onClick = {
+                                            // 切换播放/暂停状态
+                                            isTtsActive = !isTtsActive
+                                            if (isTtsActive) {
+                                                viewModel.resumeTts()
+                                            } else {
+                                                viewModel.pauseTts()
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isTtsActive) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            contentDescription = if (isTtsActive) "暂停" else "播放",
+                                            tint = Color.White
+                                        )
+                                    }
+                                    
+                                    // 停止按钮
+                                    IconButton(
+                                        onClick = {
+                                            isTtsActive = false
+                                            viewModel.stopTts()
+                                            showTtsFloatingWindow = false
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Stop,
+                                            contentDescription = "停止",
+                                            tint = Color.White
+                                        )
+                                    }
+                                    
+                                    // 书籍列表按钮（三个横线）
+                                    IconButton(
+                                        onClick = {
+                                            // 显示正在播放的书籍列表，这里暂时只有一本
+                                            Toast.makeText(context, "当前只有一本书在朗读", Toast.LENGTH_SHORT).show()
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.List,
+                                            contentDescription = "播放列表",
+                                            tint = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
             // 内容区域 - 占据90%的空间
             Box(
                 modifier = Modifier
