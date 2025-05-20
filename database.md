@@ -24,6 +24,22 @@
 | lastOpenedDate | Long | 最后打开时间 | NOT NULL |
 | urlPath | String | 网页导入的URL | NULL |
 
+### 2. 录音表 (records)
+
+| 字段名 | 类型 | 说明 | 约束 |
+|--------|------|------|------|
+| rec_id | String | 录音唯一标识符 | PRIMARY KEY |
+| book_id | String | 关联电子书ID | FOREIGN KEY (books.id), NOT NULL |
+| title | String | 录音标题 | NOT NULL |
+| voiceFilePath | String | 录音文件路径 | NOT NULL |
+| addedDate | Long | 录音添加时间 | NOT NULL |
+| voiceLength | Integer | 录音时长（秒） | NOT NULL |
+| chapterIndex | Long | 章节索引 | NULL |
+| pageIndex | Long | 页码索引 | NULL |
+
+- book_id 字段为外键，关联 books 表的 id 字段，且设置级联删除（CASCADE）。
+- 对 book_id 字段建立索引以提升查询性能。
+
 ## 数据访问对象 (DAO)
 
 ### BookDao 接口
@@ -45,6 +61,23 @@
 3. 更新操作
    - `updateReadingProgress(bookId: String, lastReadPage: Int, lastReadPosition: Float, timestamp: Long)`: 更新阅读进度
    - `updateLastOpenedDate(bookId: String, lastOpenedDate: Long)`: 更新最后打开时间
+
+### RecordDao 接口
+
+提供以下主要操作：
+
+1. 基础CRUD操作
+   - `insertRecord(record: RecordEntity)`: 插入新录音
+   - `updateRecord(record: RecordEntity)`: 更新录音信息
+   - `deleteRecord(record: RecordEntity)`: 删除录音
+   - `getRecordById(recordId: String)`: 根据ID获取录音
+
+2. 查询操作
+   - `getRecordsByBookId(bookId: String)`: 获取指定书籍的所有录音，按添加时间倒序排列
+   - `getAllRecords()`: 获取所有录音，按添加时间倒序排列
+
+3. 批量删除
+   - `deleteAllRecordsForBook(bookId: String)`: 删除指定书籍的所有录音
 
 ## 数据模型
 
@@ -68,6 +101,21 @@ data class Book(
 )
 ```
 
+### Record 领域模型
+
+```kotlin
+data class Record(
+    val id: String,
+    val bookId: String,
+    val title: String,
+    val voiceFilePath: String,
+    val addedDate: Long,
+    val voiceLength: Int,
+    val chapterIndex: Long?,
+    val pageIndex: Long?
+)
+```
+
 ### BookType 枚举
 
 ```kotlin
@@ -78,7 +126,7 @@ enum class BookType {
 
 ## 数据库版本
 
-- 当前版本：1
+- 当前版本：6
 - 导出Schema：false
 
 ## 注意事项
@@ -87,4 +135,5 @@ enum class BookType {
 2. 所有数据库操作都在协程中异步执行，避免阻塞主线程
 3. 使用 Flow 实现响应式数据流，支持实时数据更新
 4. 文件哈希值用于防止重复导入相同的电子书
-5. 阅读进度和位置信息用于实现断点续读功能 
+5. 阅读进度和位置信息用于实现断点续读功能
+6. 录音表与电子书表通过外键关联，删除电子书时自动删除其所有录音 

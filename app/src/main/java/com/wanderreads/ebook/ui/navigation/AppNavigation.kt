@@ -438,12 +438,10 @@ fun AppNavigation() {
                 val ebookApplication = context.applicationContext as com.wanderreads.ebook.EbookApplication
                 val dependencies = ebookApplication.provideDependencies()
                 val bookRepository = dependencies.bookRepository
-                val recordRepository = dependencies.recordRepository
                 val viewModelFactory = remember { 
                     UnifiedReaderViewModelFactory(
                         application = application,
                         bookRepository = bookRepository,
-                        recordRepository = recordRepository,
                         bookId = bookId
                     )
                 }

@@ -24,10 +24,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import com.wanderreads.ebook.service.AudioCaptureService
-import com.wanderreads.ebook.ui.navigation.AppNavigation
-import com.wanderreads.ebook.ui.theme.EbookTheme
 import java.lang.ref.WeakReference
+import com.wanderreads.ebook.ui.theme.EbookTheme
+import com.wanderreads.ebook.ui.navigation.AppNavigation
 
 /**
  * 主Activity
@@ -92,33 +91,6 @@ class MainActivity : ComponentActivity() {
     // 媒体投影管理器
     private var mediaProjectionManager: MediaProjectionManager? = null
     
-    // 音频捕获服务
-    private var audioCaptureService: AudioCaptureService? = null
-    private var serviceBound = false
-    
-    // 服务连接
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            val binder = service as AudioCaptureService.LocalBinder
-            audioCaptureService = binder.getService()
-            serviceBound = true
-            
-            // 如果已经有媒体投影权限，设置给服务
-            if (mediaProjection != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                audioCaptureService?.setMediaProjection(mediaProjection!!)
-                Log.d(TAG, "媒体投影已成功设置到服务")
-            } else {
-                Log.d(TAG, "服务已连接，但媒体投影尚未获取")
-            }
-        }
-        
-        override fun onServiceDisconnected(name: ComponentName?) {
-            audioCaptureService = null
-            serviceBound = false
-            Log.d(TAG, "音频捕获服务已断开连接")
-        }
-    }
-    
     // 媒体投影结果
     @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     private val mediaProjectionLauncher = registerForActivityResult(
@@ -126,20 +98,15 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             Log.d(TAG, "媒体投影权限已被授予")
-            
             try {
                 // 获取媒体投影实例
                 mediaProjection = mediaProjectionManager?.getMediaProjection(result.resultCode, result.data!!)
-                
                 // 检查设备制造商
                 val manufacturer = Build.MANUFACTURER
                 val model = Build.MODEL
                 val isHuaweiDevice = manufacturer.equals("HUAWEI", ignoreCase = true)
-                
                 Log.d(TAG, "设备信息 - 制造商: $manufacturer, 型号: $model")
-                
                 if (isHuaweiDevice) {
-                    // 针对华为P30 Pro的特殊处理
                     if (model.contains("P30 Pro", ignoreCase = true)) {
                         Log.d(TAG, "检测到华为P30 Pro设备，应用特殊录音处理")
                         Toast.makeText(this, "已获取华为P30 Pro屏幕录制权限，将使用特殊方法进行内录", Toast.LENGTH_SHORT).show()
@@ -148,17 +115,6 @@ class MainActivity : ComponentActivity() {
                         Toast.makeText(this, "华为设备已获取录屏权限，将尝试内录", Toast.LENGTH_SHORT).show()
                     }
                 }
-                
-                // 如果服务已绑定，设置媒体投影
-                if (serviceBound && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    audioCaptureService?.setMediaProjection(mediaProjection!!)
-                    Log.d(TAG, "媒体投影已成功设置到服务")
-                } else {
-                    Log.d(TAG, "服务尚未绑定，将在服务连接后设置媒体投影")
-                }
-                
-                // 启动音频捕获服务
-                startAudioCaptureService()
             } catch (e: Exception) {
                 Log.e(TAG, "处理媒体投影权限失败: ${e.message}", e)
                 Toast.makeText(this, "处理媒体投影权限失败: ${e.message}", Toast.LENGTH_LONG).show()
@@ -189,7 +145,6 @@ class MainActivity : ComponentActivity() {
         
         try {
             enableEdgeToEdge()
-            
             setContent {
                 EbookTheme {
                     Surface(
@@ -229,7 +184,6 @@ class MainActivity : ComponentActivity() {
         if (mediaProjection != null) {
             // 已有权限，直接启动服务
             Log.d(TAG, "已有媒体投影权限，直接启动服务")
-            startAudioCaptureService()
             return
         }
         
@@ -261,31 +215,6 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             Log.e(TAG, "请求媒体投影权限失败: ${e.message}", e)
             Toast.makeText(this, "请求录屏权限失败，无法实现内录功能", Toast.LENGTH_LONG).show()
-        }
-    }
-    
-    /**
-     * 启动音频捕获服务
-     */
-    private fun startAudioCaptureService() {
-        try {
-            Log.d(TAG, "正在启动音频捕获服务")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(Intent(this, AudioCaptureService::class.java))
-            } else {
-                startService(Intent(this, AudioCaptureService::class.java))
-            }
-            
-            // 绑定服务
-            bindService(
-                Intent(this, AudioCaptureService::class.java),
-                serviceConnection,
-                Context.BIND_AUTO_CREATE
-            )
-            Log.d(TAG, "音频捕获服务启动和绑定请求已发送")
-        } catch (e: Exception) {
-            Log.e(TAG, "启动音频捕获服务失败: ${e.message}", e)
-            Toast.makeText(this, "启动内录服务失败", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -325,9 +254,6 @@ class MainActivity : ComponentActivity() {
             permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
         
-        // 添加录音权限
-        permissions.add(Manifest.permission.RECORD_AUDIO)
-        
         // 添加前台服务权限（Android 10+）
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             permissions.add(Manifest.permission.FOREGROUND_SERVICE)
@@ -345,17 +271,6 @@ class MainActivity : ComponentActivity() {
     }
     
     override fun onDestroy() {
-        // 解绑服务
-        if (serviceBound) {
-            try {
-                unbindService(serviceConnection)
-                Log.d(TAG, "服务已解绑")
-            } catch (e: Exception) {
-                Log.e(TAG, "解绑服务失败: ${e.message}")
-            }
-            serviceBound = false
-        }
-        
         // 清除单例引用
         if (instance?.get() == this) {
             instance = null

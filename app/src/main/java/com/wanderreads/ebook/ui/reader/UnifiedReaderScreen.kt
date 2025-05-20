@@ -33,11 +33,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,7 +48,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,7 +61,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,18 +69,11 @@ import android.content.Intent
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
-import com.wanderreads.ebook.R
 import com.wanderreads.ebook.util.PageDirection
-import com.wanderreads.ebook.util.WeChatShareUtil
 import com.wanderreads.ebook.util.reader.model.ReaderConfig
 import kotlinx.coroutines.launch
-import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -132,12 +120,6 @@ fun UnifiedReaderScreen(
     // 设置面板当前选项卡
     var currentSettingsTab by remember { mutableIntStateOf(0) }
     
-    // TTS状态
-    var isTtsActive by remember { mutableStateOf(false) }
-    
-    // 录音状态
-    var isRecording by remember { mutableStateOf(false) }
-    
     // 创建无限循环的动画效果用于录音图标
     val infiniteTransition = rememberInfiniteTransition(label = "recording animation")
     val scale = infiniteTransition.animateFloat(
@@ -164,22 +146,6 @@ fun UnifiedReaderScreen(
     LaunchedEffect(Unit) {
         viewModel.initTts { status ->
             // TTS初始化完成
-        }
-    }
-    
-    // 初始化 - 检查当前录音状态
-    LaunchedEffect(Unit) {
-        isRecording = viewModel.isRecordingActive()
-    }
-    
-    // 定期检查录音状态 - 以处理自动停止录音的情况（例如静音检测）
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1000)  // 每秒检查一次
-            val currentRecordingState = viewModel.isRecordingActive()
-            if (isRecording != currentRecordingState) {
-                isRecording = currentRecordingState
-            }
         }
     }
     
@@ -226,6 +192,8 @@ fun UnifiedReaderScreen(
         }
     }
     
+    var isTtsActive by remember { mutableStateOf(false) }
+    
     Scaffold(
         topBar = {
             AnimatedVisibility(
@@ -250,31 +218,6 @@ fun UnifiedReaderScreen(
                             Icon(
                                 imageVector = if (isTtsActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
                                 contentDescription = if (isTtsActive) "停止朗读" else "开始朗读",
-                                tint = whiteText
-                            )
-                        }
-                        
-                        // 手动录音按钮
-                        IconButton(
-                            onClick = { 
-                                isRecording = viewModel.toggleManualRecording()
-                            }
-                        ) {
-                            Icon(
-                                imageVector = if (isRecording) Icons.Default.Mic else Icons.Default.MicNone,
-                                contentDescription = if (isRecording) "停止录音" else "开始录音",
-                                tint = if (isRecording) Color.Red else whiteText,
-                                modifier = if (isRecording) Modifier.scale(scale.value) else Modifier
-                            )
-                        }
-                        
-                        // 录音文件按钮 - 更新图标以区分手动录音按钮
-                        IconButton(
-                            onClick = { showRecords = true }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.FolderOpen,
-                                contentDescription = "录音文件列表",
                                 tint = whiteText
                             )
                         }
@@ -803,21 +746,6 @@ fun UnifiedReaderScreen(
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
-    }
-    
-    // 显示录音文件列表
-    if (showRecords) {
-        RecordsScreen(
-            records = uiState.records,
-            onDismiss = { showRecords = false },
-            onPlayRecord = { record ->
-                viewModel.playRecord(record)
-            },
-            onPauseRecord = { record ->
-                viewModel.pauseRecord(record)
-            },
-            currentPlayingRecordId = uiState.currentPlayingRecordId
-        )
     }
 }
 
