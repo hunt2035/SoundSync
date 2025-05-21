@@ -660,14 +660,7 @@ fun UnifiedReaderScreen(
                                     }
                                 } else {
                                     // 控制栏隐藏时
-                                    // 点击左侧1/3区域，向前翻页
-                                    if (offset.x < size.width / 3) {
-                                        viewModel.navigatePage(PageDirection.PREVIOUS)
-                                    } 
-                                    // 点击右侧1/3区域，向后翻页
-                                    else if (offset.x > 2 * size.width / 3) {
-                                        viewModel.navigatePage(PageDirection.NEXT)
-                                    } 
+                                                                        // 点击左侧1/3区域，向前翻页                                    if (offset.x < size.width / 3) {                                        viewModel.navigatePage(PageDirection.PREVIOUS)                                    }                                     // 点击右侧1/3区域，向后翻页                                    else if (offset.x > 2 * size.width / 3) {                                        viewModel.navigatePage(PageDirection.NEXT)                                    }  
                                     // 点击中间区域，同时显示控制栏和朗读控制悬浮窗
                                     else {
                                         showControls = true
