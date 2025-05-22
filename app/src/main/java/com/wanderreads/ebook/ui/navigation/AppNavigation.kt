@@ -226,17 +226,65 @@ fun AppNavigation() {
     
     // 网址导入对话框状态
     var showWebImportDialog by remember { mutableStateOf(false) }
+    // 导入错误状态
+    var importError by remember { mutableStateOf<String?>(null) }
+    
+    // 显示导入错误提示
+    importError?.let { error ->
+        androidx.compose.material3.Snackbar(
+            modifier = Modifier.padding(16.dp),
+            action = {
+                androidx.compose.material3.TextButton(
+                    onClick = { importError = null }
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissAction = {
+                androidx.compose.material3.IconButton(onClick = { importError = null }) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "关闭"
+                    )
+                }
+            }
+        ) {
+            Text(error)
+        }
+        
+        // 自动清除错误提示
+        LaunchedEffect(error) {
+            kotlinx.coroutines.delay(5000)
+            importError = null
+        }
+    }
     
     // 继续显示网址导入对话框
     if (showWebImportDialog) {
         WebImportDialog(
             onDismiss = { showWebImportDialog = false },
             onConfirm = { url ->
-                // 处理导入网页的逻辑
-                bookshelfViewModel.importBookFromUrl(url)
-                showWebImportDialog = false
+                try {
+                    // 处理导入网页的逻辑
+                    bookshelfViewModel.importBookFromUrl(url)
+                    showWebImportDialog = false
+                    
+                    // 监听导入错误
+                    bookshelfViewModel.uiState.value.error?.let { error ->
+                        importError = error
+                    }
+                } catch (e: Exception) {
+                    importError = "导入失败: ${e.message}"
+                }
             }
         )
+    }
+    
+    // 监听导入状态变化
+    LaunchedEffect(bookshelfViewModel.uiState.value.error) {
+        bookshelfViewModel.uiState.value.error?.let { error ->
+            importError = error
+        }
     }
     
     // 用于处理底部导航栏的显示/隐藏动画
@@ -438,10 +486,12 @@ fun AppNavigation() {
                 val ebookApplication = context.applicationContext as com.wanderreads.ebook.EbookApplication
                 val dependencies = ebookApplication.provideDependencies()
                 val bookRepository = dependencies.bookRepository
+                val recordRepository = dependencies.recordRepository
                 val viewModelFactory = remember { 
                     UnifiedReaderViewModelFactory(
                         application = application,
                         bookRepository = bookRepository,
+                        recordRepository = recordRepository,
                         bookId = bookId
                     )
                 }

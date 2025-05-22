@@ -104,6 +104,9 @@ dependencies {
     // 移除标准PDFBox库 (不兼容Android)
     // implementation("org.apache.pdfbox:pdfbox:3.0.1")
     
+    // Gson
+    implementation("com.google.code.gson:gson:2.10.1")
+    
     // 测试依赖
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

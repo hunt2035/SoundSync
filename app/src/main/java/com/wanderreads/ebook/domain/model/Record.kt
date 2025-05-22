@@ -11,7 +11,9 @@ data class Record(
     val voiceLength: Int = 0, // 录音时长（秒）
     var voiceFilePath: String,
     val chapterIndex: Long? = null,
-    val pageIndex: Long? = null
+    val pageIndex: Long? = null,
+    val isSynthesized: Boolean = false, // 是否为合成语音
+    var synthParams: SynthesisParams? = null // 语音合成参数
 ) {
     companion object {
         // 添加兼容性转换方法，支持从旧格式转换

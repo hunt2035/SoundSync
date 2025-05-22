@@ -47,9 +47,14 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
     
     // 当前页码
     private var currentPage: Int = 0
+    private var _currentPageIndex: Int = 0
+    private var _totalPages: Int = 0
+    private var _currentPageTextContent: String? = null
     
     // 章节信息
     private var chapters: List<BookChapter> = emptyList()
+    private var _chapters: List<BookChapter> = emptyList()
+    private var _currentChapterIndex: Int = 0
     
     // 阅读器配置
     private var config: ReaderConfig = ReaderConfig()
@@ -243,21 +248,36 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
     }
     
     /**
-     * 获取当前页面文本内容
+     * 获取当前页面的纯文本内容（用于TTS）
      */
     override fun getCurrentPageText(): String {
-        return if (currentPage >= 0 && currentPage < pages.size) {
-            pages[currentPage]
-        } else {
-            ""
+        if (pages.isEmpty() || currentPage >= pages.size) {
+            return ""
         }
+        _currentPageTextContent = pages[currentPage]
+        return _currentPageTextContent ?: ""
+    }
+    
+    /**
+     * 获取当前章节的全部文本内容（用于TTS和语音合成）
+     */
+    override fun getCurrentChapterText(): String {
+        // 同步变量
+        _chapters = chapters
+        _currentChapterIndex = findChapterIndexForPage(currentPage)
+        
+        // TXT文件不像EPUB有明确的章节，这里返回当前"章节"的全部内容
+        val currentChapter = _chapters.getOrNull(_currentChapterIndex)
+        return currentChapter?.content ?: ""
     }
     
     /**
      * 检查是否有下一页
      */
     override fun hasNextPage(): Boolean {
-        return currentPage < pages.size - 1
+        _currentPageIndex = currentPage
+        _totalPages = pages.size
+        return _currentPageIndex < _totalPages - 1
     }
     
     /**

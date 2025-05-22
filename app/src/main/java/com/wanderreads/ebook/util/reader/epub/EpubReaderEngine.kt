@@ -42,10 +42,12 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
     private var currentPage: Int = 0
     private var totalPages: Int = 0
     private var currentChapter: Int = 0
+    private var currentChapterIndex: Int = 0
     private var chapters: List<BookChapter> = emptyList()
     private var readerConfig: ReaderConfig = ReaderConfig()
     private var contentCache: MutableMap<Int, ReaderContent> = mutableMapOf()
     private var tts: TextToSpeech? = null
+    private var currentContent: ReaderContent? = null
     
     // EPUB特有
     private var epubBook: EpubBook? = null
@@ -445,37 +447,12 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
      * 加载内容
      */
     override suspend fun loadContent() {
-        _state.value = _state.value.copy(isLoading = true)
-        
         withContext(Dispatchers.IO) {
             try {
-                // 预加载当前页和附近的页面
-                val currentPageIndex = currentPage
-                
-                // 加载当前页面
-                if (currentPageIndex == 0) {
-                    // 封面页
-                    if (!contentCache.containsKey(0)) {
-                        contentCache[0] = createCoverContent()
-                    }
-                } else if (currentPageIndex - 1 < spineResources.size) {
-                    getPageContentFromSpine(currentPageIndex - 1)
-                }
-                
-                // 预加载下一页
-                if (currentPageIndex + 1 < totalPages && currentPageIndex + 1 > 0) {
-                    val nextPageIndex = if (currentPageIndex + 1 == 1) 0 else currentPageIndex
-                    if (!contentCache.containsKey(currentPageIndex + 1)) {
-                        if (nextPageIndex < spineResources.size) {
-                            getPageContentFromSpine(nextPageIndex)
-                        }
-                    }
-                }
+                currentContent = getCurrentPageContent()
+                contentCache[currentPage] = currentContent!!
             } catch (e: Exception) {
-                Log.e(TAG, "加载EPUB内容失败", e)
-                _state.value = _state.value.copy(error = "加载内容失败: ${e.message}")
-            } finally {
-                _state.value = _state.value.copy(isLoading = false)
+                Log.e(TAG, "加载内容失败: ${e.message}", e)
             }
         }
     }
@@ -640,10 +617,18 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
     }
 
     /**
-     * 获取当前页面纯文本内容
+     * 获取当前页面的纯文本内容
      */
     override fun getCurrentPageText(): String {
-        return contentCache[currentPage]?.text ?: "页面内容加载中..."
+        return currentContent?.text ?: ""
+    }
+    
+    /**
+     * 获取当前章节的全部文本内容（用于TTS和语音合成）
+     */
+    override fun getCurrentChapterText(): String {
+        val currentChapter = chapters.getOrNull(currentChapterIndex)
+        return currentChapter?.content ?: ""
     }
     
     /**
@@ -837,5 +822,6 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
      */
     private fun updateCurrentChapter() {
         currentChapter = getChapterForPage(currentPage)
+        currentChapterIndex = currentChapter
     }
 } 

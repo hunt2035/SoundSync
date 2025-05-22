@@ -20,6 +20,9 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
+import android.util.Log
+import java.io.IOException
+import java.net.SocketTimeoutException
 
 /**
  * 书籍排序方式
@@ -56,6 +59,11 @@ class BookshelfViewModel(
     private val context: Context,
     val bookRepository: BookRepository
 ) : ViewModel() {
+    
+    // 日志标签
+    companion object {
+        private const val TAG = "BookshelfViewModel"
+    }
     
     private val _uiState = MutableStateFlow(BookshelfUiState(isLoading = true))
     val uiState: StateFlow<BookshelfUiState> = _uiState.asStateFlow()
@@ -161,36 +169,65 @@ class BookshelfViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
             try {
+                Log.d(TAG, "开始从网址导入: $url")
+                
                 // 从网址导入内容并保存为文本文件
                 WebBookImporter.importFromUrl(context, url)
                     .onSuccess { (file, urlPath) ->
-                        // 读取文件获取第一行作为标题
-                        val fileText = file.readText(Charsets.UTF_8)
-                        val firstLine = fileText.trim().split("\n").firstOrNull()?.trim() ?: file.nameWithoutExtension
+                        Log.d(TAG, "网页导入成功，文件保存在: ${file.absolutePath}")
                         
-                        // 创建书籍模型
-                        val book = Book(
-                            title = firstLine,  // 使用第一行作为标题
-                            filePath = file.absolutePath,
-                            type = BookType.TXT,
-                            urlPath = urlPath  // 保存网址
-                        )
-                        
-                        // 添加到书库
-                        bookRepository.addBook(book)
-                        _uiState.value = _uiState.value.copy(isLoading = false)
-                        loadBooks() // 刷新书架
+                        try {
+                            // 读取文件获取第一行作为标题
+                            val fileText = file.readText(Charsets.UTF_8)
+                            val firstLine = fileText.trim().split("\n").firstOrNull()?.trim() ?: file.nameWithoutExtension
+                            
+                            // 创建书籍模型
+                            val book = Book(
+                                title = firstLine,  // 使用第一行作为标题
+                                filePath = file.absolutePath,
+                                type = BookType.TXT,
+                                urlPath = urlPath,  // 保存网址
+                                addedDate = System.currentTimeMillis(),
+                                fileHash = generateFileHash(file)
+                            )
+                            
+                            // 添加到书库
+                            Log.d(TAG, "向书库添加网页导入的书籍: ${book.title}")
+                            bookRepository.addBook(book)
+                            _uiState.value = _uiState.value.copy(isLoading = false)
+                            _uiEvents.emit(UiEvent.ShowToast("网页导入成功"))
+                            loadBooks() // 刷新书架
+                        } catch (e: Exception) {
+                            Log.e(TAG, "解析导入文件或添加到书库失败", e)
+                            _uiState.value = _uiState.value.copy(
+                                isLoading = false,
+                                error = "处理导入文件失败: ${e.message}"
+                            )
+                        }
                     }
                     .onFailure { error ->
+                        Log.e(TAG, "网页导入失败", error)
+                        val errorMessage = when {
+                            error is IOException && error.message?.contains("无法创建目录") == true -> 
+                                "无法创建存储目录，请检查应用权限设置"
+                            error is SocketTimeoutException -> 
+                                "网页加载超时，请检查网络连接或稍后重试"
+                            error.message?.contains("外部存储不可写") == true -> 
+                                "外部存储不可写，请在系统设置中授予应用存储权限"
+                            else -> 
+                                "导入网页内容失败: ${error.message}"
+                        }
+                        
                         _uiState.value = _uiState.value.copy(
                             isLoading = false,
-                            error = error.message ?: "导入网页内容失败"
+                            error = errorMessage
                         )
                     }
             } catch (e: Exception) {
+                Log.e(TAG, "网页导入过程中发生异常", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
-                    error = e.message ?: "导入网页内容失败"
+                    error = "导入网页内容失败: ${e.message}"
                 )
             }
         }

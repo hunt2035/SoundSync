@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
@@ -21,6 +22,7 @@ import java.text.DecimalFormat
 object FileUtil {
     private const val TAG = "FileUtil"
     private const val BUFFER_SIZE = 8192
+    private const val ROOT_DIR = "WanderReads"
 
     /**
      * 复制Uri到应用私有目录
@@ -47,6 +49,78 @@ object FileUtil {
             Result.success(targetFile)
         } catch (e: Exception) {
             Log.e(TAG, "复制文件失败", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 复制Uri到外部存储Documents目录下的WanderReads目录
+     */
+    suspend fun copyToExternalStorage(context: Context, uri: Uri, subDir: String): Result<File> = withContext(Dispatchers.IO) {
+        try {
+            val fileName = getFileNameFromUri(context, uri)
+            
+            // 创建外部存储目录
+            val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+            val appRootDir = File(externalDocumentsDir, ROOT_DIR)
+            val targetDir = File(appRootDir, subDir)
+            
+            if (!targetDir.exists()) {
+                if (!targetDir.mkdirs()) {
+                    Log.e(TAG, "无法创建目录: ${targetDir.absolutePath}")
+                    return@withContext Result.failure(Exception("无法创建目录: ${targetDir.absolutePath}"))
+                }
+            }
+            
+            val targetFile = File(targetDir, fileName)
+
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                FileOutputStream(targetFile).use { outputStream ->
+                    val buffer = ByteArray(BUFFER_SIZE)
+                    var read: Int
+                    while (inputStream.read(buffer).also { read = it } != -1) {
+                        outputStream.write(buffer, 0, read)
+                    }
+                    outputStream.flush()
+                }
+            } ?: return@withContext Result.failure(Exception("无法打开文件"))
+
+            Result.success(targetFile)
+        } catch (e: Exception) {
+            Log.e(TAG, "复制文件到外部存储失败", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 保存封面图片到外部存储
+     */
+    suspend fun saveCoverImageToExternal(
+        context: Context, 
+        bitmap: Bitmap, 
+        fileName: String
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+            val appRootDir = File(externalDocumentsDir, ROOT_DIR)
+            val coverDir = File(appRootDir, "covers")
+            
+            if (!coverDir.exists()) {
+                if (!coverDir.mkdirs()) {
+                    return@withContext Result.failure(Exception("无法创建封面目录"))
+                }
+            }
+            
+            val coverFile = File(coverDir, fileName)
+            
+            FileOutputStream(coverFile).use { outputStream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+                outputStream.flush()
+            }
+            
+            Result.success(coverFile.absolutePath)
+        } catch (e: Exception) {
+            Log.e(TAG, "保存封面图片到外部存储失败", e)
             Result.failure(e)
         }
     }
@@ -196,5 +270,20 @@ object FileUtil {
     fun isSupportedEbookFormat(fileName: String): Boolean {
         val format = BookFormat.fromFileName(fileName)
         return format != BookFormat.UNKNOWN
+    }
+    
+    /**
+     * 检查外部存储是否可写
+     */
+    fun isExternalStorageWritable(): Boolean {
+        return Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
+    }
+    
+    /**
+     * 获取外部存储中的应用根目录
+     */
+    fun getExternalAppDir(): File {
+        val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+        return File(externalDocumentsDir, ROOT_DIR)
     }
 } 

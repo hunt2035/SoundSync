@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,10 +27,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.util.Log
 
 /**
  * 网址导入对话框
@@ -41,7 +48,20 @@ fun WebImportDialog(
 ) {
     var url by remember { mutableStateOf("") }
     var isError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("请输入有效的网址") }
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    
+    // 自动获取焦点
+    DisposableEffect(Unit) {
+        try {
+            focusRequester.requestFocus()
+        } catch (e: Exception) {
+            Log.e("WebImportDialog", "焦点请求失败: ${e.message}")
+        }
+        onDispose { }
+    }
     
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -91,7 +111,7 @@ fun WebImportDialog(
                     supportingText = {
                         if (isError) {
                             Text(
-                                text = "请输入有效的网址",
+                                text = errorMessage,
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
@@ -103,7 +123,18 @@ fun WebImportDialog(
                     ),
                     keyboardActions = KeyboardActions(
                         onDone = {
-                            validateAndSubmit(url, onConfirm, onError = { isError = true })
+                            validateAndSubmit(
+                                url = url,
+                                context = context,
+                                onConfirm = {
+                                    focusManager.clearFocus()
+                                    onConfirm(it)
+                                },
+                                onError = { message ->
+                                    errorMessage = message
+                                    isError = true
+                                }
+                            )
                         }
                     )
                 )
@@ -124,7 +155,18 @@ fun WebImportDialog(
                     
                     TextButton(
                         onClick = {
-                            validateAndSubmit(url, onConfirm, onError = { isError = true })
+                            validateAndSubmit(
+                                url = url,
+                                context = context,
+                                onConfirm = {
+                                    focusManager.clearFocus()
+                                    onConfirm(it)
+                                },
+                                onError = { message ->
+                                    errorMessage = message
+                                    isError = true
+                                }
+                            )
                         }
                     ) {
                         Text("导入")
@@ -137,12 +179,47 @@ fun WebImportDialog(
 
 private fun validateAndSubmit(
     url: String,
+    context: Context,
     onConfirm: (String) -> Unit,
-    onError: () -> Unit
+    onError: (String) -> Unit
 ) {
-    if (url.isNotBlank() && (url.startsWith("http://") || url.startsWith("https://"))) {
-        onConfirm(url)
+    // 1. 检查网址是否为空
+    if (url.isBlank()) {
+        onError("请输入网址")
+        return
+    }
+    
+    // 2. 检查网址格式
+    val formattedUrl = if (!(url.startsWith("http://") || url.startsWith("https://"))) {
+        "https://$url"
     } else {
-        onError()
+        url
+    }
+    
+    // 3. 检查网络连接
+    if (!isNetworkAvailable(context)) {
+        onError("网络连接不可用，请检查网络设置")
+        return
+    }
+    
+    // 4. 网址验证成功，确认提交
+    onConfirm(formattedUrl)
+}
+
+/**
+ * 检查网络连接是否可用
+ */
+private fun isNetworkAvailable(context: Context): Boolean {
+    try {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+        
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    } catch (e: Exception) {
+        Log.e("WebImportDialog", "检查网络连接失败: ${e.message}")
+        // 如果无法检查，则默认为有连接
+        return true
     }
 } 

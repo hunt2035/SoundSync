@@ -99,6 +99,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import kotlinx.coroutines.delay
+import com.wanderreads.ebook.domain.model.SynthesisParams
+import com.wanderreads.ebook.domain.model.SynthesisRange
+import com.wanderreads.ebook.ui.components.SynthesisDialog
+import com.wanderreads.ebook.ui.components.SynthesisProgressDialog
+import com.wanderreads.ebook.service.TtsSynthesisService
 
 /**
  * 统一阅读器屏幕
@@ -236,6 +241,35 @@ fun UnifiedReaderScreen(
         }
     }
     
+    // 语音合成对话框状态
+    var showSynthesisDialog by remember { mutableStateOf(false) }
+    
+    // 语音合成进度对话框状态
+    var showSynthesisProgressDialog by remember { mutableStateOf(false) }
+    
+    // 收集合成状态
+    val synthesisState by viewModel.synthesisState.collectAsState()
+    
+    // 监听合成状态变化
+    LaunchedEffect(synthesisState) {
+        synthesisState?.let { state ->
+            // 根据状态显示或隐藏进度对话框
+            when (state.status) {
+                TtsSynthesisService.STATUS_PREPARING, 
+                TtsSynthesisService.STATUS_SYNTHESIZING -> {
+                    showSynthesisProgressDialog = true
+                }
+                TtsSynthesisService.STATUS_COMPLETED, 
+                TtsSynthesisService.STATUS_ERROR,
+                TtsSynthesisService.STATUS_CANCELED -> {
+                    // 短暂延迟后关闭进度对话框
+                    delay(2000)
+                    showSynthesisProgressDialog = false
+                }
+            }
+        }
+    }
+    
     Scaffold(
         topBar = {
             AnimatedVisibility(
@@ -287,6 +321,11 @@ fun UnifiedReaderScreen(
                                 onClick = { 
                                     showMenu = false
                                     isTtsActive = viewModel.toggleTts() 
+                                    if (isTtsActive) {
+                                        showTtsFloatingWindow = true
+                                    } else {
+                                        showTtsFloatingWindow = false
+                                    }
                                 },
                                 leadingIcon = {
                                     Icon(
@@ -300,8 +339,7 @@ fun UnifiedReaderScreen(
                                 text = { Text("合成语音", color = whiteText) },
                                 onClick = { 
                                     showMenu = false
-                                    // 合成语音功能后续实现
-                                    Toast.makeText(context, "合成语音功能开发中", Toast.LENGTH_SHORT).show()
+                                    showSynthesisDialog = true  // 显示语音合成对话框
                                 },
                                 leadingIcon = {
                                     Icon(
@@ -460,7 +498,14 @@ fun UnifiedReaderScreen(
                         }
                         
                         // 朗读图标
-                        IconButton(onClick = { isTtsActive = viewModel.toggleTts() }) {
+                        IconButton(onClick = { 
+                            isTtsActive = viewModel.toggleTts()
+                            if (isTtsActive) {
+                                showTtsFloatingWindow = true
+                            } else {
+                                showTtsFloatingWindow = false
+                            }
+                        }) {
                             Icon(
                                 imageVector = if (isTtsActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
                                 contentDescription = if (isTtsActive) "停止朗读" else "开始朗读",
@@ -470,7 +515,7 @@ fun UnifiedReaderScreen(
                         
                         // 合成语音图标
                         IconButton(onClick = { 
-                            Toast.makeText(context, "合成语音功能开发中", Toast.LENGTH_SHORT).show()
+                            showSynthesisDialog = true  // 显示语音合成对话框
                         }) {
                             Icon(
                                 Icons.Default.Mic,
@@ -739,9 +784,7 @@ fun UnifiedReaderScreen(
                                                 if (showControls) {
                                                     // 当控制栏显示时，任何区域点击都会隐藏控制栏和朗读悬浮窗
                                                     showControls = false
-                                                    if (showTtsFloatingWindow) {
-                                                        showTtsFloatingWindow = false
-                                                    }
+                                                    showTtsFloatingWindow = false
                                                 } else {
                                                     // 控制栏隐藏时
                                                     // 点击左侧1/3区域，向前翻页
@@ -1096,6 +1139,32 @@ fun UnifiedReaderScreen(
                 }
                 
                 Spacer(modifier = Modifier.height(32.dp))
+            }
+        }
+        
+        // 添加语音合成对话框
+        if (showSynthesisDialog) {
+            SynthesisDialog(
+                onDismiss = { showSynthesisDialog = false },
+                onStartSynthesis = { params ->
+                    viewModel.startSynthesis(params)
+                    showSynthesisDialog = false
+                    showSynthesisProgressDialog = true
+                }
+            )
+        }
+        
+        // 添加语音合成进度对话框
+        if (showSynthesisProgressDialog) {
+            synthesisState?.let { state ->
+                SynthesisProgressDialog(
+                    progress = state.progress,
+                    message = state.message,
+                    onDismiss = { /* 不允许点击外部关闭 */ },
+                    onCancel = {
+                        viewModel.cancelSynthesis()
+                    }
+                )
             }
         }
     }

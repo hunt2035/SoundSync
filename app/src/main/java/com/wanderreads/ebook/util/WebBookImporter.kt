@@ -1,6 +1,7 @@
 package com.wanderreads.ebook.util
 
 import android.content.Context
+import android.os.Environment
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -27,6 +28,7 @@ object WebBookImporter {
     private const val CONNECT_TIMEOUT = 30000 // 增加到30秒超时
     private const val MAX_RETRIES = 3 // 最大重试次数
     private const val INITIAL_BACKOFF_DELAY = 1000L // 初始重试等待时间（毫秒）
+    private const val ROOT_DIR = "WanderReads"
     
     /**
      * 从URL导入网页内容，保存为TXT文件
@@ -40,29 +42,69 @@ object WebBookImporter {
         url: String
     ): Result<Pair<File, String>> = withContext(Dispatchers.IO) {
         try {
-            // 创建webbook目录
-            val webBookDir = File(context.filesDir, "webbook").apply {
-                if (!exists()) {
-                    mkdirs()
+            // 优先尝试保存到外部存储
+            val canUseExternalStorage = FileUtil.isExternalStorageWritable()
+            Log.d(TAG, "外部存储是否可写: $canUseExternalStorage")
+            
+            var outputFile: File? = null
+
+            if (canUseExternalStorage) {
+                // 尝试使用外部存储
+                try {
+                    // 创建外部存储中的webbook目录
+                    val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                    val appRootDir = File(externalDocumentsDir, ROOT_DIR)
+                    val webBookDir = File(appRootDir, "webbook").apply {
+                        if (!exists()) {
+                            if (!mkdirs()) {
+                                Log.w(TAG, "无法创建外部目录: $absolutePath，将尝试使用应用私有目录")
+                                throw IOException("无法创建目录: $absolutePath")
+                            }
+                        }
+                    }
+                    
+                    // 获取当前时间戳作为文件名
+                    val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
+                        .format(Date())
+                    val fileName = "Web$timestamp.txt"
+                    outputFile = File(webBookDir, fileName)
+                } catch (e: Exception) {
+                    Log.w(TAG, "使用外部存储失败: ${e.message}，将使用应用私有目录")
+                    // 如果外部存储失败，回退到应用私有目录
+                    outputFile = null
                 }
             }
             
-            // 获取当前时间戳作为文件名
-            val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
-                .format(Date())
-            val fileName = "Web$timestamp.txt"
-            val outputFile = File(webBookDir, fileName)
+            // 如果外部存储不可用或创建失败，使用应用私有目录
+            if (outputFile == null) {
+                val privateDir = File(context.filesDir, "webbook").apply {
+                    if (!exists()) {
+                        if (!mkdirs()) {
+                            return@withContext Result.failure(IOException("无法创建应用私有目录"))
+                        }
+                    }
+                }
+                val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
+                    .format(Date())
+                val fileName = "Web$timestamp.txt"
+                outputFile = File(privateDir, fileName)
+                Log.d(TAG, "将使用应用私有目录保存文件: ${outputFile.absolutePath}")
+            }
             
             // 抓取网页内容（带重试机制）
+            Log.d(TAG, "开始获取网页内容: $url")
             val document = fetchWebPageWithRetry(url)
             
             // 解析网页内容为纯文本
+            Log.d(TAG, "网页获取成功，开始提取内容")
             val title = document.title()
             val content = extractTextContent(document)
             
             // 写入文件
+            Log.d(TAG, "写入文件: ${outputFile.absolutePath}")
             writeToFile(outputFile, title, content)
             
+            Log.d(TAG, "网页导入成功，文件路径: ${outputFile.absolutePath}")
             Result.success(Pair(outputFile, url))
         } catch (e: Exception) {
             Log.e(TAG, "网页导入失败", e)
@@ -80,6 +122,7 @@ object WebBookImporter {
         // 尝试多次请求
         for (attempt in 1..MAX_RETRIES) {
             try {
+                Log.d(TAG, "尝试获取网页，第 $attempt 次尝试: $url")
                 // 尝试获取网页
                 return@withContext Jsoup.connect(url)
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
@@ -200,8 +243,14 @@ object WebBookImporter {
         title: String,
         content: String
     ) = withContext(Dispatchers.IO) {
-        OutputStreamWriter(FileOutputStream(file), Charsets.UTF_8).use { writer ->
-            writer.write(content)
+        try {
+            OutputStreamWriter(FileOutputStream(file), Charsets.UTF_8).use { writer ->
+                writer.write(content)
+                writer.flush()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "写入文件失败: ${file.absolutePath}", e)
+            throw e
         }
     }
 } 

@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import java.lang.ref.WeakReference
 import com.wanderreads.ebook.ui.theme.EbookTheme
 import com.wanderreads.ebook.ui.navigation.AppNavigation
+import android.os.Environment
 
 /**
  * 主Activity
@@ -238,35 +239,95 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    /**
+     * 检查并请求必要权限
+     */
     private fun checkAndRequestPermissions() {
-        val permissions = mutableListOf<String>()
+        val permissionsToRequest = mutableListOf<String>()
         
-        // 根据Android版本选择合适的存储权限
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ 使用分类媒体权限
-            permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11+ 使用READ_EXTERNAL_STORAGE
-            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+        // 检查存储权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // Android 11+ (API 30+)，使用MANAGE_EXTERNAL_STORAGE权限
+            val hasStoragePermission = Environment.isExternalStorageManager()
+            if (!hasStoragePermission) {
+                Log.d(TAG, "需要请求 MANAGE_EXTERNAL_STORAGE 权限")
+                // 避免在应用启动时就直接弹出权限请求，可能导致崩溃
+                val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                handler.postDelayed({
+                    try {
+                // 需要用户手动授予所有文件访问权限
+                    val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                    val uri = android.net.Uri.fromParts("package", packageName, null)
+                    intent.data = uri
+                    startActivity(intent)
+                    Toast.makeText(this, "请授予应用访问所有文件的权限，以便保存电子书到Documents目录", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                        Log.e(TAG, "跳转到特定应用权限设置失败: ${e.message}")
+                        try {
+                    // 如果直接跳转失败，则跳转到普通设置页面
+                    val intent = Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    startActivity(intent)
+                    Toast.makeText(this, "请在设置中允许应用访问所有文件", Toast.LENGTH_LONG).show()
+                        } catch (e2: Exception) {
+                            Log.e(TAG, "跳转到通用权限设置也失败: ${e2.message}")
+                            Toast.makeText(this, "请在系统设置中手动授予本应用存储权限", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }, 1000) // 延迟1秒请求权限，避免启动时的崩溃
+            } else {
+                Log.d(TAG, "已有 MANAGE_EXTERNAL_STORAGE 权限")
+            }
+        } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+            // Android 10 (API 29) 特殊处理
+            Log.d(TAG, "Android 10 设备，检查传统存储权限")
+            
+            // 在Android 10，推荐使用分区存储，但我们也支持传统权限
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
         } else {
-            // Android 10及以下 使用READ_EXTERNAL_STORAGE和WRITE_EXTERNAL_STORAGE
-            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            // Android 9及以下，使用传统存储权限
+            Log.d(TAG, "Android 9及以下设备，检查传统存储权限")
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
         }
         
-        // 添加前台服务权限（Android 10+）
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            permissions.add(Manifest.permission.FOREGROUND_SERVICE)
+        // 检查录音权限（用于TTS和语音识别功能）
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.add(Manifest.permission.RECORD_AUDIO)
         }
         
-        // 检查是否已有所有权限
-        val permissionsToRequest = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
-        }.toTypedArray()
+        // 根据API级别添加媒体权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ (API 33+)
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_MEDIA_IMAGES)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_MEDIA_AUDIO)
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.READ_MEDIA_VIDEO)
+            }
+            // 添加通知权限检查
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
         
+        // 请求所有需要的权限
         if (permissionsToRequest.isNotEmpty()) {
-            // 请求多个权限
-            requestMultiplePermissionsLauncher.launch(permissionsToRequest)
+            Log.d(TAG, "请求权限: ${permissionsToRequest.joinToString()}")
+            requestMultiplePermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+        } else {
+            Log.d(TAG, "已有所有必要权限或无需请求额外权限")
         }
     }
     

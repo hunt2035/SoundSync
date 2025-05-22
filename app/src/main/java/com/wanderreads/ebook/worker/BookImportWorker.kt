@@ -58,22 +58,28 @@ class BookImportWorker(
                 return@withContext createFailureResult("不支持的文件格式: $fileName")
             }
             
+            // 检查外部存储是否可写
+            if (!FileUtil.isExternalStorageWritable()) {
+                return@withContext createFailureResult("外部存储不可写，请检查权限设置")
+            }
+            
             // 验证文件大小
             val fileSize = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1
             if (fileSize <= 0) {
                 return@withContext createFailureResult("无法读取文件或文件为空: $fileName")
             }
             
-            // 验证存储空间
-            val freeSpace = File(context.filesDir.path).freeSpace
+            // 验证外部存储空间
+            val externalDir = FileUtil.getExternalAppDir()
+            val freeSpace = externalDir.parentFile?.freeSpace ?: context.filesDir.freeSpace
             if (fileSize > freeSpace) {
                 return@withContext createFailureResult("存储空间不足，需要 ${FileUtil.getFormattedFileSize(fileSize)}，" +
                         "可用 ${FileUtil.getFormattedFileSize(freeSpace)}")
             }
             
-            // 复制文件到应用私有存储
+            // 复制文件到外部存储
             setProgress(ImportStep.FILE_VALIDATION, fileName, 50)
-            val copyResult = FileUtil.copyUriToAppStorage(context, uri, "books")
+            val copyResult = FileUtil.copyToExternalStorage(context, uri, "books")
             if (copyResult.isFailure) {
                 return@withContext createFailureResult("复制文件失败: ${copyResult.exceptionOrNull()?.message}")
             }
@@ -130,8 +136,8 @@ class BookImportWorker(
                 // 生成封面图片文件名
                 val coverFileName = "${UUID.randomUUID()}.jpg"
                 
-                // 保存封面图片
-                val coverResult = FileUtil.saveCoverImage(context, coverBitmap, coverFileName)
+                // 保存封面图片到外部存储
+                val coverResult = FileUtil.saveCoverImageToExternal(context, coverBitmap, coverFileName)
                 if (coverResult.isSuccess) {
                     coverPath = coverResult.getOrNull()
                 }

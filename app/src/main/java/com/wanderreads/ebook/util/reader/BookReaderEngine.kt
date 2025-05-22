@@ -80,6 +80,11 @@ interface BookReaderEngine {
     fun getCurrentPageText(): String
     
     /**
+     * 获取当前章节的全部文本内容（用于TTS和语音合成）
+     */
+    fun getCurrentChapterText(): String
+    
+    /**
      * 检查是否有下一页
      * @return 是否有下一页
      */

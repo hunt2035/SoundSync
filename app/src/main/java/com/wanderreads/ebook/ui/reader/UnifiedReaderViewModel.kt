@@ -32,7 +32,12 @@ import com.wanderreads.ebook.MainActivity
 import com.wanderreads.ebook.R
 import com.wanderreads.ebook.data.local.dataStore
 import com.wanderreads.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.data.repository.RecordRepository
 import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.Record
+import com.wanderreads.ebook.domain.model.SynthesisParams
+import com.wanderreads.ebook.domain.model.SynthesisRange
+import com.wanderreads.ebook.service.TtsSynthesisService
 import com.wanderreads.ebook.ui.settings.SettingsViewModel
 import com.wanderreads.ebook.util.PageDirection
 import com.wanderreads.ebook.util.reader.BookReaderEngine
@@ -63,6 +68,7 @@ import android.os.Environment
 class UnifiedReaderViewModel(
     application: Application,
     private val bookRepository: BookRepository,
+    private val recordRepository: RecordRepository,
     private val bookId: String
 ) : AndroidViewModel(application) {
 
@@ -85,8 +91,38 @@ class UnifiedReaderViewModel(
     private var silenceDetectionJob: kotlinx.coroutines.Job? = null
     private var lastAudioActivity = 0L
     
+    // 语音合成服务
+    private var ttsSynthesisService: TtsSynthesisService? = null
+    private var serviceBound = false
+    
+    // 语音合成状态
+    private val _synthesisState = MutableStateFlow<TtsSynthesisService.SynthesisState?>(null)
+    val synthesisState: StateFlow<TtsSynthesisService.SynthesisState?> = _synthesisState.asStateFlow()
+    
+    // 服务连接
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as TtsSynthesisService.LocalBinder
+            ttsSynthesisService = binder.getService()
+            serviceBound = true
+            
+            // 开始监听合成状态
+            viewModelScope.launch {
+                ttsSynthesisService?.synthesisState?.collect { state ->
+                    _synthesisState.value = state
+                }
+            }
+        }
+        
+        override fun onServiceDisconnected(name: ComponentName?) {
+            ttsSynthesisService = null
+            serviceBound = false
+        }
+    }
+    
     init {
         loadBook()
+        bindSynthesisService()
     }
     
     /**
@@ -447,6 +483,9 @@ class UnifiedReaderViewModel(
             tts?.shutdown()
             tts = null
             
+            // 解绑合成服务
+            unbindSynthesisService()
+            
             readerEngine?.close()
             readerEngine = null
         }
@@ -457,6 +496,108 @@ class UnifiedReaderViewModel(
         val totalPages = uiState.value.totalPages
         return "${currentPage}/${totalPages}"
     }
+
+    /**
+     * 绑定合成服务
+     */
+    private fun bindSynthesisService() {
+        val intent = Intent(getApplication(), TtsSynthesisService::class.java)
+        getApplication<Application>().startService(intent)
+        getApplication<Application>().bindService(
+            intent,
+            serviceConnection,
+            Context.BIND_AUTO_CREATE
+        )
+    }
+    
+    /**
+     * 解绑合成服务
+     */
+    private fun unbindSynthesisService() {
+        if (serviceBound) {
+            getApplication<Application>().unbindService(serviceConnection)
+            serviceBound = false
+        }
+    }
+
+    /**
+     * 开始语音合成
+     */
+    fun startSynthesis(params: SynthesisParams) {
+        if (!serviceBound || ttsSynthesisService == null) {
+            bindSynthesisService()
+            return
+        }
+        
+        val bookTitle = _uiState.value.book?.title ?: "未知书籍"
+        val chapterTitle = _uiState.value.chapterTitle ?: "未知章节"
+        
+        val title = "$bookTitle - $chapterTitle"
+        
+        // 获取合成内容
+        val textToSynthesize = when (params.synthesisRange) {
+            SynthesisRange.CURRENT_PAGE -> {
+                readerEngine?.getCurrentPageText() ?: ""
+            }
+            SynthesisRange.CURRENT_CHAPTER -> {
+                readerEngine?.getCurrentChapterText() ?: ""
+            }
+        }
+        
+        if (textToSynthesize.isBlank()) {
+            _uiState.update { it.copy(error = "没有可合成的文本内容") }
+            return
+        }
+        
+        // 创建回调
+        val callback = object : TtsSynthesisService.SynthesisCallback {
+            override fun onProgress(progress: Int) {
+                // 进度回调，更新UI
+            }
+            
+            override fun onCompleted(outputPath: String) {
+                // 合成完成，记录到文件列表
+                _uiState.update { it.copy(
+                    message = "语音合成完成，文件已保存到: $outputPath"
+                ) }
+            }
+            
+            override fun onError(message: String) {
+                _uiState.update { it.copy(error = "语音合成失败: $message") }
+            }
+            
+            override fun onCanceled() {
+                _uiState.update { it.copy(message = "语音合成已取消") }
+            }
+            
+            override fun onSaveRecord(record: Record) {
+                // 保存记录到数据库
+                viewModelScope.launch {
+                    try {
+                        recordRepository.addRecord(record)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "保存语音合成记录失败", e)
+                    }
+                }
+            }
+        }
+        
+        // 开始合成
+        ttsSynthesisService?.addSynthesisTask(
+            text = textToSynthesize,
+            params = params,
+            bookId = bookId,
+            title = title,
+            callback = callback
+        )
+    }
+    
+    /**
+     * 取消语音合成
+     */
+    fun cancelSynthesis() {
+        ttsSynthesisService?.cancelCurrentTask()
+    }
 }
 
 /**
@@ -466,6 +607,7 @@ data class UnifiedReaderUiState(
     val book: Book? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
+    val message: String? = null,
     val currentPage: Int = 0,
     val totalPages: Int = 0,
     val currentChapter: Int = 0,
