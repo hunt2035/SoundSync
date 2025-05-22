@@ -1,28 +1,31 @@
 package com.wanderreads.ebook.ui.bookshelf
 
 import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.wanderreads.ebook.MainActivity
 import com.wanderreads.ebook.data.repository.BookRepository
 import com.wanderreads.ebook.domain.model.Book
 import com.wanderreads.ebook.domain.model.BookType
 import com.wanderreads.ebook.util.TextProcessor
 import com.wanderreads.ebook.util.WebBookImporter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.security.MessageDigest
-import android.util.Log
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.security.MessageDigest
 
 /**
  * 书籍排序方式
@@ -171,6 +174,17 @@ class BookshelfViewModel(
             try {
                 Log.d(TAG, "开始从网址导入: $url")
                 
+                // 检查Android 11+设备是否有MANAGE_EXTERNAL_STORAGE权限
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+                    // 提示用户授予权限
+                    MainActivity.getInstance()?.showAllFilesAccessPermissionDialog()
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "需要'所有文件访问权限'才能保存到外部存储，请授予权限后重试"
+                    )
+                    return@launch
+                }
+                
                 // 从网址导入内容并保存为文本文件
                 WebBookImporter.importFromUrl(context, url)
                     .onSuccess { (file, urlPath) ->
@@ -241,6 +255,17 @@ class BookshelfViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
             try {
+                // 检查Android 11+设备是否有MANAGE_EXTERNAL_STORAGE权限
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+                    // 提示用户授予权限
+                    MainActivity.getInstance()?.showAllFilesAccessPermissionDialog()
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "需要'所有文件访问权限'才能保存到外部存储，请授予权限后重试"
+                    )
+                    return@launch
+                }
+                
                 // 从文本内容提取标题
                 val title = TextProcessor.extractTitle(text)
                 

@@ -37,7 +37,8 @@ import com.wanderreads.ebook.domain.model.SynthesisRange
 fun SynthesisDialog(
     onDismiss: () -> Unit,
     onStartSynthesis: (SynthesisParams) -> Unit,
-    initialParams: SynthesisParams = SynthesisParams()
+    initialParams: SynthesisParams = SynthesisParams(),
+    hasContent: Boolean = true // 新增参数，表示是否有可合成的内容
 ) {
     var synthesisRange by remember { mutableStateOf(initialParams.synthesisRange) }
     var speechRate by remember { mutableFloatStateOf(initialParams.speechRate) }
@@ -51,6 +52,16 @@ fun SynthesisDialog(
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // 提示信息（如果没有内容）
+                if (!hasContent) {
+                    Text(
+                        text = "注意：当前页面内容为空，合成可能会失败",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+            
                 // 合成范围选择
                 Text(
                     text = "合成范围:",
@@ -189,9 +200,12 @@ fun SynthesisProgressDialog(
     onDismiss: () -> Unit,
     onCancel: () -> Unit
 ) {
+    // 判断消息是否包含错误相关词语或状态异常
+    val isErrorState = message.contains("失败") || message.contains("错误") || progress < 0
+    
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("语音合成") },
+        title = { Text(if (isErrorState) "合成失败" else "语音合成") },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -199,17 +213,19 @@ fun SynthesisProgressDialog(
             ) {
                 Text(message)
                 Spacer(modifier = Modifier.height(16.dp))
-                LinearProgressIndicator(
-                    progress = progress / 100f,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("$progress%")
+                if (!isErrorState) {
+                    LinearProgressIndicator(
+                        progress = progress / 100f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("$progress%")
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = onCancel) {
-                Text("取消")
+            TextButton(onClick = if (isErrorState) onDismiss else onCancel) {
+                Text(if (isErrorState) "关闭" else "取消")
             }
         }
     )

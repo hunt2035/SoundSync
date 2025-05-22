@@ -33,7 +33,7 @@ import java.io.File
  */
 class MainActivity : ComponentActivity() {
     
-    // 是否显示存储权限对话框
+    // 是否显示存储权限对话框（仅用于Android 11+的MANAGE_EXTERNAL_STORAGE权限）
     private val showStoragePermissionDialogState = mutableStateOf(false)
     
     companion object {
@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
         }
         
         if (!allGranted) {
-            Toast.makeText(this, "应用需要所有请求的权限才能提供完整功能", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "应用需要存储权限才能正常工作", Toast.LENGTH_LONG).show()
         } else {
             // 在 Android 10 上创建必要的目录结构
             if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
@@ -100,16 +100,16 @@ class MainActivity : ComponentActivity() {
                     ) {
                         AppNavigation()
                         
-                        // 显示权限对话框
-                        if (showStoragePermissionDialogState.value) {
+                        // 仅为Android 11+设备显示MANAGE_EXTERNAL_STORAGE权限对话框
+                        if (showStoragePermissionDialogState.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                             AlertDialog(
                                 onDismissRequest = { showStoragePermissionDialogState.value = false },
-                                title = { Text("需要存储权限") },
-                                text = { Text("WanderReads需要存储权限才能保存书籍到您的设备。请在接下来的系统页面中授予权限。") },
+                                title = { Text("需要额外存储权限") },
+                                text = { Text("WanderReads需要'所有文件访问权限'才能保存书籍到您的设备公共目录。请在接下来的系统页面中授予此权限。") },
                                 confirmButton = {
                                     Button(onClick = {
                                         showStoragePermissionDialogState.value = false
-                                        requestStoragePermission()
+                                        requestAllFilesAccessPermission()
                                     }) {
                                         Text("授予权限")
                                     }
@@ -136,29 +136,11 @@ class MainActivity : ComponentActivity() {
         instance = WeakReference(this)
         Log.d(TAG, "MainActivity实例已在onResume中更新")
         
-        // 在onResume中再次检查外部存储权限
+        // 在onResume中再次检查外部存储权限，但仅针对Android 11+设备
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
-                // 显示权限提示对话框
-                showStoragePermissionDialogState.value = true
-            }
-        } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
-            // 对于Android 10，检查传统存储权限
-            val hasReadPermission = ContextCompat.checkSelfPermission(
-                this, 
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED
-            
-            val hasWritePermission = ContextCompat.checkSelfPermission(
-                this, 
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED
-            
-            if (!hasReadPermission || !hasWritePermission) {
-                showStoragePermissionDialogState.value = true
-            } else {
-                // 确保目录结构已创建
-                createDirectoryStructure()
+                // 仅在用户主动使用需要此权限的功能时才显示（不在启动时就显示）
+                // showStoragePermissionDialogState.value = true
             }
         }
     }
@@ -185,10 +167,10 @@ class MainActivity : ComponentActivity() {
                             Log.d(TAG, "创建应用根目录: ${appRootDir.mkdirs()}")
                         }
                         
-                        // 创建books目录
-                        val booksDir = File(appRootDir, "books")
-                        if (!booksDir.exists()) {
-                            Log.d(TAG, "创建books目录: ${booksDir.mkdirs()}")
+                        // 创建txtfiles目录
+                        val txtFilesDir = File(appRootDir, "txtfiles")
+                        if (!txtFilesDir.exists()) {
+                            Log.d(TAG, "创建txtfiles目录: ${txtFilesDir.mkdirs()}")
                         }
                         
                         // 创建webbook目录
@@ -201,9 +183,9 @@ class MainActivity : ComponentActivity() {
                     // 2. 始终创建应用专属目录
                     val appSpecificExternalDir = getExternalFilesDir(null)
                     
-                    val appBooksDir = File(appSpecificExternalDir, "newtxt")
-                    if (!appBooksDir.exists()) {
-                        Log.d(TAG, "创建应用专属books目录: ${appBooksDir.mkdirs()}")
+                    val appTxtFilesDir = File(appSpecificExternalDir, "txtfiles")
+                    if (!appTxtFilesDir.exists()) {
+                        Log.d(TAG, "创建应用专属txtfiles目录: ${appTxtFilesDir.mkdirs()}")
                     }
                     
                     val appWebBookDir = File(appSpecificExternalDir, "webbook")
@@ -249,13 +231,13 @@ class MainActivity : ComponentActivity() {
         // 检查存储权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             // Android 11+ (API 30+)，使用MANAGE_EXTERNAL_STORAGE权限
+            // 但不在启动时就请求，而是在用户需要时再请求
             val hasStoragePermission = Environment.isExternalStorageManager()
-            if (!hasStoragePermission) {
-                Log.d(TAG, "需要请求 MANAGE_EXTERNAL_STORAGE 权限")
-                // 显示权限提示对话框
-                showStoragePermissionDialogState.value = true
-            } else {
+            if (hasStoragePermission) {
                 Log.d(TAG, "已有 MANAGE_EXTERNAL_STORAGE 权限")
+            } else {
+                Log.d(TAG, "没有 MANAGE_EXTERNAL_STORAGE 权限，但不在启动时请求")
+                // 不在启动时就显示权限请求对话框
             }
         } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
             // Android 10 (API 29) 特殊处理
@@ -307,9 +289,9 @@ class MainActivity : ComponentActivity() {
     }
     
     /**
-     * 请求存储权限
+     * 请求所有文件访问权限（仅适用于Android 11+）
      */
-    private fun requestStoragePermission() {
+    private fun requestAllFilesAccessPermission() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 // Android 11+ 需要请求特殊权限
@@ -318,16 +300,9 @@ class MainActivity : ComponentActivity() {
                 intent.data = uri
                 startActivity(intent)
                 Toast.makeText(this, "请授予应用访问所有文件的权限，以便保存电子书到Documents目录", Toast.LENGTH_LONG).show()
-            } else {
-                // Android 10及以下使用常规权限请求
-                val permissions = arrayOf(
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                )
-                requestMultiplePermissionsLauncher.launch(permissions)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "请求存储权限失败: ${e.message}", e)
+            Log.e(TAG, "请求所有文件访问权限失败: ${e.message}", e)
             try {
                 // 如果直接跳转失败，则跳转到普通设置页面
                 val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
@@ -343,10 +318,13 @@ class MainActivity : ComponentActivity() {
     }
     
     /**
-     * 显示外部存储权限请求对话框
+     * 显示Android 11+设备的外部存储权限请求对话框
+     * 此方法应该只在用户尝试使用需要此权限的功能时调用
      */
-    private fun showStoragePermissionDialog() {
-        showStoragePermissionDialogState.value = true
+    fun showAllFilesAccessPermissionDialog() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+            showStoragePermissionDialogState.value = true
+        }
     }
     
     override fun onDestroy() {

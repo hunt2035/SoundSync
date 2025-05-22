@@ -322,7 +322,13 @@ class TtsSynthesisService : Service() {
                 // 准备输出文件
                 try {
                     val outputDir = getVoicesDirectory()
-                    val fileName = "${System.currentTimeMillis()}_${it.title.replace(' ', '_')}.mp3"
+                    // 限制标题长度，避免文件名过长
+                    val safeTitle = it.title.replace(' ', '_')
+                        .replace(Regex("[\\\\/:*?\"<>|]"), "_") // 移除不合法的文件名字符
+                        .let { title -> 
+                            if (title.length > 30) title.substring(0, 30) + "..." else title 
+                        }
+                    val fileName = "${System.currentTimeMillis()}_$safeTitle.mp3"
                     val outputFile = File(outputDir, fileName)
                     it.outputPath = outputFile.absolutePath
                     
@@ -355,11 +361,24 @@ class TtsSynthesisService : Service() {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "合成语音文件失败", e)
+                    
+                    // 提供更友好的错误信息
+                    val errorMessage = when {
+                        e.message?.contains("File name too long") == true -> 
+                            "文件名过长，请使用较短的书名或章节名"
+                        e.message?.contains("Permission denied") == true -> 
+                            "没有存储权限，请在设置中授予应用存储权限"
+                        e.message?.contains("No space left") == true || 
+                        e.message?.contains("not enough space") == true -> 
+                            "存储空间不足，请清理设备空间后重试"
+                        else -> "创建语音文件失败: ${e.message}"
+                    }
+                    
                     _synthesisState.value = _synthesisState.value.copy(
                         status = STATUS_ERROR,
-                        message = "创建语音文件失败: ${e.message}"
+                        message = errorMessage
                     )
-                    synthesisCallback?.onError("创建语音文件失败: ${e.message}")
+                    synthesisCallback?.onError(errorMessage)
                     isProcessing = false
                 }
             }
@@ -526,10 +545,34 @@ class TtsSynthesisService : Service() {
      * 获取语音文件存储目录
      */
     private fun getVoicesDirectory(): File {
-        // 使用外部存储的Documents目录
-        val externalDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
-        val appDir = File(externalDir, "WanderReads")
-        val voicesDir = File(appDir, "voices")
+        try {
+            // 首选: 使用外部存储的Documents目录
+            val externalDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+            val appDir = File(externalDir, "WanderReads")
+            val voicesDir = File(appDir, "voices")
+            
+            if (!voicesDir.exists()) {
+                val dirCreated = voicesDir.mkdirs()
+                if (!dirCreated) {
+                    Log.w(TAG, "无法创建公共目录，尝试内部存储")
+                    // 备选: 使用应用内部存储
+                    return getAppInternalVoicesDirectory()
+                }
+            }
+            
+            return voicesDir
+        } catch (e: Exception) {
+            Log.e(TAG, "获取公共目录失败，使用内部存储", e)
+            return getAppInternalVoicesDirectory()
+        }
+    }
+    
+    /**
+     * 获取应用内部存储的语音文件目录
+     */
+    private fun getAppInternalVoicesDirectory(): File {
+        val filesDir = applicationContext.getExternalFilesDir(null) ?: applicationContext.filesDir
+        val voicesDir = File(filesDir, "voices")
         
         if (!voicesDir.exists()) {
             voicesDir.mkdirs()

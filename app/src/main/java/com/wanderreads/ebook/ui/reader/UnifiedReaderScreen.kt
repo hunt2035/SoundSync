@@ -104,6 +104,8 @@ import com.wanderreads.ebook.domain.model.SynthesisRange
 import com.wanderreads.ebook.ui.components.SynthesisDialog
 import com.wanderreads.ebook.ui.components.SynthesisProgressDialog
 import com.wanderreads.ebook.service.TtsSynthesisService
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 
 /**
  * 统一阅读器屏幕
@@ -253,6 +255,17 @@ fun UnifiedReaderScreen(
     // 监听合成状态变化
     LaunchedEffect(synthesisState) {
         synthesisState?.let { state ->
+            // 如果出现错误，更新错误状态
+            if (state.status == TtsSynthesisService.STATUS_ERROR) {
+                // 显示错误信息
+                state.message?.let { errorMsg ->
+                    if (errorMsg.isNotBlank()) {
+                        viewModel.clearError() // 先清除旧的错误
+                        viewModel.handleSynthesisError("语音合成失败: $errorMsg")
+                    }
+                }
+            }
+            
             // 根据状态显示或隐藏进度对话框
             when (state.status) {
                 TtsSynthesisService.STATUS_PREPARING, 
@@ -262,12 +275,26 @@ fun UnifiedReaderScreen(
                 TtsSynthesisService.STATUS_COMPLETED, 
                 TtsSynthesisService.STATUS_ERROR,
                 TtsSynthesisService.STATUS_CANCELED -> {
-                    // 短暂延迟后关闭进度对话框
-                    delay(2000)
+                    // 短暂延迟后关闭进度对话框，但不超过1秒
+                    delay(1000)
                     showSynthesisProgressDialog = false
                 }
             }
         }
+    }
+    
+    // 显示错误对话框
+    if (uiState.error != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.clearError() },
+            title = { Text("提示") },
+            text = { Text(uiState.error ?: "") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearError() }) {
+                    Text("确定")
+                }
+            }
+        )
     }
     
     Scaffold(
@@ -1150,7 +1177,9 @@ fun UnifiedReaderScreen(
                     viewModel.startSynthesis(params)
                     showSynthesisDialog = false
                     showSynthesisProgressDialog = true
-                }
+                },
+                // 添加内容检查
+                hasContent = !uiState.currentContent?.text.isNullOrBlank()
             )
         }
         
@@ -1160,9 +1189,18 @@ fun UnifiedReaderScreen(
                 SynthesisProgressDialog(
                     progress = state.progress,
                     message = state.message,
-                    onDismiss = { /* 不允许点击外部关闭 */ },
+                    onDismiss = {
+                        // 允许在错误、完成或取消状态下点击外部关闭
+                        if (state.status == TtsSynthesisService.STATUS_ERROR || 
+                            state.status == TtsSynthesisService.STATUS_COMPLETED ||
+                            state.status == TtsSynthesisService.STATUS_CANCELED) {
+                            showSynthesisProgressDialog = false
+                        }
+                    },
                     onCancel = {
                         viewModel.cancelSynthesis()
+                        // 直接关闭对话框，不等待状态变化
+                        showSynthesisProgressDialog = false
                     }
                 )
             }

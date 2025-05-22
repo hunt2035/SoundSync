@@ -392,7 +392,13 @@ class UnifiedReaderViewModel(
      * 获取当前页面内容
      */
     fun getContentForCurrentPage(): String {
-        return readerEngine?.getCurrentPageText() ?: ""
+        val pageText = readerEngine?.getCurrentPageText() ?: ""
+        // 如果引擎获取的内容为空，尝试从uiState获取
+        return if (pageText.isBlank()) {
+            _uiState.value.currentContent?.text ?: ""
+        } else {
+            pageText
+        }
     }
     
     /**
@@ -532,25 +538,42 @@ class UnifiedReaderViewModel(
             return
         }
         
-        val bookTitle = _uiState.value.book?.title ?: "未知书籍"
-        val chapterTitle = _uiState.value.chapterTitle ?: "未知章节"
+        // 确保书名和章节名不会过长
+        val bookTitle = (_uiState.value.book?.title ?: "未知书籍").let { 
+            if (it.length > 20) it.substring(0, 20) + "..." else it 
+        }
+        val chapterTitle = (_uiState.value.chapterTitle ?: "未知章节").let { 
+            if (it.length > 20) it.substring(0, 20) + "..." else it 
+        }
         
         val title = "$bookTitle - $chapterTitle"
         
-        // 获取合成内容
+        // 获取合成内容：首先尝试从readerEngine获取，如果为空则尝试从uiState.currentContent.text获取
         val textToSynthesize = when (params.synthesisRange) {
             SynthesisRange.CURRENT_PAGE -> {
-                readerEngine?.getCurrentPageText() ?: ""
+                val pageText = readerEngine?.getCurrentPageText()
+                if (pageText.isNullOrBlank()) {
+                    _uiState.value.currentContent?.text ?: ""
+                } else {
+                    pageText
+                }
             }
             SynthesisRange.CURRENT_CHAPTER -> {
-                readerEngine?.getCurrentChapterText() ?: ""
+                val chapterText = readerEngine?.getCurrentChapterText()
+                if (chapterText.isNullOrBlank()) {
+                    _uiState.value.currentContent?.text ?: ""
+                } else {
+                    chapterText
+                }
             }
         }
         
         if (textToSynthesize.isBlank()) {
-            _uiState.update { it.copy(error = "没有可合成的文本内容") }
+            _uiState.update { it.copy(error = "没有可合成的文本内容，请确保页面已加载并有内容") }
             return
         }
+        
+        Log.d(TAG, "开始合成文本，长度: ${textToSynthesize.length}, 范围: ${params.synthesisRange}")
         
         // 创建回调
         val callback = object : TtsSynthesisService.SynthesisCallback {
@@ -600,6 +623,20 @@ class UnifiedReaderViewModel(
      */
     fun cancelSynthesis() {
         ttsSynthesisService?.cancelCurrentTask()
+    }
+
+    /**
+     * 清除错误消息
+     */
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
+    /**
+     * 处理合成错误
+     */
+    fun handleSynthesisError(errorMessage: String) {
+        _uiState.update { it.copy(error = errorMessage) }
     }
 }
 

@@ -16,6 +16,7 @@ import java.io.IOException
 object TextProcessor {
     private const val TAG = "TextProcessor"
     private const val ROOT_DIR = "WanderReads"
+    private const val TEXT_DIR = "txtfiles"
     
     /**
      * 处理文本：
@@ -67,7 +68,7 @@ object TextProcessor {
     }
     
     /**
-     * 保存文本到外部存储的Documents/WanderReads/books目录
+     * 保存文本到外部存储的Documents/WanderReads/txtfiles目录
      */
     suspend fun saveTextToFile(
         context: Context,
@@ -114,19 +115,19 @@ object TextProcessor {
                             }
                         }
                         
-                        // 创建books目录
-                        val booksDir = File(appRootDir, "books")
-                        if (!booksDir.exists()) {
-                            val created = booksDir.mkdirs()
-                            Log.d(TAG, "创建books目录结果: $created")
+                        // 创建txtfiles目录
+                        val txtFilesDir = File(appRootDir, TEXT_DIR)
+                        if (!txtFilesDir.exists()) {
+                            val created = txtFilesDir.mkdirs()
+                            Log.d(TAG, "创建txtfiles目录结果: $created")
                             if (!created) {
-                                throw IOException("无法创建books目录，将尝试其他方法")
+                                throw IOException("无法创建txtfiles目录，将尝试其他方法")
                             }
                         }
                         
                         // 生成txt文件
-                        outputFile = File(booksDir, "$fileName.txt")
-                        Log.d(TAG, "将使用外部Documents/WanderReads/books目录保存文件: ${outputFile.absolutePath}")
+                        outputFile = File(txtFilesDir, "$fileName.txt")
+                        Log.d(TAG, "将使用外部Documents/WanderReads/txtfiles目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
                         try {
@@ -144,7 +145,7 @@ object TextProcessor {
                         // Android 11+ 使用MANAGE_EXTERNAL_STORAGE权限
                         val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
                         val appRootDir = File(externalDocumentsDir, ROOT_DIR)
-                        val booksDir = File(appRootDir, "books")
+                        val txtFilesDir = File(appRootDir, TEXT_DIR)
                         
                         // 逐级确保目录存在
                         if (!externalDocumentsDir.exists() && !externalDocumentsDir.mkdirs()) {
@@ -155,13 +156,13 @@ object TextProcessor {
                             throw IOException("无法创建应用根目录")
                         }
                         
-                        if (!booksDir.exists() && !booksDir.mkdirs()) {
-                            throw IOException("无法创建books目录")
+                        if (!txtFilesDir.exists() && !txtFilesDir.mkdirs()) {
+                            throw IOException("无法创建txtfiles目录")
                         }
                         
                         // 生成txt文件
-                        outputFile = File(booksDir, "$fileName.txt")
-                        Log.d(TAG, "将使用外部Documents/WanderReads/books目录保存文件: ${outputFile.absolutePath}")
+                        outputFile = File(txtFilesDir, "$fileName.txt")
+                        Log.d(TAG, "将使用外部Documents/WanderReads/txtfiles目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
                         FileOutputStream(outputFile).use { outputStream ->
@@ -173,7 +174,7 @@ object TextProcessor {
                         // Android 9及以下版本
                         val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
                         val appRootDir = File(externalDocumentsDir, ROOT_DIR)
-                        val booksDir = File(appRootDir, "books")
+                        val txtFilesDir = File(appRootDir, TEXT_DIR)
                         
                         // 逐级确保目录存在
                         if (!externalDocumentsDir.exists() && !externalDocumentsDir.mkdirs()) {
@@ -184,13 +185,13 @@ object TextProcessor {
                             throw IOException("无法创建应用根目录")
                         }
                         
-                        if (!booksDir.exists() && !booksDir.mkdirs()) {
-                            throw IOException("无法创建books目录")
+                        if (!txtFilesDir.exists() && !txtFilesDir.mkdirs()) {
+                            throw IOException("无法创建txtfiles目录")
                         }
                         
                         // 生成txt文件
-                        outputFile = File(booksDir, "$fileName.txt")
-                        Log.d(TAG, "将使用外部Documents/WanderReads/books目录保存文件: ${outputFile.absolutePath}")
+                        outputFile = File(txtFilesDir, "$fileName.txt")
+                        Log.d(TAG, "将使用外部Documents/WanderReads/txtfiles目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
                         FileOutputStream(outputFile).use { outputStream ->
@@ -228,17 +229,17 @@ object TextProcessor {
                     Log.d(TAG, "尝试使用Android 10应用专属外部存储目录")
                     val appSpecificExternalDir = context.getExternalFilesDir(null)
                     if (appSpecificExternalDir != null) {
-                        val booksDir = File(appSpecificExternalDir, "newtxt").apply {
+                        val txtFilesDir = File(appSpecificExternalDir, TEXT_DIR).apply {
                             if (!exists()) {
                                 val created = mkdirs()
-                                Log.d(TAG, "创建应用专属books目录结果: $created")
+                                Log.d(TAG, "创建应用专属txtfiles目录结果: $created")
                                 if (!created) {
-                                    throw IOException("无法创建应用专属books目录")
+                                    throw IOException("无法创建应用专属txtfiles目录")
                                 }
                             }
                         }
                         
-                        outputFile = File(booksDir, "$fileName.txt")
+                        outputFile = File(txtFilesDir, "$fileName.txt")
                         Log.d(TAG, "将使用应用专属存储目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
@@ -305,7 +306,7 @@ object TextProcessor {
         try {
             Log.d(TAG, "尝试保存到应用私有目录")
             // 创建保存文本的目录
-            val targetDir = File(context.filesDir, "newtxt").apply { 
+            val targetDir = File(context.filesDir, TEXT_DIR).apply { 
                 if (!exists()) {
                     if (!mkdirs()) {
                         Log.e(TAG, "无法创建应用私有目录: ${absolutePath}")
