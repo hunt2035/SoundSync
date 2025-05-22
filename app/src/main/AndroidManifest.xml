@@ -17,17 +17,10 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     
-    <!-- 录音权限 -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 内录相关权限（已移除） -->
     
-    <!-- 内录相关权限（Android 10+） -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.CAPTURE_AUDIO_OUTPUT" 
-                     tools:ignore="ProtectedPermissions" />
+    <!-- Android 10+ 音频捕获标记（已移除） -->
     
-    <!-- Android 10+ 音频捕获标记 -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-
     <!-- 添加Android 13+权限 -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
@@ -39,6 +32,7 @@
     
     <!-- TTS相关权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
         android:name=".EbookApplication"
@@ -53,6 +47,7 @@
         android:hardwareAccelerated="true"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true"
         tools:targetApi="29">  <!-- 修改为API 29 -->
         <activity
             android:name=".MainActivity"
@@ -66,12 +61,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
-        <!-- 内录服务 -->
-        <service
-            android:name=".service.AudioCaptureService"
-            android:foregroundServiceType="mediaProjection"
-            android:exported="false" />
             
         <!-- TTS语音合成服务 -->
         <service

@@ -13,6 +13,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
@@ -126,138 +128,156 @@ class TtsSynthesisService : Service() {
      */
     private fun initTts() {
         if (tts == null) {
-            tts = TextToSpeech(this) { status ->
-                if (status == TextToSpeech.SUCCESS) {
-                    tts?.language = Locale.CHINESE
-                    _synthesisState.value = _synthesisState.value.copy(
-                        status = STATUS_IDLE,
-                        message = "TTS引擎已准备就绪"
-                    )
-                    Log.d(TAG, "TTS引擎初始化成功")
-                    
-                    // 如果队列中有任务，开始处理
-                    if (synthesisQueue.isNotEmpty() && !isProcessing) {
-                        processQueue()
-                    }
-                } else {
-                    _synthesisState.value = _synthesisState.value.copy(
-                        status = STATUS_ERROR,
-                        message = "TTS引擎初始化失败，错误码: $status"
-                    )
-                    Log.e(TAG, "TTS引擎初始化失败，错误码: $status")
-                }
-            }
-            
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String) {
-                    Log.d(TAG, "开始合成: $utteranceId")
-                    _synthesisState.value = _synthesisState.value.copy(
-                        status = STATUS_SYNTHESIZING,
-                        message = "正在合成语音...",
-                        progress = 0
-                    )
-                    updateNotification("正在合成语音...（0%）")
-                }
-                
-                override fun onDone(utteranceId: String) {
-                    Log.d(TAG, "合成完成: $utteranceId")
-                    closeOutputStream()
-                    
-                    // 保存到媒体库
-                    currentTask?.let { task ->
-                        scanFile(task.outputPath)
-                        
-                        // 保存到数据库
-                        saveRecordToDatabase(task)
-                        
-                        // 更新状态
+            try {
+                tts = TextToSpeech(this) { status ->
+                    if (status == TextToSpeech.SUCCESS) {
+                        tts?.language = Locale.CHINESE
                         _synthesisState.value = _synthesisState.value.copy(
-                            status = STATUS_COMPLETED,
-                            message = "语音合成完成，文件已保存",
-                            progress = 100,
-                            outputPath = task.outputPath
+                            status = STATUS_IDLE,
+                            message = "TTS引擎已准备就绪"
                         )
+                        Log.d(TAG, "TTS引擎初始化成功")
                         
-                        // 更新通知
-                        updateNotification("语音合成完成（100%）")
-                        
-                        // 回调通知
-                        synthesisCallback?.onCompleted(task.outputPath)
-                    }
-                    
-                    // 继续处理队列中的任务
-                    isProcessing = false
-                    if (synthesisQueue.isNotEmpty()) {
-                        processQueue()
+                        // 如果队列中有任务，开始处理
+                        if (synthesisQueue.isNotEmpty() && !isProcessing) {
+                            processQueue()
+                        }
                     } else {
-                        stopForeground(false)
-                    }
-                }
-                
-                override fun onError(utteranceId: String) {
-                    Log.e(TAG, "合成出错: $utteranceId")
-                    closeOutputStream()
-                    
-                    _synthesisState.value = _synthesisState.value.copy(
-                        status = STATUS_ERROR,
-                        message = "语音合成过程中出错",
-                        progress = 0
-                    )
-                    
-                    updateNotification("语音合成失败")
-                    
-                    // 回调通知
-                    synthesisCallback?.onError("语音合成失败")
-                    
-                    // 继续处理队列中的任务
-                    isProcessing = false
-                    if (synthesisQueue.isNotEmpty()) {
-                        processQueue()
-                    } else {
-                        stopForeground(false)
-                    }
-                }
-                
-                @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String, errorCode: Int) {
-                    onError(utteranceId)
-                }
-                
-                /**
-                 * 播放进度回调
-                 * Android API 21+支持
-                 */
-                override fun onRangeStart(
-                    utteranceId: String,
-                    start: Int,
-                    end: Int,
-                    frame: Int
-                ) {
-                    super.onRangeStart(utteranceId, start, end, frame)
-                    
-                    // 计算进度百分比
-                    currentTask?.let { task ->
-                        val totalLength = task.text.length
-                        val progress = if (totalLength > 0) {
-                            (end.toFloat() / totalLength.toFloat() * 100).toInt()
-                        } else 0
-                        
-                        // 更新状态
                         _synthesisState.value = _synthesisState.value.copy(
-                            progress = progress,
-                            message = "正在合成语音（${progress}%）"
+                            status = STATUS_ERROR,
+                            message = "TTS引擎初始化失败，错误码: $status"
                         )
+                        // 主动通知UI
+                        synthesisCallback?.onError("TTS引擎初始化失败，错误码: $status")
+                        Log.e(TAG, "TTS引擎初始化失败，错误码: $status")
+                    }
+                }
+                
+                // 设置超时保护
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (_synthesisState.value.status == STATUS_PREPARING) {
+                        _synthesisState.value = _synthesisState.value.copy(
+                            status = STATUS_ERROR,
+                            message = "TTS初始化超时"
+                        )
+                        synthesisCallback?.onError("TTS初始化超时")
+                    }
+                }, 10000) // 10秒超时
+                
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String) {
+                        Log.d(TAG, "开始合成: $utteranceId")
+                        _synthesisState.value = _synthesisState.value.copy(
+                            status = STATUS_SYNTHESIZING,
+                            message = "正在合成语音...",
+                            progress = 0
+                        )
+                        updateNotification("正在合成语音...（0%）")
+                    }
+                    
+                    override fun onDone(utteranceId: String) {
+                        Log.d(TAG, "合成完成: $utteranceId")
+                        closeOutputStream()
                         
-                        // 每10%更新一次通知
-                        if (progress % 10 == 0) {
-                            updateNotification("正在合成语音...（${progress}%）")
+                        // 保存到媒体库
+                        currentTask?.let { task ->
+                            scanFile(task.outputPath)
+                            
+                            // 保存到数据库
+                            saveRecordToDatabase(task)
+                            
+                            // 更新状态
+                            _synthesisState.value = _synthesisState.value.copy(
+                                status = STATUS_COMPLETED,
+                                message = "语音合成完成，文件已保存",
+                                progress = 100,
+                                outputPath = task.outputPath
+                            )
+                            
+                            // 更新通知
+                            updateNotification("语音合成完成（100%）")
+                            
+                            // 回调通知
+                            synthesisCallback?.onCompleted(task.outputPath)
                         }
                         
-                        // 回调通知
-                        synthesisCallback?.onProgress(progress)
+                        // 继续处理队列中的任务
+                        isProcessing = false
+                        if (synthesisQueue.isNotEmpty()) {
+                            processQueue()
+                        } else {
+                            stopForeground(false)
+                        }
                     }
-                }
-            })
+                    
+                    override fun onError(utteranceId: String) {
+                        Log.e(TAG, "合成出错: $utteranceId")
+                        closeOutputStream()
+                        
+                        _synthesisState.value = _synthesisState.value.copy(
+                            status = STATUS_ERROR,
+                            message = "语音合成过程中出错",
+                            progress = 0
+                        )
+                        
+                        updateNotification("语音合成失败")
+                        
+                        // 回调通知
+                        synthesisCallback?.onError("语音合成失败")
+                        
+                        // 继续处理队列中的任务
+                        isProcessing = false
+                        if (synthesisQueue.isNotEmpty()) {
+                            processQueue()
+                        } else {
+                            stopForeground(false)
+                        }
+                    }
+                    
+                    // API 23以下的错误回调
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String, errorCode: Int) {
+                        onError(utteranceId)
+                    }
+                    
+                    // API 21+的进度回调
+                    override fun onRangeStart(
+                        utteranceId: String,
+                        start: Int,
+                        end: Int,
+                        frame: Int
+                    ) {
+                        // 计算进度百分比
+                        currentTask?.let { task ->
+                            val totalLength = task.text.length
+                            val progress = if (totalLength > 0) {
+                                (end.toFloat() / totalLength.toFloat() * 100).toInt()
+                            } else 0
+                            
+                            // 更新状态
+                            _synthesisState.value = _synthesisState.value.copy(
+                                progress = progress,
+                                message = "正在合成语音（${progress}%）"
+                            )
+                            
+                            // 每10%更新一次通知
+                            if (progress % 10 == 0) {
+                                updateNotification("正在合成语音...（${progress}%）")
+                            }
+                            
+                            // 回调通知
+                            synthesisCallback?.onProgress(progress)
+                        }
+                    }
+                })
+            } catch (e: Exception) {
+                Log.e(TAG, "TTS初始化异常", e)
+                _synthesisState.value = _synthesisState.value.copy(
+                    status = STATUS_ERROR,
+                    message = "TTS初始化异常: ${e.message}"
+                )
+                synthesisCallback?.onError("TTS初始化异常: ${e.message}")
+            }
         }
     }
     
@@ -265,71 +285,92 @@ class TtsSynthesisService : Service() {
      * 处理合成队列
      */
     private fun processQueue() {
-        if (isProcessing || synthesisQueue.isEmpty() || tts == null) return
+        if (isProcessing || synthesisQueue.isEmpty()) return
+        
+        if (tts == null) {
+            Log.e(TAG, "TTS引擎未初始化")
+            _synthesisState.value = _synthesisState.value.copy(
+                status = STATUS_ERROR,
+                message = "TTS引擎未初始化"
+            )
+            synthesisCallback?.onError("TTS引擎未初始化")
+            return
+        }
+        
         isProcessing = true
         
-        val task = synthesisQueue.poll()
-        currentTask = task
-        
-        task?.let {
-            // 更新状态
-            _synthesisState.value = _synthesisState.value.copy(
-                status = STATUS_PREPARING,
-                message = "正在准备合成语音...",
-                progress = 0,
-                bookId = it.bookId,
-                title = it.title
-            )
+        try {
+            val task = synthesisQueue.poll()
+            currentTask = task
             
-            updateNotification("正在准备合成语音...")
-            
-            // 应用TTS参数
-            tts?.setSpeechRate(it.params.speechRate)
-            tts?.setPitch(it.params.pitch)
-            
-            // 准备输出文件
-            try {
-                val outputDir = getVoicesDirectory()
-                val fileName = "${System.currentTimeMillis()}_${it.title.replace(' ', '_')}.mp3"
-                val outputFile = File(outputDir, fileName)
-                it.outputPath = outputFile.absolutePath
+            task?.let {
+                // 更新状态
+                _synthesisState.value = _synthesisState.value.copy(
+                    status = STATUS_PREPARING,
+                    message = "正在准备合成语音...",
+                    progress = 0,
+                    bookId = it.bookId,
+                    title = it.title
+                )
                 
-                if (!outputFile.exists()) {
-                    outputFile.createNewFile()
-                }
+                updateNotification("正在准备合成语音...")
                 
-                outputStream = FileOutputStream(outputFile)
+                // 应用TTS参数
+                tts?.setSpeechRate(it.params.speechRate)
+                tts?.setPitch(it.params.pitch)
                 
-                // 使用API 21+的文件合成方法
-                val params = Bundle()
-                params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, it.params.volume)
-                
-                val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    // 使用最新的API合成到文件
-                    @Suppress("DEPRECATION")
-                    tts?.synthesizeToFile(it.text, params, outputFile, "TTS_${UUID.randomUUID()}")
-                } else {
-                    @Suppress("DEPRECATION")
-                    tts?.synthesizeToFile(it.text, null, outputFile, "TTS_${UUID.randomUUID()}")
-                }
-                
-                if (result != TextToSpeech.SUCCESS) {
+                // 准备输出文件
+                try {
+                    val outputDir = getVoicesDirectory()
+                    val fileName = "${System.currentTimeMillis()}_${it.title.replace(' ', '_')}.mp3"
+                    val outputFile = File(outputDir, fileName)
+                    it.outputPath = outputFile.absolutePath
+                    
+                    if (!outputFile.exists()) {
+                        outputFile.createNewFile()
+                    }
+                    
+                    outputStream = FileOutputStream(outputFile)
+                    
+                    // 使用API 21+的文件合成方法
+                    val params = Bundle()
+                    params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, it.params.volume)
+                    
+                    val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        // 使用最新的API合成到文件
+                        @Suppress("DEPRECATION")
+                        tts?.synthesizeToFile(it.text, params, outputFile, "TTS_${UUID.randomUUID()}")
+                    } else {
+                        @Suppress("DEPRECATION")
+                        tts?.synthesizeToFile(it.text, null, outputFile, "TTS_${UUID.randomUUID()}")
+                    }
+                    
+                    if (result != TextToSpeech.SUCCESS) {
+                        _synthesisState.value = _synthesisState.value.copy(
+                            status = STATUS_ERROR,
+                            message = "无法开始语音合成，错误码: $result"
+                        )
+                        synthesisCallback?.onError("无法开始语音合成，错误码: $result")
+                        isProcessing = false
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "合成语音文件失败", e)
                     _synthesisState.value = _synthesisState.value.copy(
                         status = STATUS_ERROR,
-                        message = "无法开始语音合成，错误码: $result"
+                        message = "创建语音文件失败: ${e.message}"
                     )
-                    synthesisCallback?.onError("无法开始语音合成，错误码: $result")
+                    synthesisCallback?.onError("创建语音文件失败: ${e.message}")
                     isProcessing = false
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "合成语音文件失败", e)
-                _synthesisState.value = _synthesisState.value.copy(
-                    status = STATUS_ERROR,
-                    message = "创建语音文件失败: ${e.message}"
-                )
-                synthesisCallback?.onError("创建语音文件失败: ${e.message}")
-                isProcessing = false
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "处理合成队列异常", e)
+            isProcessing = false
+            _synthesisState.value = _synthesisState.value.copy(
+                status = STATUS_ERROR,
+                message = "处理合成队列异常: ${e.message}"
+            )
+            synthesisCallback?.onError("处理合成队列异常: ${e.message}")
         }
     }
     

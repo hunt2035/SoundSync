@@ -524,6 +524,9 @@ class UnifiedReaderViewModel(
      * 开始语音合成
      */
     fun startSynthesis(params: SynthesisParams) {
+        // 先更新UI状态，避免用户感觉卡住
+        _uiState.update { it.copy(message = "正在准备语音合成...") }
+        
         if (!serviceBound || ttsSynthesisService == null) {
             bindSynthesisService()
             return

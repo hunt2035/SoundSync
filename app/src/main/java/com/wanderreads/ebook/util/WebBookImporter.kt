@@ -1,6 +1,7 @@
 package com.wanderreads.ebook.util
 
 import android.content.Context
+import android.os.Build
 import android.os.Environment
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,19 @@ object WebBookImporter {
     private const val ROOT_DIR = "WanderReads"
     
     /**
+     * 检查是否有外部存储权限
+     * 在Android 11+上需要MANAGE_EXTERNAL_STORAGE权限
+     * 在较低版本Android上只需检查存储状态
+     */
+    fun hasExternalStoragePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager() // Android 11+需要此权限
+        } else {
+            FileUtil.isExternalStorageWritable() // 低版本Android只需检查存储状态
+        }
+    }
+    
+    /**
      * 从URL导入网页内容，保存为TXT文件
      *
      * @param context 上下文
@@ -41,56 +55,10 @@ object WebBookImporter {
         context: Context,
         url: String
     ): Result<Pair<File, String>> = withContext(Dispatchers.IO) {
+        var outputFile: File? = null
+        var createdExternalFile = false
+        
         try {
-            // 优先尝试保存到外部存储
-            val canUseExternalStorage = FileUtil.isExternalStorageWritable()
-            Log.d(TAG, "外部存储是否可写: $canUseExternalStorage")
-            
-            var outputFile: File? = null
-
-            if (canUseExternalStorage) {
-                // 尝试使用外部存储
-                try {
-                    // 创建外部存储中的webbook目录
-                    val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
-                    val appRootDir = File(externalDocumentsDir, ROOT_DIR)
-                    val webBookDir = File(appRootDir, "webbook").apply {
-                        if (!exists()) {
-                            if (!mkdirs()) {
-                                Log.w(TAG, "无法创建外部目录: $absolutePath，将尝试使用应用私有目录")
-                                throw IOException("无法创建目录: $absolutePath")
-                            }
-                        }
-                    }
-                    
-                    // 获取当前时间戳作为文件名
-                    val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
-                        .format(Date())
-                    val fileName = "Web$timestamp.txt"
-                    outputFile = File(webBookDir, fileName)
-                } catch (e: Exception) {
-                    Log.w(TAG, "使用外部存储失败: ${e.message}，将使用应用私有目录")
-                    // 如果外部存储失败，回退到应用私有目录
-                    outputFile = null
-                }
-            }
-            
-            // 如果外部存储不可用或创建失败，使用应用私有目录
-            if (outputFile == null) {
-                val privateDir = File(context.filesDir, "webbook").apply {
-                    if (!exists()) {
-                        if (!mkdirs()) {
-                            return@withContext Result.failure(IOException("无法创建应用私有目录"))
-                        }
-                    }
-                }
-                val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
-                    .format(Date())
-                val fileName = "Web$timestamp.txt"
-                outputFile = File(privateDir, fileName)
-                Log.d(TAG, "将使用应用私有目录保存文件: ${outputFile.absolutePath}")
-            }
-            
             // 抓取网页内容（带重试机制）
             Log.d(TAG, "开始获取网页内容: $url")
             val document = fetchWebPageWithRetry(url)
@@ -100,13 +68,220 @@ object WebBookImporter {
             val title = document.title()
             val content = extractTextContent(document)
             
-            // 写入文件
-            Log.d(TAG, "写入文件: ${outputFile.absolutePath}")
-            writeToFile(outputFile, title, content)
+            // 生成文件名
+            val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
+                .format(Date())
+            val fileName = "Web$timestamp.txt"
             
-            Log.d(TAG, "网页导入成功，文件路径: ${outputFile.absolutePath}")
+            // 尝试保存到外部存储
+            val canUseExternalStorage = hasExternalStoragePermission()
+            Log.d(TAG, "外部存储是否可写: $canUseExternalStorage")
+            
+            if (canUseExternalStorage) {
+                try {
+                    // 分类处理不同Android版本
+                    if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                        // Android 10 特殊处理：直接尝试使用legacy方式访问Documents目录
+                        Log.d(TAG, "在Android 10上使用legacy storage访问外部存储")
+                        
+                        val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                        Log.d(TAG, "外部Documents目录路径: ${externalDocumentsDir.absolutePath}, 存在: ${externalDocumentsDir.exists()}")
+                        
+                        // 确保Documents目录存在
+                        if (!externalDocumentsDir.exists()) {
+                            val created = externalDocumentsDir.mkdirs()
+                            Log.d(TAG, "创建Documents目录结果: $created")
+                            if (!created) {
+                                throw IOException("无法创建Documents目录，将尝试其他方法")
+                            }
+                        }
+                        
+                        // 创建应用根目录
+                        val appRootDir = File(externalDocumentsDir, ROOT_DIR)
+                        if (!appRootDir.exists()) {
+                            val created = appRootDir.mkdirs()
+                            Log.d(TAG, "创建应用根目录结果: $created")
+                            if (!created) {
+                                throw IOException("无法创建应用根目录，将尝试其他方法")
+                            }
+                        }
+                        
+                        // 创建webbook目录
+                        val webBookDir = File(appRootDir, "webbook")
+                        if (!webBookDir.exists()) {
+                            val created = webBookDir.mkdirs()
+                            Log.d(TAG, "创建webbook目录结果: $created")
+                            if (!created) {
+                                throw IOException("无法创建webbook目录，将尝试其他方法")
+                            }
+                        }
+                        
+                        // 尝试创建文件
+                        outputFile = File(webBookDir, fileName)
+                        Log.d(TAG, "将使用外部Documents/WanderReads/webbook目录保存文件: ${outputFile.absolutePath}")
+                        
+                        // 写入文件
+                        try {
+                            writeToFile(outputFile, title, content)
+                            createdExternalFile = true
+                            Log.d(TAG, "成功写入文件到外部存储: ${outputFile.absolutePath}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "写入文件到外部存储失败: ${e.message}", e)
+                            throw e  // 重新抛出异常，触发后续的备用方案
+                        }
+                    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        // Android 11+ 使用MANAGE_EXTERNAL_STORAGE权限
+                        val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                        val appRootDir = File(externalDocumentsDir, ROOT_DIR)
+                        val webBookDir = File(appRootDir, "webbook")
+                        
+                        // 逐级确保目录存在
+                        if (!externalDocumentsDir.exists() && !externalDocumentsDir.mkdirs()) {
+                            throw IOException("无法创建外部Documents目录")
+                        }
+                        
+                        if (!appRootDir.exists() && !appRootDir.mkdirs()) {
+                            throw IOException("无法创建应用根目录")
+                        }
+                        
+                        if (!webBookDir.exists() && !webBookDir.mkdirs()) {
+                            throw IOException("无法创建webbook目录")
+                        }
+                        
+                        outputFile = File(webBookDir, fileName)
+                        Log.d(TAG, "将使用外部Documents/WanderReads/webbook目录保存文件: ${outputFile.absolutePath}")
+                        
+                        // 写入文件
+                        writeToFile(outputFile, title, content)
+                        createdExternalFile = true
+                    } else {
+                        // Android 9及以下版本
+                        val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                        val appRootDir = File(externalDocumentsDir, ROOT_DIR)
+                        val webBookDir = File(appRootDir, "webbook")
+                        
+                        // 逐级确保目录存在
+                        if (!externalDocumentsDir.exists() && !externalDocumentsDir.mkdirs()) {
+                            throw IOException("无法创建外部Documents目录")
+                        }
+                        
+                        if (!appRootDir.exists() && !appRootDir.mkdirs()) {
+                            throw IOException("无法创建应用根目录")
+                        }
+                        
+                        if (!webBookDir.exists() && !webBookDir.mkdirs()) {
+                            throw IOException("无法创建webbook目录")
+                        }
+                        
+                        outputFile = File(webBookDir, fileName)
+                        Log.d(TAG, "将使用外部Documents/WanderReads/webbook目录保存文件: ${outputFile.absolutePath}")
+                        
+                        // 写入文件
+                        writeToFile(outputFile, title, content)
+                        createdExternalFile = true
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "使用外部存储失败: ${e.message}", e)
+                    // 清除可能创建的不完整文件
+                    if (outputFile != null && outputFile.exists() && !createdExternalFile) {
+                        try {
+                            outputFile.delete()
+                        } catch (ex: Exception) {
+                            Log.e(TAG, "删除不完整文件失败: ${ex.message}")
+                        }
+                    }
+                    
+                    // 重置outputFile，准备尝试备用方案
+                    outputFile = null
+                    
+                    // Android 11+特殊提示
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+                        Log.e(TAG, "Android 11+设备缺少MANAGE_EXTERNAL_STORAGE权限")
+                    }
+                }
+            } else {
+                Log.w(TAG, "外部存储不可用或权限不足，将使用应用专属目录或私有目录")
+            }
+            
+            // 尝试备用方案：Android 10 使用应用专属目录
+            if (outputFile == null && Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                try {
+                    Log.d(TAG, "尝试使用Android 10应用专属外部存储目录")
+                    val appSpecificExternalDir = context.getExternalFilesDir(null)
+                    if (appSpecificExternalDir != null) {
+                        val webBookDir = File(appSpecificExternalDir, "webbook").apply {
+                            if (!exists()) {
+                                val created = mkdirs()
+                                Log.d(TAG, "创建应用专属webbook目录结果: $created")
+                                if (!created) {
+                                    throw IOException("无法创建应用专属webbook目录")
+                                }
+                            }
+                        }
+                        
+                        outputFile = File(webBookDir, fileName)
+                        Log.d(TAG, "将使用应用专属存储目录保存文件: ${outputFile.absolutePath}")
+                        
+                        // 写入文件
+                        writeToFile(outputFile, title, content)
+                        createdExternalFile = true
+                    } else {
+                        throw IOException("无法获取应用专属外部存储目录")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "使用应用专属外部存储失败: ${e.message}", e)
+                    if (outputFile != null && outputFile.exists()) {
+                        outputFile.delete()
+                    }
+                    outputFile = null
+                }
+            }
+            
+            // 最后的备用方案：使用应用私有目录
+            if (outputFile == null || !createdExternalFile) {
+                Log.d(TAG, "使用应用私有目录作为最终备用方案")
+                val privateDir = File(context.filesDir, "webbook").apply {
+                    if (!exists()) {
+                        if (!mkdirs()) {
+                            Log.e(TAG, "无法创建应用私有目录: ${absolutePath}")
+                            return@withContext Result.failure(IOException("无法创建应用私有目录: ${absolutePath}"))
+                        }
+                    }
+                }
+                
+                outputFile = File(privateDir, fileName)
+                Log.d(TAG, "将使用应用私有目录保存文件: ${outputFile.absolutePath}")
+                
+                // 写入文件到私有目录
+                writeToFile(outputFile, title, content)
+            }
+            
+            // 通知媒体库更新（适用于外部存储）
+            if (createdExternalFile) {
+                try {
+                    android.media.MediaScannerConnection.scanFile(
+                        context,
+                        arrayOf(outputFile.absolutePath),
+                        arrayOf("text/plain"),
+                        null
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "媒体扫描失败: ${e.message}")
+                }
+            }
+            
+            Log.d(TAG, "网页导入成功，最终文件路径: ${outputFile.absolutePath}")
             Result.success(Pair(outputFile, url))
         } catch (e: Exception) {
+            // 清除可能创建的不完整文件
+            if (outputFile != null && outputFile.exists() && !createdExternalFile) {
+                try {
+                    outputFile.delete()
+                } catch (ex: Exception) {
+                    Log.e(TAG, "无法删除不完整文件: ${ex.message}")
+                }
+            }
+            
             Log.e(TAG, "网页导入失败", e)
             Result.failure(e)
         }

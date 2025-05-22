@@ -25,6 +25,14 @@ object FileUtil {
     private const val ROOT_DIR = "WanderReads"
 
     /**
+     * 检查外部存储是否可写
+     */
+    fun isExternalStorageWritable(): Boolean {
+        val state = Environment.getExternalStorageState()
+        return Environment.MEDIA_MOUNTED == state
+    }
+    
+    /**
      * 复制Uri到应用私有目录
      */
     suspend fun copyUriToAppStorage(context: Context, uri: Uri, subDir: String): Result<File> = withContext(Dispatchers.IO) {
@@ -270,13 +278,6 @@ object FileUtil {
     fun isSupportedEbookFormat(fileName: String): Boolean {
         val format = BookFormat.fromFileName(fileName)
         return format != BookFormat.UNKNOWN
-    }
-    
-    /**
-     * 检查外部存储是否可写
-     */
-    fun isExternalStorageWritable(): Boolean {
-        return Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
     }
     
     /**
