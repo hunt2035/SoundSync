@@ -20,7 +20,7 @@ data class BookChapter(
     val title: String,                // 章节标题
     val index: Int,                   // 章节索引
     val startPosition: Int,           // 章节起始位置
-    val content: String = "",         // 章节内容
+    var content: String = "",         // 章节内容
     val subChapters: List<BookChapter> = emptyList() // 子章节列表
 )
 

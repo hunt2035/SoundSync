@@ -260,8 +260,8 @@ class TtsSynthesisService : Service() {
                                 message = "正在合成语音（${progress}%）"
                             )
                             
-                            // 每10%更新一次通知
-                            if (progress % 10 == 0) {
+                            // 每5%更新一次通知，使进度显示更平滑
+                            if (progress % 5 == 0) {
                                 updateNotification("正在合成语音...（${progress}%）")
                             }
                             

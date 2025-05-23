@@ -548,21 +548,28 @@ class UnifiedReaderViewModel(
         
         val title = "$bookTitle - $chapterTitle"
         
-        // 获取合成内容：首先尝试从readerEngine获取，如果为空则尝试从uiState.currentContent.text获取
+        // 获取合成内容
         val textToSynthesize = when (params.synthesisRange) {
             SynthesisRange.CURRENT_PAGE -> {
+                // 获取当前页文本
                 val pageText = readerEngine?.getCurrentPageText()
                 if (pageText.isNullOrBlank()) {
+                    Log.d(TAG, "当前页文本为空，使用uiState中的文本")
                     _uiState.value.currentContent?.text ?: ""
                 } else {
+                    Log.d(TAG, "使用引擎提供的当前页文本，长度: ${pageText.length}")
                     pageText
                 }
             }
             SynthesisRange.CURRENT_CHAPTER -> {
+                // 获取当前章节全部文本
                 val chapterText = readerEngine?.getCurrentChapterText()
                 if (chapterText.isNullOrBlank()) {
+                    // 如果引擎无法提供章节文本，尝试使用当前页文本
+                    Log.d(TAG, "当前章节文本为空，使用uiState中的文本")
                     _uiState.value.currentContent?.text ?: ""
                 } else {
+                    Log.d(TAG, "使用引擎提供的当前章节文本，长度: ${chapterText.length}")
                     chapterText
                 }
             }

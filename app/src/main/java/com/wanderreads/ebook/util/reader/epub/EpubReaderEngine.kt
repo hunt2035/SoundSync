@@ -25,6 +25,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 import java.util.zip.ZipFile
+import java.nio.charset.Charset
 
 /**
  * EPUB电子书阅读引擎
@@ -43,7 +44,7 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
     private var totalPages: Int = 0
     private var currentChapter: Int = 0
     private var currentChapterIndex: Int = 0
-    private var chapters: List<BookChapter> = emptyList()
+    private var chapters: MutableList<BookChapter> = mutableListOf()
     private var readerConfig: ReaderConfig = ReaderConfig()
     private var contentCache: MutableMap<Int, ReaderContent> = mutableMapOf()
     private var tts: TextToSpeech? = null
@@ -325,7 +326,7 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
                     index = index,
                     startPosition = index + 1  // +1 因为第0页是封面
                 )
-            }
+            }.toMutableList()
         } else {
             // 使用目录创建章节
             chapters = toc.mapIndexed { index, chapter ->
@@ -335,7 +336,7 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
                     startPosition = chapter.spineIndex + 1, // +1 因为第0页是封面
                     subChapters = emptyList() // 简化版本，不处理子章节
                 )
-            }
+            }.toMutableList()
         }
     }
     
@@ -628,6 +629,31 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
      */
     override fun getCurrentChapterText(): String {
         val currentChapter = chapters.getOrNull(currentChapterIndex)
+        
+        // 如果章节对象存在但内容为空，尝试重新加载章节内容
+        if (currentChapter != null && currentChapter.content.isBlank()) {
+            try {
+                // 尝试从EPUB文件中读取章节内容
+                val spineIndex = currentChapter.startPosition - 1 // 减1因为第0页是封面
+                if (spineIndex >= 0 && spineIndex < spineResources.size) {
+                    val resource = spineResources[spineIndex]
+                    // 解析HTML内容为纯文本
+                    val htmlContent = resource.data.let { String(it, Charset.forName("UTF-8")) }
+                    if (htmlContent.isNotEmpty()) {
+                        // 使用简单的HTML解析提取文本
+                        val plainText = htmlToText(htmlContent)
+                        // 由于BookChapter的content是val，我们需要创建一个新的对象
+                        val updatedChapter = currentChapter.copy(content = plainText)
+                        // 更新chapters列表中对应的章节
+                        chapters[currentChapterIndex] = updatedChapter
+                        return plainText
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取章节内容失败", e)
+            }
+        }
+        
         return currentChapter?.content ?: ""
     }
     
@@ -823,5 +849,27 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
     private fun updateCurrentChapter() {
         currentChapter = getChapterForPage(currentPage)
         currentChapterIndex = currentChapter
+    }
+    
+    /**
+     * 将HTML内容转换为纯文本
+     * 简单实现，移除HTML标签
+     */
+    private fun htmlToText(html: String): String {
+        // 移除HTML标签
+        val noTags = html.replace(Regex("<[^>]*>"), " ")
+        
+        // 移除多余空格
+        val noExtraSpaces = noTags.replace(Regex("\\s+"), " ")
+        
+        // 处理常见HTML实体
+        return noExtraSpaces
+            .replace("&nbsp;", " ")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&apos;", "'")
+            .trim()
     }
 } 

@@ -52,8 +52,7 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
     private var _currentPageTextContent: String? = null
     
     // 章节信息
-    private var chapters: List<BookChapter> = emptyList()
-    private var _chapters: List<BookChapter> = emptyList()
+    private var chapters: MutableList<BookChapter> = mutableListOf()
     private var _currentChapterIndex: Int = 0
     
     // 阅读器配置
@@ -263,12 +262,40 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
      */
     override fun getCurrentChapterText(): String {
         // 同步变量
-        _chapters = chapters
         _currentChapterIndex = findChapterIndexForPage(currentPage)
         
-        // TXT文件不像EPUB有明确的章节，这里返回当前"章节"的全部内容
-        val currentChapter = _chapters.getOrNull(_currentChapterIndex)
-        return currentChapter?.content ?: ""
+        // 如果章节列表为空或索引无效，返回当前页内容
+        if (chapters.isEmpty() || _currentChapterIndex < 0 || _currentChapterIndex >= chapters.size) {
+            return getCurrentPageText()
+        }
+        
+        // 获取当前章节
+        val currentChapter = chapters[_currentChapterIndex]
+        
+        // 如果章节内容为空，尝试重建章节内容
+        if (currentChapter.content.isBlank()) {
+            // 计算章节的起始页和结束页
+            val startPage = currentChapter.startPosition
+            val endPage = if (_currentChapterIndex < chapters.size - 1) {
+                chapters[_currentChapterIndex + 1].startPosition - 1
+            } else {
+                pages.size - 1
+            }
+            
+            // 收集章节内的所有页面内容
+            val chapterContent = StringBuilder()
+            for (i in startPage..endPage) {
+                if (i < pages.size) {
+                    chapterContent.append(pages[i])
+                    if (i < endPage) chapterContent.append("\n")
+                }
+            }
+            
+            // 直接修改章节内容
+            currentChapter.content = chapterContent.toString()
+        }
+        
+        return currentChapter.content
     }
     
     /**
