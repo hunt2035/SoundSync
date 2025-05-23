@@ -100,7 +100,8 @@ fun SettingsScreen() {
                 title = { Text("设置") },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
-                )
+                ),
+                modifier = Modifier.height(32.dp)
             )
         }
     ) { paddingValues ->

@@ -202,10 +202,20 @@ fun SynthesisProgressDialog(
 ) {
     // 判断消息是否包含错误相关词语或状态异常
     val isErrorState = message.contains("失败") || message.contains("错误") || progress < 0
+    // 判断是否合成完成
+    val isCompleted = message.contains("完成") || progress >= 100
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isErrorState) "合成失败" else "语音合成") },
+        title = { 
+            Text(
+                when {
+                    isErrorState -> "合成失败"
+                    isCompleted -> "合成成功"
+                    else -> "语音合成"
+                }
+            ) 
+        },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -213,7 +223,7 @@ fun SynthesisProgressDialog(
             ) {
                 Text(message)
                 Spacer(modifier = Modifier.height(16.dp))
-                if (!isErrorState) {
+                if (!isErrorState && !isCompleted) {
                     LinearProgressIndicator(
                         progress = progress / 100f,
                         modifier = Modifier.fillMaxWidth()
@@ -224,8 +234,19 @@ fun SynthesisProgressDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = if (isErrorState) onDismiss else onCancel) {
-                Text(if (isErrorState) "关闭" else "取消")
+            TextButton(
+                onClick = when {
+                    isErrorState || isCompleted -> onDismiss
+                    else -> onCancel
+                }
+            ) {
+                Text(
+                    when {
+                        isErrorState -> "关闭"
+                        isCompleted -> "确定"
+                        else -> "取消"
+                    }
+                )
             }
         }
     )

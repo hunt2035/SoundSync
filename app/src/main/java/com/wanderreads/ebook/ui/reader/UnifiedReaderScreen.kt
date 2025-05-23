@@ -266,19 +266,14 @@ fun UnifiedReaderScreen(
                 }
             }
             
-            // 根据状态显示或隐藏进度对话框
+            // 根据状态显示进度对话框
             when (state.status) {
                 TtsSynthesisService.STATUS_PREPARING, 
                 TtsSynthesisService.STATUS_SYNTHESIZING -> {
                     showSynthesisProgressDialog = true
                 }
-                TtsSynthesisService.STATUS_COMPLETED, 
-                TtsSynthesisService.STATUS_ERROR,
-                TtsSynthesisService.STATUS_CANCELED -> {
-                    // 短暂延迟后关闭进度对话框，但不超过1秒
-                    delay(1000)
-                    showSynthesisProgressDialog = false
-                }
+                // 完成、错误或取消状态不再自动关闭对话框
+                // 让用户看到结果后手动关闭
             }
         }
     }
@@ -380,8 +375,7 @@ fun UnifiedReaderScreen(
                                 text = { Text("语音列表", color = whiteText) },
                                 onClick = { 
                                     showMenu = false
-                                    // 语音列表功能后续实现
-                                    Toast.makeText(context, "语音列表功能开发中", Toast.LENGTH_SHORT).show()
+                                    viewModel.showSynthesizedAudioList()
                                 },
                                 leadingIcon = {
                                     Icon(
@@ -445,7 +439,8 @@ fun UnifiedReaderScreen(
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = themeBlue
-                    )
+                    ),
+                    modifier = Modifier.height(64.dp)
                 )
             }
         },
@@ -553,7 +548,7 @@ fun UnifiedReaderScreen(
                         
                         // 语音列表图标
                         IconButton(onClick = { 
-                            Toast.makeText(context, "语音列表功能开发中", Toast.LENGTH_SHORT).show()
+                            viewModel.showSynthesizedAudioList()
                         }) {
                             Icon(
                                 Icons.Default.MicNone,
@@ -1204,6 +1199,33 @@ fun UnifiedReaderScreen(
                     }
                 )
             }
+        }
+        
+        // 合成语音列表界面
+        if (uiState.showSynthesizedAudioList) {
+            SynthesizedAudioListScreen(
+                records = uiState.synthesizedAudioList,
+                onDismiss = { viewModel.hideSynthesizedAudioList() },
+                onPlayRecord = { record ->
+                    if (record.id == uiState.currentPlayingRecordId && uiState.isAudioPlaying) {
+                        viewModel.pauseAudioPlayback()
+                    } else if (record.id == uiState.currentPlayingRecordId && !uiState.isAudioPlaying) {
+                        viewModel.resumeAudioPlayback()
+                    } else {
+                        viewModel.playAudioRecord(record)
+                    }
+                },
+                onPauseRecord = { viewModel.pauseAudioPlayback() },
+                onRenameRecord = { record, newName ->
+                    viewModel.renameAudioRecord(record, newName)
+                },
+                onDeleteRecord = { record ->
+                    viewModel.deleteAudioRecord(record)
+                },
+                currentPlayingRecordId = uiState.currentPlayingRecordId,
+                currentPlaybackPosition = uiState.currentPlaybackPosition,
+                totalDuration = uiState.totalAudioDuration
+            )
         }
     }
 }

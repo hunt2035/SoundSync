@@ -93,21 +93,17 @@ fun EbookTheme(
         SideEffect {
             try {
                 val window = (view.context as Activity).window
-                window.statusBarColor = colorScheme.primary.toArgb()
+                // 使用固定的深蓝色作为状态栏颜色，确保在所有主题下都有良好的可见度
+                window.statusBarColor = Color(0xFF1565C0).toArgb()
                 
                 // 兼容性处理，避免在低版本Android上调用不支持的API
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false // 固定为深色状态栏模式
                 } else {
                     // 旧版本API处理状态栏
                     @Suppress("DEPRECATION")
-                    if (!darkTheme) {
-                        window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or 
-                                android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                    } else {
-                        window.decorView.systemUiVisibility = window.decorView.systemUiVisibility and 
-                                android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
-                    }
+                    window.decorView.systemUiVisibility = window.decorView.systemUiVisibility and 
+                            android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
                 }
                 
                 window.setBackgroundDrawable(ColorDrawable(colorScheme.background.toArgb()))

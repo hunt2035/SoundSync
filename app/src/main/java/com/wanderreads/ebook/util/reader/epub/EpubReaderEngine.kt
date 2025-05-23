@@ -631,7 +631,7 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
         val currentChapter = chapters.getOrNull(currentChapterIndex)
         
         // 如果章节对象存在但内容为空，尝试重新加载章节内容
-        if (currentChapter != null && currentChapter.content.isBlank()) {
+        if (currentChapter != null) {
             try {
                 // 尝试从EPUB文件中读取章节内容
                 val spineIndex = currentChapter.startPosition - 1 // 减1因为第0页是封面
@@ -642,19 +642,30 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
                     if (htmlContent.isNotEmpty()) {
                         // 使用简单的HTML解析提取文本
                         val plainText = htmlToText(htmlContent)
+                        
                         // 由于BookChapter的content是val，我们需要创建一个新的对象
                         val updatedChapter = currentChapter.copy(content = plainText)
                         // 更新chapters列表中对应的章节
                         chapters[currentChapterIndex] = updatedChapter
+                        
+                        Log.d(TAG, "成功加载章节内容，长度: ${plainText.length}")
                         return plainText
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "获取章节内容失败", e)
             }
+            
+            // 如果已经有内容，直接返回
+            if (currentChapter.content.isNotBlank()) {
+                return currentChapter.content
+            }
         }
         
-        return currentChapter?.content ?: ""
+        // 如果无法获取章节内容，退而求其次使用当前页面内容
+        val pageContent = getCurrentPageText()
+        Log.d(TAG, "无法获取完整章节内容，使用当前页面内容，长度: ${pageContent.length}")
+        return pageContent
     }
     
     /**

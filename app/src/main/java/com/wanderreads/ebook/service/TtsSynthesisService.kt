@@ -60,6 +60,109 @@ class TtsSynthesisService : Service() {
         const val STATUS_CANCELED = 5
     }
     
+    /**
+     * 平滑进度跟踪器
+     * 用于提供流畅的进度显示体验
+     */
+    private inner class SmoothProgressTracker {
+        private var lastReportedProgress = 0
+        private var estimatedProgress = 0
+        private var startTime = 0L
+        private var isActive = false
+        private val handler = Handler(Looper.getMainLooper())
+        private var totalLength = 1 // 防止除零错误
+        
+        // 进度更新任务
+        private val updateTask = object : Runnable {
+            override fun run() {
+                if (!isActive) return
+                
+                val elapsedTime = System.currentTimeMillis() - startTime
+                // 基于已经过去的时间和文本总长度估算进度
+                val timeBasedProgress = calculateTimeBasedProgress(elapsedTime)
+                
+                // 取估算进度和实际报告进度的较大值，避免进度后退
+                estimatedProgress = maxOf(timeBasedProgress, lastReportedProgress)
+                
+                // 限制最大进度为99%，留出空间给实际完成事件
+                if (estimatedProgress > 99) estimatedProgress = 99
+                
+                // 更新状态
+                updateProgress(estimatedProgress)
+                
+                // 每200ms更新一次
+                handler.postDelayed(this, 200)
+            }
+        }
+        
+        /**
+         * 开始跟踪进度
+         */
+        fun start(textLength: Int) {
+            totalLength = textLength.coerceAtLeast(1)
+            lastReportedProgress = 0
+            estimatedProgress = 0
+            startTime = System.currentTimeMillis()
+            isActive = true
+            handler.post(updateTask)
+        }
+        
+        /**
+         * 更新实际进度
+         */
+        fun updateActualProgress(current: Int, total: Int) {
+            if (total > 0) {
+                lastReportedProgress = (current.toFloat() / total.toFloat() * 100).toInt()
+                // 更新总长度，使后续估算更准确
+                totalLength = total
+            }
+        }
+        
+        /**
+         * 停止跟踪
+         */
+        fun stop(isCompleted: Boolean = false) {
+            isActive = false
+            handler.removeCallbacks(updateTask)
+            if (isCompleted) {
+                // 如果是完成状态，设置为100%
+                updateProgress(100)
+            }
+        }
+        
+        /**
+         * 基于时间计算估计进度
+         */
+        private fun calculateTimeBasedProgress(elapsedTime: Long): Int {
+            // 估算每字符处理时间（毫秒）
+            val estimatedTimePerChar = 50L // 可根据实际情况调整
+            val estimatedTotalTime = totalLength * estimatedTimePerChar
+            
+            // 计算基于时间的进度百分比
+            return ((elapsedTime.toFloat() / estimatedTotalTime.toFloat()) * 100)
+                .coerceIn(0f, 99f).toInt()
+        }
+        
+        /**
+         * 更新进度显示
+         */
+        private fun updateProgress(progress: Int) {
+            // 更新状态
+            _synthesisState.value = _synthesisState.value.copy(
+                progress = progress,
+                message = "正在合成语音（${progress}%）"
+            )
+            
+            // 每5%更新一次通知
+            if (progress % 5 == 0) {
+                updateNotification("正在合成语音...（${progress}%）")
+            }
+            
+            // 回调通知
+            synthesisCallback?.onProgress(progress)
+        }
+    }
+    
     // TTS引擎
     private var tts: TextToSpeech? = null
     
@@ -87,6 +190,9 @@ class TtsSynthesisService : Service() {
     
     // 当前正在合成的任务
     private var currentTask: SynthesisTask? = null
+    
+    // 进度跟踪器
+    private val progressTracker = SmoothProgressTracker()
     
     override fun onCreate() {
         super.onCreate()
@@ -173,11 +279,19 @@ class TtsSynthesisService : Service() {
                             progress = 0
                         )
                         updateNotification("正在合成语音...（0%）")
+                        
+                        // 启动进度跟踪器
+                        currentTask?.let { task ->
+                            progressTracker.start(task.text.length)
+                        }
                     }
                     
                     override fun onDone(utteranceId: String) {
                         Log.d(TAG, "合成完成: $utteranceId")
                         closeOutputStream()
+                        
+                        // 停止进度跟踪器，并标记为已完成
+                        progressTracker.stop(isCompleted = true)
                         
                         // 保存到媒体库
                         currentTask?.let { task ->
@@ -186,10 +300,13 @@ class TtsSynthesisService : Service() {
                             // 保存到数据库
                             saveRecordToDatabase(task)
                             
+                            // 格式化文件路径，使其更易读
+                            val formattedPath = task.outputPath.replace("/storage/emulated/0/", "内部存储/")
+                            
                             // 更新状态
                             _synthesisState.value = _synthesisState.value.copy(
                                 status = STATUS_COMPLETED,
-                                message = "语音合成完成，文件已保存",
+                                message = "语音合成完成\n文件已保存至：\n$formattedPath",
                                 progress = 100,
                                 outputPath = task.outputPath
                             )
@@ -213,6 +330,9 @@ class TtsSynthesisService : Service() {
                     override fun onError(utteranceId: String) {
                         Log.e(TAG, "合成出错: $utteranceId")
                         closeOutputStream()
+                        
+                        // 停止进度跟踪器
+                        progressTracker.stop()
                         
                         _synthesisState.value = _synthesisState.value.copy(
                             status = STATUS_ERROR,
@@ -247,26 +367,9 @@ class TtsSynthesisService : Service() {
                         end: Int,
                         frame: Int
                     ) {
-                        // 计算进度百分比
+                        // 使用进度跟踪器更新实际进度
                         currentTask?.let { task ->
-                            val totalLength = task.text.length
-                            val progress = if (totalLength > 0) {
-                                (end.toFloat() / totalLength.toFloat() * 100).toInt()
-                            } else 0
-                            
-                            // 更新状态
-                            _synthesisState.value = _synthesisState.value.copy(
-                                progress = progress,
-                                message = "正在合成语音（${progress}%）"
-                            )
-                            
-                            // 每5%更新一次通知，使进度显示更平滑
-                            if (progress % 5 == 0) {
-                                updateNotification("正在合成语音...（${progress}%）")
-                            }
-                            
-                            // 回调通知
-                            synthesisCallback?.onProgress(progress)
+                            progressTracker.updateActualProgress(end, task.text.length)
                         }
                     }
                 })
@@ -323,10 +426,11 @@ class TtsSynthesisService : Service() {
                 try {
                     val outputDir = getVoicesDirectory()
                     // 限制标题长度，避免文件名过长
-                    val safeTitle = it.title.replace(' ', '_')
+                    val safeTitle = it.title
+                        .replace(' ', '_')
                         .replace(Regex("[\\\\/:*?\"<>|]"), "_") // 移除不合法的文件名字符
                         .let { title -> 
-                            if (title.length > 30) title.substring(0, 30) + "..." else title 
+                            if (title.length > 30) title.substring(0, 30) else title 
                         }
                     val fileName = "${System.currentTimeMillis()}_$safeTitle.mp3"
                     val outputFile = File(outputDir, fileName)
@@ -428,6 +532,9 @@ class TtsSynthesisService : Service() {
         if (isProcessing) {
             tts?.stop()
             closeOutputStream()
+            
+            // 停止进度跟踪器
+            progressTracker.stop()
             
             // 删除未完成的文件
             currentTask?.let { task ->

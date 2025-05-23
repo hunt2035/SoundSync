@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -544,8 +545,8 @@ fun BottomNavigationBar(
                 .fillMaxWidth()
                 .shadow(elevation = 8.dp)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface
+            containerColor = Color(0xFF1565C0), // 使用深蓝色作为底部导航栏背景，与顶部导航栏保持一致
+            contentColor = Color.White // 白色图标和文字以增强可见性
         ) {
             bottomNavItems.forEach { screen ->
                 val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
@@ -598,11 +599,11 @@ fun RowScope.BottomNavigationItem(
         },
         label = label,
         colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = MaterialTheme.colorScheme.primary,
-            unselectedIconColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            selectedTextColor = MaterialTheme.colorScheme.primary,
-            unselectedTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            indicatorColor = MaterialTheme.colorScheme.primaryContainer
+            selectedIconColor = Color.White, // 选中图标使用白色
+            unselectedIconColor = Color.White.copy(alpha = 0.7f), // 未选中图标使用半透明白色
+            selectedTextColor = Color.White, // 选中文本使用白色
+            unselectedTextColor = Color.White.copy(alpha = 0.7f), // 未选中文本使用半透明白色
+            indicatorColor = Color(0xFF64B5F6) // 指示器使用浅蓝色
         )
     )
 } 

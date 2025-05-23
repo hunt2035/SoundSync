@@ -72,6 +72,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.graphics.Color
 
 // 使用类型别名解决命名冲突
 typealias EbookModel = com.wanderreads.ebook.domain.model.Book
@@ -109,27 +110,38 @@ fun BookshelfScreen(
                 title = { 
                     Text(
                         "我的书架",
-                        style = MaterialTheme.typography.titleLarge
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = Color.White
                     ) 
                 },
                 actions = {
                     // 搜索图标按钮
-                    IconButton(onClick = {
-                        // 导航到搜索页面的逻辑
-                    }) {
+                    IconButton(
+                        onClick = {
+                            // 导航到搜索页面的逻辑
+                        },
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "搜索",
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                     
                     // 三点菜单按钮
-                    IconButton(onClick = { showMenu = true }) {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(48.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
                             contentDescription = "更多选项",
-                            tint = MaterialTheme.colorScheme.onPrimary
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                     
@@ -139,28 +151,15 @@ fun BookshelfScreen(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("本地导入") },
+                            text = { Text("新建文本") },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Filled.Storage,
+                                    imageVector = Icons.Outlined.FormatTextdirectionLToR,
                                     contentDescription = null
                                 )
                             },
                             onClick = { 
-                                onImportClick()
-                                showMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("微信导入") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.CloudUpload,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = { 
-                                // 微信导入逻辑
+                                showNewTextDialog = true
                                 showMenu = false
                             }
                         )
@@ -178,15 +177,15 @@ fun BookshelfScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("新建文本") },
+                            text = { Text("本地导入") },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Outlined.FormatTextdirectionLToR,
+                                    imageVector = Icons.Filled.Storage,
                                     contentDescription = null
                                 )
                             },
                             onClick = { 
-                                showNewTextDialog = true
+                                onImportClick()
                                 showMenu = false
                             }
                         )
@@ -269,10 +268,13 @@ fun BookshelfScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
+                    containerColor = Color(0xFF1565C0),
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White
+                ),
+                modifier = Modifier
+                    .height(64.dp)
+                    .shadow(elevation = 8.dp)
             )
         }
     ) { paddingValues ->
@@ -346,7 +348,7 @@ fun BookList(
 ) {
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         items(books) { book ->
             BookListItem(book = book, onClick = { onBookClick(book) })
@@ -404,14 +406,14 @@ fun BookListItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(vertical = 4.dp, horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 书籍封面 - 调整为长方形
             Box(
                 modifier = Modifier
-                    .width(80.dp)
-                    .height(120.dp)
+                    .width(68.dp)
+                    .height(102.dp)
                     .clip(RoundedCornerShape(4.dp))
             ) {
                 if (book.coverPath != null && File(book.coverPath).exists()) {

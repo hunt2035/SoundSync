@@ -120,9 +120,18 @@ class UnifiedReaderViewModel(
         }
     }
     
+    // 媒体播放器相关
+    private var mediaPlayer: MediaPlayer? = null
+    private var currentPlayingRecord: Record? = null
+    private var playbackProgressHandler: Handler? = null
+    private val playbackUpdateInterval = 1000L // 1秒更新一次播放进度
+    private var currentPlaybackPosition = 0
+    private var totalAudioDuration = 0
+    
     init {
         loadBook()
         bindSynthesisService()
+        loadSynthesizedAudioList()
     }
     
     /**
@@ -495,6 +504,7 @@ class UnifiedReaderViewModel(
             readerEngine?.close()
             readerEngine = null
         }
+        stopAudioPlayback()
     }
 
     private fun formatProgressText(): String {
@@ -538,13 +548,14 @@ class UnifiedReaderViewModel(
             return
         }
         
-        // 确保书名和章节名不会过长
-        val bookTitle = (_uiState.value.book?.title ?: "未知书籍").let { 
-            if (it.length > 20) it.substring(0, 20) + "..." else it 
-        }
-        val chapterTitle = (_uiState.value.chapterTitle ?: "未知章节").let { 
-            if (it.length > 20) it.substring(0, 20) + "..." else it 
-        }
+        // 确保书名和章节名不会过长，并移除非法字符
+        val bookTitle = (_uiState.value.book?.title ?: "未知书籍")
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .let { if (it.length > 20) it.substring(0, 20) + "..." else it }
+            
+        val chapterTitle = (_uiState.value.chapterTitle ?: "未知章节")
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .let { if (it.length > 20) it.substring(0, 20) + "..." else it }
         
         val title = "$bookTitle - $chapterTitle"
         
@@ -566,8 +577,8 @@ class UnifiedReaderViewModel(
                 val chapterText = readerEngine?.getCurrentChapterText()
                 if (chapterText.isNullOrBlank()) {
                     // 如果引擎无法提供章节文本，尝试使用当前页文本
-                    Log.d(TAG, "当前章节文本为空，使用uiState中的文本")
-                    _uiState.value.currentContent?.text ?: ""
+                    Log.d(TAG, "当前章节文本为空，使用当前页文本")
+                    readerEngine?.getCurrentPageText() ?: _uiState.value.currentContent?.text ?: ""
                 } else {
                     Log.d(TAG, "使用引擎提供的当前章节文本，长度: ${chapterText.length}")
                     chapterText
@@ -596,7 +607,7 @@ class UnifiedReaderViewModel(
             }
             
             override fun onError(message: String) {
-                _uiState.update { it.copy(error = "语音合成失败: $message") }
+                handleSynthesisError("语音合成失败: $message")
             }
             
             override fun onCanceled() {
@@ -640,10 +651,250 @@ class UnifiedReaderViewModel(
     }
 
     /**
+     * 清除提示消息
+     */
+    fun clearMessage() {
+        _uiState.update { it.copy(message = null) }
+    }
+
+    /**
      * 处理合成错误
      */
     fun handleSynthesisError(errorMessage: String) {
         _uiState.update { it.copy(error = errorMessage) }
+    }
+
+    /**
+     * 加载合成语音列表
+     */
+    fun loadSynthesizedAudioList() {
+        viewModelScope.launch {
+            try {
+                recordRepository.getRecordsByBookId(bookId).collect { records ->
+                    val synthesizedRecords = records.filter { it.isSynthesized }
+                    _uiState.update { it.copy(
+                        synthesizedAudioList = synthesizedRecords,
+                        showSynthesizedAudioList = false
+                    ) }
+                    Log.d(TAG, "已加载 ${synthesizedRecords.size} 个合成语音文件")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "加载合成语音文件失败: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * 显示合成语音列表
+     */
+    fun showSynthesizedAudioList() {
+        _uiState.update { it.copy(showSynthesizedAudioList = true) }
+    }
+    
+    /**
+     * 隐藏合成语音列表
+     */
+    fun hideSynthesizedAudioList() {
+        _uiState.update { it.copy(showSynthesizedAudioList = false) }
+    }
+    
+    /**
+     * 播放合成语音文件
+     */
+    fun playAudioRecord(record: Record) {
+        try {
+            // 如果有正在播放的录音，先停止
+            stopAudioPlayback()
+            
+            val recordFile = File(record.voiceFilePath)
+            if (!recordFile.exists()) {
+                Log.e(TAG, "语音文件不存在: ${record.voiceFilePath}")
+                _uiState.update { it.copy(error = "语音文件不存在") }
+                return
+            }
+            
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .build()
+                )
+                setDataSource(record.voiceFilePath)
+                setOnPreparedListener { mp ->
+                    mp.start()
+                    currentPlayingRecord = record
+                    totalAudioDuration = mp.duration
+                    _uiState.update { it.copy(
+                        currentPlayingRecordId = record.id,
+                        currentPlaybackPosition = 0,
+                        totalAudioDuration = totalAudioDuration
+                    ) }
+                    startPlaybackProgressTracking()
+                }
+                setOnCompletionListener {
+                    stopAudioPlayback()
+                }
+                prepareAsync()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "播放语音文件失败: ${e.message}")
+            stopAudioPlayback()
+            _uiState.update { it.copy(error = "播放失败: ${e.message}") }
+        }
+    }
+    
+    /**
+     * 暂停播放语音
+     */
+    fun pauseAudioPlayback() {
+        mediaPlayer?.let {
+            if (it.isPlaying) {
+                it.pause()
+                stopPlaybackProgressTracking()
+                _uiState.update { state -> 
+                    state.copy(isAudioPlaying = false)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 继续播放语音
+     */
+    fun resumeAudioPlayback() {
+        mediaPlayer?.let {
+            if (!it.isPlaying) {
+                it.start()
+                startPlaybackProgressTracking()
+                _uiState.update { state -> 
+                    state.copy(isAudioPlaying = true)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 停止播放语音
+     */
+    fun stopAudioPlayback() {
+        stopPlaybackProgressTracking()
+        
+        mediaPlayer?.let {
+            try {
+                if (it.isPlaying) {
+                    it.stop()
+                }
+                it.release()
+            } catch (e: Exception) {
+                Log.e(TAG, "停止播放失败: ${e.message}")
+            }
+        }
+        
+        mediaPlayer = null
+        currentPlayingRecord = null
+        
+        _uiState.update { 
+            it.copy(
+                currentPlayingRecordId = null,
+                isAudioPlaying = false,
+                currentPlaybackPosition = 0,
+                totalAudioDuration = 0
+            )
+        }
+    }
+    
+    /**
+     * 开始追踪播放进度
+     */
+    private fun startPlaybackProgressTracking() {
+        playbackProgressHandler = Handler(Looper.getMainLooper())
+        
+        playbackProgressHandler?.post(object : Runnable {
+            override fun run() {
+                mediaPlayer?.let {
+                    if (it.isPlaying) {
+                        currentPlaybackPosition = it.currentPosition
+                        _uiState.update { state -> 
+                            state.copy(
+                                currentPlaybackPosition = currentPlaybackPosition,
+                                isAudioPlaying = true
+                            )
+                        }
+                    }
+                }
+                playbackProgressHandler?.postDelayed(this, playbackUpdateInterval)
+            }
+        })
+    }
+    
+    /**
+     * 停止追踪播放进度
+     */
+    private fun stopPlaybackProgressTracking() {
+        playbackProgressHandler?.removeCallbacksAndMessages(null)
+        playbackProgressHandler = null
+    }
+    
+    /**
+     * 重命名合成语音文件
+     */
+    fun renameAudioRecord(record: Record, newName: String) {
+        if (newName.isBlank()) {
+            _uiState.update { it.copy(error = "文件名不能为空") }
+            return
+        }
+        
+        viewModelScope.launch {
+            try {
+                val updatedRecord = record.copy(title = newName)
+                recordRepository.updateRecord(updatedRecord)
+                
+                // 如果是当前播放的记录，更新当前播放记录
+                if (record.id == currentPlayingRecord?.id) {
+                    currentPlayingRecord = updatedRecord
+                }
+                
+                _uiState.update { it.copy(message = "文件已重命名") }
+                
+                // 刷新列表
+                loadSynthesizedAudioList()
+            } catch (e: Exception) {
+                Log.e(TAG, "重命名文件失败: ${e.message}")
+                _uiState.update { it.copy(error = "重命名失败: ${e.message}") }
+            }
+        }
+    }
+    
+    /**
+     * 删除合成语音文件
+     */
+    fun deleteAudioRecord(record: Record) {
+        // 如果正在播放，先停止
+        if (record.id == currentPlayingRecord?.id) {
+            stopAudioPlayback()
+        }
+        
+        viewModelScope.launch {
+            try {
+                // 删除数据库记录
+                recordRepository.deleteRecord(record)
+                
+                // 删除实际文件
+                val file = File(record.voiceFilePath)
+                if (file.exists()) {
+                    file.delete()
+                }
+                
+                _uiState.update { it.copy(message = "文件已删除") }
+                
+                // 刷新列表
+                loadSynthesizedAudioList()
+            } catch (e: Exception) {
+                Log.e(TAG, "删除文件失败: ${e.message}")
+                _uiState.update { it.copy(error = "删除失败: ${e.message}") }
+            }
+        }
     }
 }
 
@@ -665,5 +916,11 @@ data class UnifiedReaderUiState(
     val config: ReaderConfig = ReaderConfig(),
     val isSearching: Boolean = false,
     val searchResults: List<SearchResult> = emptyList(),
-    val showControls: Boolean = false
+    val showControls: Boolean = false,
+    val synthesizedAudioList: List<Record> = emptyList(),
+    val showSynthesizedAudioList: Boolean = false,
+    val currentPlayingRecordId: String? = null,
+    val isAudioPlaying: Boolean = false,
+    val currentPlaybackPosition: Int = 0,
+    val totalAudioDuration: Int = 0
 )
