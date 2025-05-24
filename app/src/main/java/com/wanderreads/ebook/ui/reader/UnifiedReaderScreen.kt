@@ -1248,6 +1248,9 @@ fun UnifiedReaderScreen(
                 onDeleteRecord = { record ->
                     viewModel.deleteAudioRecord(record)
                 },
+                onSeekTo = { record, position ->
+                    viewModel.seekToPosition(record, position)
+                },
                 currentPlayingRecordId = uiState.currentPlayingRecordId,
                 currentPlaybackPosition = uiState.currentPlaybackPosition,
                 totalDuration = uiState.totalAudioDuration,

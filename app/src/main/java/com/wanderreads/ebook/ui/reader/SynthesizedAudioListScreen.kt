@@ -249,7 +249,7 @@ fun SynthesizedAudioListScreen(
                             )
                         }
                         
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         
                         // 第2行：生成时间、波形图和文件大小
                         Row(

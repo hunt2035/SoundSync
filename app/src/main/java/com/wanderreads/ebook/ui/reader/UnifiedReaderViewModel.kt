@@ -926,6 +926,52 @@ class UnifiedReaderViewModel(
     }
     
     /**
+     * 调整音频播放位置
+     * 
+     * @param record 要调整的音频记录
+     * @param position 目标播放位置（毫秒）
+     */
+    fun seekToPosition(record: Record, position: Int) {
+        try {
+            // 确保是当前正在播放的记录
+            if (record.id == currentPlayingRecord?.id && mediaPlayer != null) {
+                // 调整播放位置
+                mediaPlayer?.seekTo(position)
+                
+                // 更新UI状态
+                currentPlaybackPosition = position
+                _uiState.update { state ->
+                    state.copy(currentPlaybackPosition = position)
+                }
+                
+                // 如果当前是暂停状态，不需要做其他操作
+                // 如果需要在调整位置后自动播放，可以在此处添加相应代码
+            } else if (record.id != currentPlayingRecord?.id) {
+                // 如果不是当前播放的记录，先播放该记录，然后再调整位置
+                playAudioRecord(record)
+                // 由于playAudioRecord是异步准备的，需要在准备完成后再调整位置
+                mediaPlayer?.setOnPreparedListener { mp ->
+                    mp.start()
+                    mp.seekTo(position)
+                    currentPlayingRecord = record
+                    totalAudioDuration = mp.duration
+                    currentPlaybackPosition = position
+                    _uiState.update { it.copy(
+                        currentPlayingRecordId = record.id,
+                        currentPlaybackPosition = position,
+                        totalAudioDuration = totalAudioDuration,
+                        isAudioPlaying = true
+                    ) }
+                    startPlaybackProgressTracking()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "调整播放位置失败: ${e.message}")
+            _uiState.update { it.copy(error = "调整播放位置失败: ${e.message}") }
+        }
+    }
+    
+    /**
      * 重命名合成语音文件
      */
     fun renameAudioRecord(record: Record, newName: String) {
