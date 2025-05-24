@@ -41,6 +41,18 @@ import java.util.concurrent.TimeUnit
 
 /**
  * 合成语音列表屏幕
+ * 
+ * @param records 语音记录列表
+ * @param onDismiss 关闭语音列表屏幕的回调，只在用户点击返回按钮时调用，不应在重命名和删除操作后自动调用
+ * @param onPlayRecord 播放语音记录的回调
+ * @param onPauseRecord 暂停语音记录的回调
+ * @param onRenameRecord 重命名语音记录的回调，调用后应保留在语音列表页面
+ * @param onDeleteRecord 删除语音记录的回调，调用后应保留在语音列表页面
+ * @param currentPlayingRecordId 当前正在播放的语音记录ID
+ * @param currentPlaybackPosition 当前播放位置（毫秒）
+ * @param totalDuration 当前播放记录的总时长（毫秒）
+ * @param onSeekTo 调整播放位置的回调
+ * @param isAudioPlaying 当前是否正在播放音频
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,13 +66,78 @@ fun SynthesizedAudioListScreen(
     currentPlayingRecordId: String?,
     currentPlaybackPosition: Int = 0,
     totalDuration: Int = 0,
-    onSeekTo: (Record, Int) -> Unit = { _, _ -> }
+    onSeekTo: (Record, Int) -> Unit = { _, _ -> },
+    isAudioPlaying: Boolean = false
 ) {
     val context = LocalContext.current
     var recordToRename by remember { mutableStateOf<Record?>(null) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var recordToDelete by remember { mutableStateOf<Record?>(null) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    
+    // 用于安全执行重命名和删除操作的状态
+    var pendingRenameOperation by remember { mutableStateOf<Pair<Record, String>?>(null) }
+    var pendingDeleteOperation by remember { mutableStateOf<Record?>(null) }
+    
+    // 跟踪当前展开的记录ID
+    var expandedRecordId by remember { mutableStateOf<String?>(currentPlayingRecordId) }
+    
+    // 当播放的记录变化时，自动展开该记录的控制面板
+    LaunchedEffect(currentPlayingRecordId) {
+        if (currentPlayingRecordId != null) {
+            expandedRecordId = currentPlayingRecordId
+        }
+    }
+    
+    // 使用key为Unit的LaunchedEffect，确保只在组件首次进入组合时执行一次
+    // 这样可以避免在重组时重新触发副作用
+    LaunchedEffect(Unit) {
+        // 在这里可以进行一些初始化工作，但不会在重组时重新执行
+    }
+    
+    // 安全地执行重命名操作 - 使用try-catch和状态重置确保不会导致Activity退出
+    DisposableEffect(pendingRenameOperation) {
+        if (pendingRenameOperation != null) {
+            val (record, newName) = pendingRenameOperation!!
+            try {
+                // 使用try-catch块捕获可能的异常，防止应用崩溃
+                onRenameRecord(record, newName)
+            } catch (e: Exception) {
+                // 记录错误，但不中断UI流
+                e.printStackTrace()
+            } finally {
+                // 确保无论如何都会清除挂起的操作
+                pendingRenameOperation = null
+            }
+        }
+        
+        // DisposableEffect需要返回一个清理函数
+        onDispose {
+            // 清理资源
+        }
+    }
+    
+    // 安全地执行删除操作 - 使用try-catch和状态重置确保不会导致Activity退出
+    DisposableEffect(pendingDeleteOperation) {
+        if (pendingDeleteOperation != null) {
+            val record = pendingDeleteOperation!!
+            try {
+                // 使用try-catch块捕获可能的异常，防止应用崩溃
+                onDeleteRecord(record)
+            } catch (e: Exception) {
+                // 记录错误，但不中断UI流
+                e.printStackTrace()
+            } finally {
+                // 确保无论如何都会清除挂起的操作
+                pendingDeleteOperation = null
+            }
+        }
+        
+        // DisposableEffect需要返回一个清理函数
+        onDispose {
+            // 清理资源
+        }
+    }
     
     val sortedRecords = records
         .filter { it.isSynthesized }
@@ -75,7 +152,7 @@ fun SynthesizedAudioListScreen(
         TopAppBar(
             title = { Text("合成语音列表", color = Color.White) },
             navigationIcon = {
-                IconButton(onClick = onDismiss) {
+                IconButton(onClick = onDismiss) {  // 这是唯一应该调用onDismiss的地方
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowLeft,
                         contentDescription = "返回",
@@ -121,7 +198,9 @@ fun SynthesizedAudioListScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(sortedRecords) { record ->
-                    val isExpanded = record.id == currentPlayingRecordId
+                    val isExpanded = record.id == expandedRecordId
+                    val isCurrentRecord = record.id == currentPlayingRecordId
+                    val isPlaying = record.id == currentPlayingRecordId && isAudioPlaying
                     val audioFile = File(record.voiceFilePath)
                     val audioExists = audioFile.exists()
                     val duration = remember(record.id) {
@@ -140,11 +219,8 @@ fun SynthesizedAudioListScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                if (record.id == currentPlayingRecordId) {
-                                    onPauseRecord(record)
-                                } else {
-                                    onPlayRecord(record)
-                                }
+                                // 点击列表项时，切换展开状态
+                                expandedRecordId = if (expandedRecordId == record.id) null else record.id
                             }
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
@@ -168,8 +244,8 @@ fun SynthesizedAudioListScreen(
                             // 总时长
                             Text(
                                 text = formatDuration(duration),
-                                color = Color.White,
-                                style = MaterialTheme.typography.titleMedium
+                                color = Color.White.copy(alpha = 0.8f),
+                                style = MaterialTheme.typography.bodyMedium
                             )
                         }
                         
@@ -232,13 +308,15 @@ fun SynthesizedAudioListScreen(
                             exit = fadeOut() + shrinkVertically()
                         ) {
                             AudioControlPanel(
-                                isPlaying = record.id == currentPlayingRecordId,
-                                currentPosition = currentPlaybackPosition,
-                                duration = totalDuration,
+                                isPlaying = isPlaying,
+                                currentPosition = if (isPlaying) currentPlaybackPosition else 0,
+                                duration = if (isPlaying) totalDuration else duration.toInt(),
                                 onPlayPause = {
-                                    if (record.id == currentPlayingRecordId) {
+                                    if (isPlaying) {
+                                        // 当前正在播放，点击后暂停
                                         onPauseRecord(record)
                                     } else {
+                                        // 当前未播放，点击后播放
                                         onPlayRecord(record)
                                     }
                                 },
@@ -251,7 +329,29 @@ fun SynthesizedAudioListScreen(
                                     showDeleteConfirmation = true
                                 },
                                 onSeek = { seekPosition ->
+                                    // 直接调用onSeekTo更新播放位置
                                     onSeekTo(record, seekPosition)
+                                    
+                                    // 如果当前不是播放状态，则开始播放
+                                    if (!isPlaying) {
+                                        onPlayRecord(record)
+                                    }
+                                },
+                                onSliderSeek = { seekPosition ->
+                                    // 直接调用onSeekTo更新播放位置
+                                    onSeekTo(record, seekPosition)
+                                    
+                                    // 如果当前不是播放状态，不自动开始播放
+                                    // 这样可以让用户在拖动滑杆时预览不同位置，而不会立即开始播放
+                                },
+                                onSliderSeekFinished = { seekPosition ->
+                                    // 拖动结束后，确保播放位置已更新
+                                    onSeekTo(record, seekPosition)
+                                    
+                                    // 如果当前不是播放状态，则开始播放
+                                    if (!isPlaying) {
+                                        onPlayRecord(record)
+                                    }
                                 }
                             )
                         }
@@ -270,80 +370,150 @@ fun SynthesizedAudioListScreen(
     if (showRenameDialog && recordToRename != null) {
         var newName by remember { mutableStateOf(recordToRename?.title ?: "") }
         
-        AlertDialog(
+        Dialog(
             onDismissRequest = {
                 showRenameDialog = false
                 recordToRename = null
-            },
-            title = { Text("修改文件名") },
-            text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("文件名") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        recordToRename?.let { record ->
-                            onRenameRecord(record, newName)
+            }
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .fillMaxWidth()
+                ) {
+                    Text(
+                        text = "修改文件名",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("文件名") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = {
+                                showRenameDialog = false
+                                recordToRename = null
+                            }
+                        ) {
+                            Text("取消")
                         }
-                        showRenameDialog = false
-                        recordToRename = null
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        TextButton(
+                            onClick = {
+                                val currentRecord = recordToRename
+                                val currentNewName = newName
+                                
+                                // 先关闭对话框，再设置挂起操作
+                                showRenameDialog = false
+                                recordToRename = null
+                                
+                                // 确保有效的记录和名称
+                                if (currentRecord != null && currentNewName.isNotBlank()) {
+                                    // 设置挂起操作，让DisposableEffect安全地执行
+                                    pendingRenameOperation = Pair(currentRecord, currentNewName)
+                                }
+                            }
+                        ) {
+                            Text("确定")
+                        }
                     }
-                ) {
-                    Text("确定")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showRenameDialog = false
-                        recordToRename = null
-                    }
-                ) {
-                    Text("取消")
                 }
             }
-        )
+        }
     }
     
     // 删除确认对话框
     if (showDeleteConfirmation && recordToDelete != null) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = {
                 showDeleteConfirmation = false
                 recordToDelete = null
-            },
-            title = { Text("删除文件") },
-            text = { Text("确定要删除文件 \"${recordToDelete?.title}\" 吗？此操作不可撤销。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        recordToDelete?.let { record ->
-                            onDeleteRecord(record)
+            }
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .fillMaxWidth()
+                ) {
+                    Text(
+                        text = "删除文件",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "确定要删除文件 \"${recordToDelete?.title}\" 吗？此操作不可撤销。",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = {
+                                showDeleteConfirmation = false
+                                recordToDelete = null
+                            }
+                        ) {
+                            Text("取消")
                         }
-                        showDeleteConfirmation = false
-                        recordToDelete = null
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        TextButton(
+                            onClick = {
+                                val currentRecord = recordToDelete
+                                
+                                // 先关闭对话框，再设置挂起操作
+                                showDeleteConfirmation = false
+                                recordToDelete = null
+                                
+                                // 确保有效的记录
+                                if (currentRecord != null) {
+                                    // 设置挂起操作，让DisposableEffect安全地执行
+                                    pendingDeleteOperation = currentRecord
+                                }
+                            }
+                        ) {
+                            Text("确定")
+                        }
                     }
-                ) {
-                    Text("确定")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmation = false
-                        recordToDelete = null
-                    }
-                ) {
-                    Text("取消")
                 }
             }
-        )
+        }
     }
 }
 
@@ -358,7 +528,9 @@ fun AudioControlPanel(
     onPlayPause: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
-    onSeek: (Int) -> Unit = {}
+    onSeek: (Int) -> Unit = {},
+    onSliderSeek: (Int) -> Unit = onSeek,
+    onSliderSeekFinished: (Int) -> Unit = onSeek
 ) {
     Column(
         modifier = Modifier
@@ -393,10 +565,17 @@ fun AudioControlPanel(
                 onValueChange = { 
                     sliderPosition = it
                     isChangingSlider = true
+                    // 实时更新播放位置，提供即时反馈
+                    if (duration > 0) {
+                        onSliderSeek((sliderPosition * duration).toInt())
+                    }
                 },
                 onValueChangeFinished = {
                     isChangingSlider = false
-                    onSeek((sliderPosition * duration).toInt())
+                    // 拖动结束后，确保播放位置已更新
+                    if (duration > 0) {
+                        onSliderSeekFinished((sliderPosition * duration).toInt())
+                    }
                 },
                 modifier = Modifier
                     .weight(1f)
@@ -427,10 +606,15 @@ fun AudioControlPanel(
             ControlButton(
                 icon = Icons.Default.KeyboardArrowLeft,
                 description = "倒退15秒",
-                onClick = { onSeek((currentPosition - 15000).coerceAtLeast(0)) }
+                onClick = { 
+                    // 计算新的播放位置（当前位置减去15秒，但不小于0）
+                    val newPosition = (currentPosition - 15000).coerceAtLeast(0)
+                    // 调用onSeek回调，传递新的播放位置
+                    onSeek(newPosition)
+                }
             )
             
-            // 播放/暂停按钮
+            // 播放/暂停按钮 - 根据isPlaying状态显示不同的图标
             ControlButton(
                 icon = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                 description = if (isPlaying) "暂停" else "播放",
@@ -442,7 +626,12 @@ fun AudioControlPanel(
             ControlButton(
                 icon = Icons.Default.KeyboardArrowLeft,
                 description = "快进15秒",
-                onClick = { onSeek((currentPosition + 15000).coerceAtMost(duration)) },
+                onClick = { 
+                    // 计算新的播放位置（当前位置加上15秒，但不超过总时长）
+                    val newPosition = (currentPosition + 15000).coerceAtMost(duration)
+                    // 调用onSeek回调，传递新的播放位置
+                    onSeek(newPosition)
+                },
                 modifier = Modifier.rotate(180f)
             )
             

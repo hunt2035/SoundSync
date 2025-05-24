@@ -1250,7 +1250,8 @@ fun UnifiedReaderScreen(
                 },
                 currentPlayingRecordId = uiState.currentPlayingRecordId,
                 currentPlaybackPosition = uiState.currentPlaybackPosition,
-                totalDuration = uiState.totalAudioDuration
+                totalDuration = uiState.totalAudioDuration,
+                isAudioPlaying = uiState.isAudioPlaying
             )
         }
     }
