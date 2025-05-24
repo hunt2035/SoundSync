@@ -27,8 +27,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -46,7 +48,12 @@ fun WebImportDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit
 ) {
+    // 默认显示的网址
+    val defaultUrl = "http://wanderreads.com"
+    
+    // 使用空字符串作为初始值，但在UI中显示默认网址
     var url by remember { mutableStateOf("") }
+    var isPlaceholderVisible by remember { mutableStateOf(true) }
     var isError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("请输入有效的网址") }
     val focusRequester = remember { FocusRequester() }
@@ -95,12 +102,20 @@ fun WebImportDialog(
                     onValueChange = { 
                         url = it
                         isError = false
+                        isPlaceholderVisible = false
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
                     label = { Text("网页地址") },
-                    placeholder = { Text("https://wanderreads.com") },
+                    placeholder = { 
+                        if (isPlaceholderVisible) {
+                            Text(
+                                text = defaultUrl,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            ) 
+                        }
+                    },
                     leadingIcon = { 
                         Icon(
                             imageVector = Icons.Outlined.Language,
@@ -117,6 +132,7 @@ fun WebImportDialog(
                         }
                     },
                     singleLine = true,
+                    textStyle = TextStyle(color = Color.White),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,
                         imeAction = ImeAction.Done
@@ -124,7 +140,7 @@ fun WebImportDialog(
                     keyboardActions = KeyboardActions(
                         onDone = {
                             validateAndSubmit(
-                                url = url,
+                                url = if (url.isEmpty() && isPlaceholderVisible) defaultUrl else url,
                                 context = context,
                                 onConfirm = {
                                     focusManager.clearFocus()
@@ -156,7 +172,7 @@ fun WebImportDialog(
                     TextButton(
                         onClick = {
                             validateAndSubmit(
-                                url = url,
+                                url = if (url.isEmpty() && isPlaceholderVisible) defaultUrl else url,
                                 context = context,
                                 onConfirm = {
                                     focusManager.clearFocus()

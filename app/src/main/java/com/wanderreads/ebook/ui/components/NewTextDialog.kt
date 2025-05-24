@@ -87,7 +87,7 @@ fun NewTextDialog(
                     onValueChange = { text = it },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(dialogWidth * 1.3f) // 高度是宽度的1.3倍
+                        .height(dialogWidth * 1.15f) // 高度是宽度的1.15倍
                         .verticalScroll(scrollState), // 添加垂直滚动
                     placeholder = { 
                         Text(

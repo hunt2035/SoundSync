@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
@@ -681,14 +682,14 @@ fun AboutDialog(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Email,
-                        contentDescription = "联系邮箱",
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "作者信息",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "hunt2035@qq.com",
+                        text = "作者：Hunt2035",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -696,15 +697,21 @@ fun AboutDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                ),
-                modifier = Modifier.padding(bottom = 16.dp, end = 16.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.Center
             ) {
-                Text("确定", modifier = Modifier.padding(horizontal = 16.dp))
+                Button(
+                    onClick = onDismiss,
+                    shape = RoundedCornerShape(20.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("确定", modifier = Modifier.padding(horizontal = 16.dp))
+                }
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
