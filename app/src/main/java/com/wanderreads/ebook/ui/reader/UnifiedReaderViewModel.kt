@@ -573,25 +573,50 @@ class UnifiedReaderViewModel(
                 }
             }
             SynthesisRange.CURRENT_CHAPTER -> {
-                // 获取当前章节全部文本
-                val chapterText = readerEngine?.getCurrentChapterText()
-                if (chapterText.isNullOrBlank()) {
-                    // 如果引擎无法提供章节文本，尝试使用当前页文本
-                    Log.d(TAG, "当前章节文本为空，使用当前页文本")
+                try {
+                    // 获取当前章节全部文本
+                    Log.d(TAG, "尝试获取当前章节文本")
+                    val chapterText = readerEngine?.getCurrentChapterText()
+                    
+                    if (chapterText.isNullOrBlank()) {
+                        // 如果引擎无法提供章节文本，尝试使用当前页文本
+                        Log.d(TAG, "当前章节文本为空，使用当前页文本")
+                        readerEngine?.getCurrentPageText() ?: _uiState.value.currentContent?.text ?: ""
+                    } else {
+                        // 章节文本可能过长，记录长度
+                        Log.d(TAG, "使用引擎提供的当前章节文本，长度: ${chapterText.length}")
+                        
+                        // 预处理章节文本，移除不必要的特殊字符
+                        preprocessChapterText(chapterText)
+                    }
+                } catch (e: Exception) {
+                    // 如果获取章节文本出错，回退到当前页文本
+                    Log.e(TAG, "获取章节文本异常，使用当前页文本", e)
+                    _uiState.update { it.copy(
+                        error = "获取章节文本失败，已改用当前页文本: ${e.message}"
+                    ) }
+                    
+                    // 延迟清除错误消息
+                    viewModelScope.launch {
+                        delay(3000)
+                        _uiState.update { it.copy(error = null) }
+                    }
+                    
+                    // 返回当前页文本作为备选
                     readerEngine?.getCurrentPageText() ?: _uiState.value.currentContent?.text ?: ""
-                } else {
-                    Log.d(TAG, "使用引擎提供的当前章节文本，长度: ${chapterText.length}")
-                    chapterText
                 }
             }
         }
         
-        if (textToSynthesize.isBlank()) {
+        // 最终文本预处理
+        val finalText = preprocessText(textToSynthesize)
+        
+        if (finalText.isBlank()) {
             _uiState.update { it.copy(error = "没有可合成的文本内容，请确保页面已加载并有内容") }
             return
         }
         
-        Log.d(TAG, "开始合成文本，长度: ${textToSynthesize.length}, 范围: ${params.synthesisRange}")
+        Log.d(TAG, "开始合成文本，长度: ${finalText.length}, 范围: ${params.synthesisRange}")
         
         // 创建回调
         val callback = object : TtsSynthesisService.SynthesisCallback {
@@ -628,12 +653,76 @@ class UnifiedReaderViewModel(
         
         // 开始合成
         ttsSynthesisService?.addSynthesisTask(
-            text = textToSynthesize,
+            text = finalText,
             params = params,
             bookId = bookId,
             title = title,
             callback = callback
         )
+    }
+    
+    /**
+     * 预处理章节文本
+     * 移除不必要的特殊字符，规范化文本格式
+     */
+    private fun preprocessChapterText(text: String): String {
+        return try {
+            // 1. 移除连续的空行
+            var result = text.replace(Regex("\n{3,}"), "\n\n")
+            
+            // 2. 移除可能导致TTS引擎出错的特殊字符
+            result = result.replace(Regex("[\u0000-\u001F\u007F-\u009F]"), "")
+            
+            // 3. 替换特殊Unicode字符为常规字符
+            result = result.replace(Regex("[\u2018\u2019]"), "'") // 智能单引号
+                .replace(Regex("[\u201C\u201D]"), "\"") // 智能双引号
+                .replace("\u2026", "...") // 省略号
+                .replace("\u2014", "-") // 破折号
+            
+            // 4. 限制文本长度，避免过大（如果需要）
+            if (result.length > 100000) {
+                Log.w(TAG, "章节文本过长(${result.length})，截断到100000字符")
+                result = result.substring(0, 100000)
+            }
+            
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "预处理章节文本异常", e)
+            // 如果预处理失败，返回原文本
+            text
+        }
+    }
+    
+    /**
+     * 通用文本预处理
+     * 处理所有类型的文本（页面或章节）
+     */
+    private fun preprocessText(text: String): String {
+        return try {
+            // 1. 移除HTML标签（如果有）
+            var result = text.replace(Regex("<[^>]*>"), " ")
+            
+            // 2. 规范化空白字符
+            result = result.replace(Regex("\\s+"), " ")
+            
+            // 3. 处理常见HTML实体
+            result = result
+                .replace("&nbsp;", " ")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
+                .replace("&quot;", "\"")
+                .replace("&apos;", "'")
+            
+            // 4. 移除行首行尾空白
+            result = result.trim()
+            
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "预处理文本异常", e)
+            // 如果预处理失败，返回原文本
+            text
+        }
     }
     
     /**

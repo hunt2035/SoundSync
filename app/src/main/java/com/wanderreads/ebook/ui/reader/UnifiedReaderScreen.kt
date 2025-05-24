@@ -1223,9 +1223,15 @@ fun UnifiedReaderScreen(
         
         // 合成语音列表界面
         if (uiState.showSynthesizedAudioList) {
+            // 当显示语音列表时，强制隐藏顶部和底部菜单栏
+            showControls = false
+            
             SynthesizedAudioListScreen(
                 records = uiState.synthesizedAudioList,
-                onDismiss = { viewModel.hideSynthesizedAudioList() },
+                onDismiss = { 
+                    viewModel.hideSynthesizedAudioList() 
+                    // 退出语音列表时，保持控制栏隐藏状态
+                },
                 onPlayRecord = { record ->
                     if (record.id == uiState.currentPlayingRecordId && uiState.isAudioPlaying) {
                         viewModel.pauseAudioPlayback()

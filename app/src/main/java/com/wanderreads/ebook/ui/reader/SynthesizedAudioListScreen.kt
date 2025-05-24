@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -52,7 +53,8 @@ fun SynthesizedAudioListScreen(
     onDeleteRecord: (Record) -> Unit,
     currentPlayingRecordId: String?,
     currentPlaybackPosition: Int = 0,
-    totalDuration: Int = 0
+    totalDuration: Int = 0,
+    onSeekTo: (Record, Int) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     var recordToRename by remember { mutableStateOf<Record?>(null) }
@@ -106,7 +108,7 @@ fun SynthesizedAudioListScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(1.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -129,6 +131,10 @@ fun SynthesizedAudioListScreen(
                             record.voiceLength.toLong() * 1000
                         }
                     }
+                    val fileSize = if (audioExists) {
+                        val sizeInMB = audioFile.length() / 1024f / 1024f
+                        String.format("%.1f MB", sizeInMB)
+                    } else "未知大小"
                     
                     Column(
                         modifier = Modifier
@@ -142,81 +148,20 @@ fun SynthesizedAudioListScreen(
                             }
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        // 音频信息行
+                        // 第1行：文件名和时长
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // 收藏星标图标（可选功能）
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "收藏",
-                                tint = if (false) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.3f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            
-                            Spacer(modifier = Modifier.width(12.dp))
-                            
-                            // 文件信息
-                            Column(
+                            // 文件名
+                            Text(
+                                text = truncateMiddle(record.title, 25),
+                                color = Color.White,
+                                maxLines = 1,
+                                style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    text = record.title,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                
-                                Spacer(modifier = Modifier.height(4.dp))
-                                
-                                // 日期、波形、大小行
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // 日期时间
-                                    Text(
-                                        text = formatDate(record.addedDate),
-                                        color = Color.Gray,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                    
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    
-                                    // 波形图标（简化为静态图标）
-                                    Box(
-                                        modifier = Modifier
-                                            .width(100.dp)
-                                            .height(16.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            for (i in 1..10) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .width(3.dp)
-                                                        .height((3 + (i % 7) * 2).dp)
-                                                        .background(Color.Gray.copy(alpha = 0.5f))
-                                                )
-                                            }
-                                        }
-                                    }
-                                    
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    
-                                    // 文件大小
-                                    Text(
-                                        text = if (audioExists) {
-                                            "${audioFile.length() / 1024 / 1024.0f} MB"
-                                        } else "未知大小",
-                                        color = Color.Gray,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
+                            )
                             
                             Spacer(modifier = Modifier.width(8.dp))
                             
@@ -225,6 +170,58 @@ fun SynthesizedAudioListScreen(
                                 text = formatDuration(duration),
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        // 第2行：生成时间、波形图和文件大小
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // 左侧：生成时间和波形图
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 生成时间
+                                Text(
+                                    text = formatDate(record.addedDate),
+                                    color = Color.Gray,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                
+                                Spacer(modifier = Modifier.width(8.dp))
+                                
+                                // 波形图标
+                                Box(
+                                    modifier = Modifier
+                                        .width(100.dp)
+                                        .height(16.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        for (i in 1..10) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(3.dp)
+                                                    .height((3 + (i % 7) * 2).dp)
+                                                    .background(Color.Gray.copy(alpha = 0.5f))
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // 右侧：文件大小
+                            Text(
+                                text = fileSize,
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.bodySmall
                             )
                         }
                         
@@ -252,6 +249,9 @@ fun SynthesizedAudioListScreen(
                                 onDelete = {
                                     recordToDelete = record
                                     showDeleteConfirmation = true
+                                },
+                                onSeek = { seekPosition ->
+                                    onSeekTo(record, seekPosition)
                                 }
                             )
                         }
@@ -357,12 +357,13 @@ fun AudioControlPanel(
     duration: Int,
     onPlayPause: () -> Unit,
     onRename: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSeek: (Int) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 4.dp)
             .background(Color(0xFF252525), RoundedCornerShape(8.dp))
             .padding(8.dp)
     ) {
@@ -370,7 +371,7 @@ fun AudioControlPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val formattedCurrentTime = formatDuration(currentPosition.toLong())
@@ -384,12 +385,22 @@ fun AudioControlPanel(
             )
             
             // 进度条
+            var sliderPosition by remember(currentPosition) { mutableFloatStateOf(if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f) }
+            var isChangingSlider by remember { mutableStateOf(false) }
+            
             Slider(
-                value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
-                onValueChange = { /* 需要实现拖动进度条更新播放位置的逻辑 */ },
+                value = if (isChangingSlider) sliderPosition else if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
+                onValueChange = { 
+                    sliderPosition = it
+                    isChangingSlider = true
+                },
+                onValueChangeFinished = {
+                    isChangingSlider = false
+                    onSeek((sliderPosition * duration).toInt())
+                },
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = 6.dp),
                 colors = SliderDefaults.colors(
                     thumbColor = Color(0xFF8AFFDD),
                     activeTrackColor = Color(0xFF8AFFDD),
@@ -412,18 +423,37 @@ fun AudioControlPanel(
                 .padding(top = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
+            // 倒退15秒按钮
+            ControlButton(
+                icon = Icons.Default.KeyboardArrowLeft,
+                description = "倒退15秒",
+                onClick = { onSeek((currentPosition - 15000).coerceAtLeast(0)) }
+            )
+            
+            // 播放/暂停按钮
             ControlButton(
                 icon = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                 description = if (isPlaying) "暂停" else "播放",
-                onClick = onPlayPause
+                onClick = onPlayPause,
+                isHighlighted = true
             )
             
+            // 快进15秒按钮
+            ControlButton(
+                icon = Icons.Default.KeyboardArrowLeft,
+                description = "快进15秒",
+                onClick = { onSeek((currentPosition + 15000).coerceAtMost(duration)) },
+                modifier = Modifier.rotate(180f)
+            )
+            
+            // 重命名按钮
             ControlButton(
                 icon = Icons.Default.Edit,
                 description = "重命名",
                 onClick = onRename
             )
             
+            // 删除按钮
             ControlButton(
                 icon = Icons.Default.Delete,
                 description = "删除",
@@ -440,16 +470,18 @@ fun AudioControlPanel(
 fun ControlButton(
     icon: ImageVector,
     description: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isHighlighted: Boolean = false
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier.size(48.dp)
+        modifier = modifier.size(48.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = Color(0xFF8AFFDD),
+            tint = if (isHighlighted) Color(0xFF8AFFDD) else Color.White.copy(alpha = 0.9f),
             modifier = Modifier.size(24.dp)
         )
     }
@@ -476,6 +508,21 @@ fun formatDuration(durationMs: Long): String {
     } else {
         String.format("%02d:%02d", minutes, seconds)
     }
+}
+
+/**
+ * 在字符串中间截断并添加省略号
+ * @param text 需要截断的文本
+ * @param maxLength 最大长度
+ * @return 截断后的文本
+ */
+fun truncateMiddle(text: String, maxLength: Int): String {
+    if (text.length <= maxLength) return text
+    
+    val startLength = (maxLength - 3) / 2
+    val endLength = maxLength - 3 - startLength
+    
+    return text.take(startLength) + "..." + text.takeLast(endLength)
 }
 
 /**

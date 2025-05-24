@@ -58,6 +58,9 @@ class TtsSynthesisService : Service() {
         const val STATUS_COMPLETED = 3
         const val STATUS_ERROR = 4
         const val STATUS_CANCELED = 5
+        
+        // 文本分块大小（字符数）
+        private const val TEXT_CHUNK_SIZE = 3000
     }
     
     /**
@@ -442,26 +445,15 @@ class TtsSynthesisService : Service() {
                     
                     outputStream = FileOutputStream(outputFile)
                     
-                    // 使用API 21+的文件合成方法
-                    val params = Bundle()
-                    params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, it.params.volume)
-                    
-                    val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        // 使用最新的API合成到文件
-                        @Suppress("DEPRECATION")
-                        tts?.synthesizeToFile(it.text, params, outputFile, "TTS_${UUID.randomUUID()}")
+                    // 检查文本长度，如果过长则分块处理
+                    val text = it.text
+                    if (text.length > TEXT_CHUNK_SIZE) {
+                        // 文本过长，分块处理
+                        Log.d(TAG, "文本长度(${text.length})超过阈值，分块处理")
+                        processLargeText(text, it, outputFile)
                     } else {
-                        @Suppress("DEPRECATION")
-                        tts?.synthesizeToFile(it.text, null, outputFile, "TTS_${UUID.randomUUID()}")
-                    }
-                    
-                    if (result != TextToSpeech.SUCCESS) {
-                        _synthesisState.value = _synthesisState.value.copy(
-                            status = STATUS_ERROR,
-                            message = "无法开始语音合成，错误码: $result"
-                        )
-                        synthesisCallback?.onError("无法开始语音合成，错误码: $result")
-                        isProcessing = false
+                        // 文本长度适中，直接处理
+                        processSingleText(text, it, outputFile)
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "合成语音文件失败", e)
@@ -494,6 +486,296 @@ class TtsSynthesisService : Service() {
                 message = "处理合成队列异常: ${e.message}"
             )
             synthesisCallback?.onError("处理合成队列异常: ${e.message}")
+        }
+    }
+    
+    /**
+     * 处理单个文本块
+     */
+    private fun processSingleText(text: String, task: SynthesisTask, outputFile: File) {
+        // 使用API 21+的文件合成方法
+        val params = Bundle()
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, task.params.volume)
+        
+        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            // 使用最新的API合成到文件
+            @Suppress("DEPRECATION")
+            tts?.synthesizeToFile(text, params, outputFile, "TTS_${UUID.randomUUID()}")
+        } else {
+            @Suppress("DEPRECATION")
+            tts?.synthesizeToFile(text, null, outputFile, "TTS_${UUID.randomUUID()}")
+        }
+        
+        if (result != TextToSpeech.SUCCESS) {
+            _synthesisState.value = _synthesisState.value.copy(
+                status = STATUS_ERROR,
+                message = "无法开始语音合成，错误码: $result"
+            )
+            synthesisCallback?.onError("无法开始语音合成，错误码: $result")
+            isProcessing = false
+        }
+    }
+    
+    /**
+     * 处理大文本（分块处理）
+     */
+    private fun processLargeText(text: String, task: SynthesisTask, outputFile: File) {
+        try {
+            // 将文本分成自然段落
+            val paragraphs = text.split("\n", "\r\n")
+            val chunks = mutableListOf<String>()
+            val currentChunk = StringBuilder()
+            
+            // 按段落组织块，确保每个块不超过最大大小
+            for (paragraph in paragraphs) {
+                // 如果当前段落加上当前块会超过大小限制，则开始新块
+                if (currentChunk.length + paragraph.length > TEXT_CHUNK_SIZE) {
+                    // 如果当前块不为空，添加到块列表
+                    if (currentChunk.isNotEmpty()) {
+                        chunks.add(currentChunk.toString())
+                        currentChunk.clear()
+                    }
+                    
+                    // 如果单个段落就超过了块大小限制，需要进一步分割
+                    if (paragraph.length > TEXT_CHUNK_SIZE) {
+                        // 按句子分割大段落
+                        val sentences = paragraph.split(". ", "! ", "? ", "。", "！", "？")
+                        for (sentence in sentences) {
+                            if (currentChunk.length + sentence.length > TEXT_CHUNK_SIZE) {
+                                if (currentChunk.isNotEmpty()) {
+                                    chunks.add(currentChunk.toString())
+                                    currentChunk.clear()
+                                }
+                                
+                                // 如果单个句子还是太长，按字符数直接分割
+                                if (sentence.length > TEXT_CHUNK_SIZE) {
+                                    var start = 0
+                                    while (start < sentence.length) {
+                                        val end = minOf(start + TEXT_CHUNK_SIZE, sentence.length)
+                                        chunks.add(sentence.substring(start, end))
+                                        start = end
+                                    }
+                                } else {
+                                    currentChunk.append(sentence)
+                                }
+                            } else {
+                                currentChunk.append(sentence)
+                            }
+                        }
+                    } else {
+                        // 段落可以作为一个新块
+                        currentChunk.append(paragraph)
+                    }
+                } else {
+                    // 添加段落到当前块
+                    if (currentChunk.isNotEmpty()) {
+                        currentChunk.append("\n")
+                    }
+                    currentChunk.append(paragraph)
+                }
+            }
+            
+            // 添加最后一个块
+            if (currentChunk.isNotEmpty()) {
+                chunks.add(currentChunk.toString())
+            }
+            
+            Log.d(TAG, "文本已分为 ${chunks.size} 个块进行处理")
+            
+            // 使用第一个块开始合成
+            if (chunks.isNotEmpty()) {
+                val firstChunk = chunks[0]
+                val remainingChunks = chunks.subList(1, chunks.size)
+                
+                // 设置特殊的监听器来处理多块合成
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    private var currentChunkIndex = 0
+                    private val totalChunks = chunks.size
+                    
+                    override fun onStart(utteranceId: String) {
+                        Log.d(TAG, "开始合成块 ${currentChunkIndex + 1}/${totalChunks}")
+                        
+                        if (currentChunkIndex == 0) {
+                            // 首次开始时更新UI
+                            _synthesisState.value = _synthesisState.value.copy(
+                                status = STATUS_SYNTHESIZING,
+                                message = "正在合成语音...",
+                                progress = 0
+                            )
+                            updateNotification("正在合成语音...（0%）")
+                            
+                            // 启动进度跟踪器
+                            progressTracker.start(text.length)
+                        }
+                    }
+                    
+                    override fun onDone(utteranceId: String) {
+                        currentChunkIndex++
+                        val progress = (currentChunkIndex.toFloat() / totalChunks * 100).toInt()
+                        
+                        // 更新进度
+                        progressTracker.updateActualProgress(
+                            currentChunkIndex * TEXT_CHUNK_SIZE, 
+                            text.length
+                        )
+                        
+                        if (currentChunkIndex < remainingChunks.size) {
+                            // 继续处理下一个块
+                            val nextChunk = remainingChunks[currentChunkIndex - 1]
+                            val params = Bundle()
+                            params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, task.params.volume)
+                            
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                @Suppress("DEPRECATION")
+                                tts?.synthesizeToFile(
+                                    nextChunk,
+                                    params,
+                                    outputFile,
+                                    "TTS_CHUNK_${UUID.randomUUID()}"
+                                )
+                            } else {
+                                @Suppress("DEPRECATION")
+                                tts?.synthesizeToFile(
+                                    nextChunk,
+                                    null,
+                                    outputFile,
+                                    "TTS_CHUNK_${UUID.randomUUID()}"
+                                )
+                            }
+                        } else {
+                            // 所有块处理完成
+                            Log.d(TAG, "所有块合成完成")
+                            closeOutputStream()
+                            
+                            // 停止进度跟踪器，并标记为已完成
+                            progressTracker.stop(isCompleted = true)
+                            
+                            // 保存到媒体库
+                            scanFile(task.outputPath)
+                            
+                            // 保存到数据库
+                            saveRecordToDatabase(task)
+                            
+                            // 格式化文件路径，使其更易读
+                            val formattedPath = task.outputPath.replace("/storage/emulated/0/", "内部存储/")
+                            
+                            // 更新状态
+                            _synthesisState.value = _synthesisState.value.copy(
+                                status = STATUS_COMPLETED,
+                                message = "语音合成完成\n文件已保存至：\n$formattedPath",
+                                progress = 100,
+                                outputPath = task.outputPath
+                            )
+                            
+                            // 更新通知
+                            updateNotification("语音合成完成（100%）")
+                            
+                            // 回调通知
+                            synthesisCallback?.onCompleted(task.outputPath)
+                            
+                            // 继续处理队列中的任务
+                            isProcessing = false
+                            if (synthesisQueue.isNotEmpty()) {
+                                processQueue()
+                            } else {
+                                stopForeground(false)
+                            }
+                        }
+                    }
+                    
+                    override fun onError(utteranceId: String) {
+                        Log.e(TAG, "合成块出错: $utteranceId")
+                        closeOutputStream()
+                        
+                        // 停止进度跟踪器
+                        progressTracker.stop()
+                        
+                        _synthesisState.value = _synthesisState.value.copy(
+                            status = STATUS_ERROR,
+                            message = "语音合成过程中出错",
+                            progress = 0
+                        )
+                        
+                        updateNotification("语音合成失败")
+                        
+                        // 回调通知
+                        synthesisCallback?.onError("语音合成失败")
+                        
+                        // 继续处理队列中的任务
+                        isProcessing = false
+                        if (synthesisQueue.isNotEmpty()) {
+                            processQueue()
+                        } else {
+                            stopForeground(false)
+                        }
+                    }
+                    
+                    // API 23以下的错误回调
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String, errorCode: Int) {
+                        onError(utteranceId)
+                    }
+                    
+                    // API 21+的进度回调
+                    override fun onRangeStart(
+                        utteranceId: String,
+                        start: Int,
+                        end: Int,
+                        frame: Int
+                    ) {
+                        // 使用进度跟踪器更新实际进度
+                        val globalProgress = currentChunkIndex * TEXT_CHUNK_SIZE + end
+                        progressTracker.updateActualProgress(globalProgress, text.length)
+                    }
+                })
+                
+                // 开始处理第一个块
+                val params = Bundle()
+                params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, task.params.volume)
+                
+                val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    @Suppress("DEPRECATION")
+                    tts?.synthesizeToFile(
+                        firstChunk, 
+                        params, 
+                        outputFile, 
+                        "TTS_CHUNK_${UUID.randomUUID()}"
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    tts?.synthesizeToFile(
+                        firstChunk, 
+                        null, 
+                        outputFile, 
+                        "TTS_CHUNK_${UUID.randomUUID()}"
+                    )
+                }
+                
+                if (result != TextToSpeech.SUCCESS) {
+                    _synthesisState.value = _synthesisState.value.copy(
+                        status = STATUS_ERROR,
+                        message = "无法开始语音合成，错误码: $result"
+                    )
+                    synthesisCallback?.onError("无法开始语音合成，错误码: $result")
+                    isProcessing = false
+                }
+            } else {
+                // 没有有效的文本块
+                _synthesisState.value = _synthesisState.value.copy(
+                    status = STATUS_ERROR,
+                    message = "处理文本失败：没有有效的文本内容"
+                )
+                synthesisCallback?.onError("处理文本失败：没有有效的文本内容")
+                isProcessing = false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "分块处理文本异常", e)
+            _synthesisState.value = _synthesisState.value.copy(
+                status = STATUS_ERROR,
+                message = "分块处理文本异常: ${e.message}"
+            )
+            synthesisCallback?.onError("分块处理文本异常: ${e.message}")
+            isProcessing = false
         }
     }
     
