@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -106,6 +107,7 @@ import com.wanderreads.ebook.ui.components.SynthesisProgressDialog
 import com.wanderreads.ebook.service.TtsSynthesisService
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.WindowInsets
 
 /**
  * 统一阅读器屏幕
@@ -300,22 +302,39 @@ fun UnifiedReaderScreen(
                 exit = fadeOut() + slideOutVertically(targetOffsetY = { -it })
             ) {
                 TopAppBar(
-                    title = { Text(uiState.chapterTitle, color = whiteText) },
+                    title = { 
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(uiState.chapterTitle, color = whiteText)
+                        }
+                    },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = whiteText)
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = whiteText)
+                            }
                         }
                     },
                     actions = {
                         // 三个点菜单按钮
-                        IconButton(
-                            onClick = { showMenu = !showMenu }
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "更多选项",
-                                tint = whiteText
-                            )
+                            IconButton(
+                                onClick = { showMenu = !showMenu }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "更多选项",
+                                    tint = whiteText
+                                )
+                            }
                         }
                         
                         // 下拉菜单
@@ -440,7 +459,8 @@ fun UnifiedReaderScreen(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = themeBlue
                     ),
-                    modifier = Modifier.height(64.dp)
+                    modifier = Modifier.height(64.dp),
+                    windowInsets = WindowInsets(0, 0, 0, 0)
                 )
             }
         },

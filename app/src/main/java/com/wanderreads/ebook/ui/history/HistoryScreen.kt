@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -57,6 +58,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.layout.WindowInsets
 
 // 使用类型别名解决命名冲突
 typealias EbookModel = com.wanderreads.ebook.domain.model.Book
@@ -76,16 +78,22 @@ fun HistoryScreen(
         topBar = {
             TopAppBar(
                 title = { 
-                    Text(
-                        "阅读历史",
-                        style = MaterialTheme.typography.titleLarge
-                    ) 
+                    Box(
+                        modifier = Modifier.fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "阅读历史",
+                            style = MaterialTheme.typography.titleLarge
+                        ) 
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
-                modifier = Modifier.height(64.dp)
+                modifier = Modifier.height(64.dp),
+                windowInsets = WindowInsets(0, 0, 0, 0)
             )
         }
     ) { paddingValues ->

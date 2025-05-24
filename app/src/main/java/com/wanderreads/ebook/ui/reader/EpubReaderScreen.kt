@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -92,6 +93,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.WindowInsets
 import com.wanderreads.ebook.util.PageDirection
 import java.util.Locale
 import java.util.UUID
@@ -311,51 +313,78 @@ fun EpubReaderScreen(
             ) {
                 TopAppBar(
                     title = {
-                        Text(
-                            text = uiState.book?.title ?: "电子书阅读器",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = uiState.book?.title ?: "电子书阅读器",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
                     },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "返回"
-                            )
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "返回"
+                                )
+                            }
                         }
                     },
                     actions = {
                         // 目录按钮
-                        IconButton(onClick = { showToc = true }) {
-                            Icon(
-                                imageVector = Icons.Default.List,
-                                contentDescription = "目录"
-                            )
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(onClick = { showToc = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.List,
+                                    contentDescription = "目录"
+                                )
+                            }
                         }
                         
                         // 暗色/亮色模式快速切换
-                        IconButton(onClick = { viewModel.toggleTheme(!uiState.isDarkMode) }) {
-                            Icon(
-                                imageVector = if (uiState.isDarkMode) 
-                                    Icons.Filled.Brightness7 else Icons.Filled.Brightness4,
-                                contentDescription = if (uiState.isDarkMode) 
-                                    "亮色模式" else "暗色模式"
-                            )
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(onClick = { viewModel.toggleTheme(!uiState.isDarkMode) }) {
+                                Icon(
+                                    imageVector = if (uiState.isDarkMode) 
+                                        Icons.Filled.Brightness7 else Icons.Filled.Brightness4,
+                                    contentDescription = if (uiState.isDarkMode) 
+                                        "亮色模式" else "暗色模式"
+                                )
+                            }
                         }
                         
                         // 设置按钮
-                        IconButton(onClick = { showSettings = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "设置"
-                            )
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(onClick = { showSettings = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "设置"
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                    )
+                    ),
+                    modifier = Modifier.height(64.dp),
+                    windowInsets = WindowInsets(0, 0, 0, 0)
                 )
             }
         },

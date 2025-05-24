@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -73,6 +74,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.WindowInsets
 
 // 使用类型别名解决命名冲突
 typealias EbookModel = com.wanderreads.ebook.domain.model.Book
@@ -108,41 +110,56 @@ fun BookshelfScreen(
         topBar = {
             TopAppBar(
                 title = { 
-                    Text(
-                        "我的书架",
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = Color.White
-                    ) 
+                    Box(
+                        modifier = Modifier.fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "我的书架",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = Color.White
+                        )
+                    }
                 },
                 actions = {
                     // 搜索图标按钮
-                    IconButton(
-                        onClick = {
-                            // 导航到搜索页面的逻辑
-                        },
-                        modifier = Modifier.size(48.dp)
+                    Box(
+                        modifier = Modifier.fillMaxHeight(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "搜索",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
+                        IconButton(
+                            onClick = {
+                                // 导航到搜索页面的逻辑
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "搜索",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
                     
                     // 三点菜单按钮
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(48.dp)
+                    Box(
+                        modifier = Modifier.fillMaxHeight(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "更多选项",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "更多选项",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
                     
                     // 下拉菜单
@@ -274,7 +291,8 @@ fun BookshelfScreen(
                 ),
                 modifier = Modifier
                     .height(64.dp)
-                    .shadow(elevation = 8.dp)
+                    .shadow(elevation = 8.dp),
+                windowInsets = WindowInsets(0, 0, 0, 0)
             )
         }
     ) { paddingValues ->
