@@ -76,6 +76,34 @@ fun FileListScreen(
         )
     }
     
+    // 删除确认对话框
+    if (uiState.isDeleteConfirmationVisible) {
+        val isSingleFile = uiState.singleFileToDelete != null
+        val selectedCount = if (isSingleFile) 1 else uiState.selectedFiles.size
+        
+        AlertDialog(
+            onDismissRequest = { viewModel.hideDeleteConfirmation() },
+            title = { Text("确认删除") },
+            text = { 
+                Text("选定的${selectedCount}个文件即将被删除，且不可恢复，是否确认删除？") 
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.executeDelete()
+                    }
+                ) {
+                    Text("确认删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideDeleteConfirmation() }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+    
     // 错误提示
     uiState.error?.let { error ->
         LaunchedEffect(error) {
@@ -95,9 +123,51 @@ fun FileListScreen(
                 },
                 actions = {
                     if (uiState.isSelectionMode) {
-                        IconButton(onClick = { viewModel.deleteSelectedFiles() }) {
-                            Icon(Icons.Default.Delete, contentDescription = "删除选中")
+                        // 删除图标
+                        IconButton(
+                            onClick = { 
+                                if (uiState.selectedFiles.isNotEmpty()) {
+                                    viewModel.showDeleteConfirmation()
+                                }
+                            },
+                            enabled = uiState.selectedFiles.isNotEmpty()
+                        ) {
+                            Icon(
+                                Icons.Default.Delete, 
+                                contentDescription = "删除选中",
+                                tint = if (uiState.selectedFiles.isEmpty()) 
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                else 
+                                    LocalContentColor.current
+                            )
                         }
+                        
+                        // 全选/取消全选按钮（在删除图标的右边）
+                        IconButton(
+                            onClick = { 
+                                if (viewModel.isAllSelected()) {
+                                    viewModel.deselectAllFiles()
+                                } else {
+                                    viewModel.selectAllFiles()
+                                }
+                            }
+                        ) {
+                            if (viewModel.isAllSelected()) {
+                                // 已全选状态，显示取消全选图标
+                                Icon(
+                                    imageVector = Icons.Default.IndeterminateCheckBox,
+                                    contentDescription = "取消全选"
+                                )
+                            } else {
+                                // 未全选状态，显示全选图标
+                                Icon(
+                                    imageVector = Icons.Default.CheckBox,
+                                    contentDescription = "全选"
+                                )
+                            }
+                        }
+                        
+                        // 取消按钮
                         IconButton(onClick = { viewModel.toggleSelectionMode() }) {
                             Text("取消")
                         }
@@ -152,7 +222,8 @@ fun FileListScreen(
                             },
                             onSetAlarmClick = if (category == LibraryCategory.VOICE_FILES) {
                                 { onSetAlarm?.invoke(file) }
-                            } else null
+                            } else null,
+                            viewModel = viewModel
                         )
                     }
                 }
@@ -186,7 +257,8 @@ fun FileItem(
     onItemLongClick: () -> Unit,
     onRenameClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onSetAlarmClick: (() -> Unit)? = null
+    onSetAlarmClick: (() -> Unit)? = null,
+    viewModel: LibraryViewModel
 ) {
     var showMenu by remember { mutableStateOf(false) }
     
@@ -269,7 +341,7 @@ fun FileItem(
                             text = { Text("删除") },
                             leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                             onClick = {
-                                onDeleteClick()
+                                viewModel.showSingleFileDeleteConfirmation(file.filePath)
                                 showMenu = false
                             }
                         )

@@ -43,7 +43,9 @@ data class LibraryUiState(
     val isSelectionMode: Boolean = false,
     val isRenameDialogVisible: Boolean = false,
     val fileToRename: BookFile? = null,
-    val newFileName: String = ""
+    val newFileName: String = "",
+    val isDeleteConfirmationVisible: Boolean = false,
+    val singleFileToDelete: String? = null
 )
 
 /**
@@ -179,13 +181,62 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                         )
                     }
                 }
+                // 清除待删除文件
+                _uiState.value = _uiState.value.copy(
+                    singleFileToDelete = null,
+                    isDeleteConfirmationVisible = false
+                )
             } catch (e: Exception) {
                 Log.e("LibraryViewModel", "删除文件失败", e)
                 _uiState.value = _uiState.value.copy(
-                    error = "删除文件失败: ${e.message}"
+                    error = "删除文件失败: ${e.message}",
+                    singleFileToDelete = null,
+                    isDeleteConfirmationVisible = false
                 )
             }
         }
+    }
+    
+    /**
+     * 显示单个文件删除确认对话框
+     */
+    fun showSingleFileDeleteConfirmation(filePath: String) {
+        _uiState.value = _uiState.value.copy(
+            isDeleteConfirmationVisible = true,
+            singleFileToDelete = filePath
+        )
+    }
+    
+    /**
+     * 执行删除操作（根据上下文确定删除单个文件还是批量删除）
+     */
+    fun executeDelete() {
+        val singleFilePath = _uiState.value.singleFileToDelete
+        if (singleFilePath != null) {
+            deleteFile(singleFilePath)
+        } else {
+            deleteSelectedFiles()
+        }
+    }
+    
+    /**
+     * 显示删除确认对话框（批量删除）
+     */
+    fun showDeleteConfirmation() {
+        _uiState.value = _uiState.value.copy(
+            isDeleteConfirmationVisible = true,
+            singleFileToDelete = null
+        )
+    }
+    
+    /**
+     * 隐藏删除确认对话框
+     */
+    fun hideDeleteConfirmation() {
+        _uiState.value = _uiState.value.copy(
+            isDeleteConfirmationVisible = false,
+            singleFileToDelete = null
+        )
     }
     
     /**
@@ -211,12 +262,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 
                 _uiState.value = _uiState.value.copy(
                     selectedFiles = emptySet(),
-                    isSelectionMode = false
+                    isSelectionMode = false,
+                    isDeleteConfirmationVisible = false
                 )
             } catch (e: Exception) {
                 Log.e("LibraryViewModel", "批量删除文件失败", e)
                 _uiState.value = _uiState.value.copy(
-                    error = "批量删除文件失败: ${e.message}"
+                    error = "批量删除文件失败: ${e.message}",
+                    isDeleteConfirmationVisible = false
                 )
             }
         }
@@ -329,6 +382,34 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _uiState.value = _uiState.value.copy(
             error = null
         )
+    }
+    
+    /**
+     * 全选所有文件
+     */
+    fun selectAllFiles() {
+        val allFilePaths = _uiState.value.files.map { it.filePath }.toSet()
+        _uiState.value = _uiState.value.copy(
+            selectedFiles = allFilePaths
+        )
+    }
+    
+    /**
+     * 取消全选所有文件
+     */
+    fun deselectAllFiles() {
+        _uiState.value = _uiState.value.copy(
+            selectedFiles = emptySet()
+        )
+    }
+    
+    /**
+     * 检查是否已全选
+     */
+    fun isAllSelected(): Boolean {
+        val allFiles = _uiState.value.files
+        val selectedFiles = _uiState.value.selectedFiles
+        return allFiles.isNotEmpty() && allFiles.size == selectedFiles.size
     }
 }
 
