@@ -45,7 +45,7 @@ object WebBookImporter {
     }
     
     /**
-     * 从URL导入网页内容，保存为TXT文件
+     * 从URL导入网页内容，保存为MD文件
      *
      * @param context 上下文
      * @param url 网页地址
@@ -65,13 +65,14 @@ object WebBookImporter {
             
             // 解析网页内容为纯文本
             Log.d(TAG, "网页获取成功，开始提取内容")
-            val title = document.title()
             val content = extractTextContent(document)
             
-            // 生成文件名
-            val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
-                .format(Date())
-            val fileName = "Web$timestamp.txt"
+            // 从提取的内容中获取第一行作为书名
+            val bookTitle = content.trim().split("\n").firstOrNull()?.trim() ?: document.title()
+            Log.d(TAG, "提取的书名: $bookTitle")
+            
+            // 使用FileNamingUtil生成文件名
+            val fileName = FileNamingUtil.generateTextFileName(bookTitle)
             
             // 尝试保存到外部存储
             val canUseExternalStorage = hasExternalStoragePermission()
@@ -122,7 +123,7 @@ object WebBookImporter {
                         
                         // 写入文件
                         try {
-                            writeToFile(outputFile, title, content)
+                            writeToFile(outputFile, bookTitle, content)
                             createdExternalFile = true
                             Log.d(TAG, "成功写入文件到外部存储: ${outputFile.absolutePath}")
                         } catch (e: Exception) {
@@ -152,7 +153,7 @@ object WebBookImporter {
                         Log.d(TAG, "将使用外部Documents/WanderReads/webbook目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
-                        writeToFile(outputFile, title, content)
+                        writeToFile(outputFile, bookTitle, content)
                         createdExternalFile = true
                     } else {
                         // Android 9及以下版本
@@ -177,7 +178,7 @@ object WebBookImporter {
                         Log.d(TAG, "将使用外部Documents/WanderReads/webbook目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
-                        writeToFile(outputFile, title, content)
+                        writeToFile(outputFile, bookTitle, content)
                         createdExternalFile = true
                     }
                 } catch (e: Exception) {
@@ -223,7 +224,7 @@ object WebBookImporter {
                         Log.d(TAG, "将使用应用专属存储目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
-                        writeToFile(outputFile, title, content)
+                        writeToFile(outputFile, bookTitle, content)
                         createdExternalFile = true
                     } else {
                         throw IOException("无法获取应用专属外部存储目录")
@@ -253,7 +254,7 @@ object WebBookImporter {
                 Log.d(TAG, "将使用应用私有目录保存文件: ${outputFile.absolutePath}")
                 
                 // 写入文件到私有目录
-                writeToFile(outputFile, title, content)
+                writeToFile(outputFile, bookTitle, content)
             }
             
             // 通知媒体库更新（适用于外部存储）
@@ -375,13 +376,19 @@ object WebBookImporter {
         // 构建格式化文本
         val sb = StringBuilder()
         
-        // 确保至少有一行
+        // 获取标题
+        val title: String
+        
+        // 如果没有内容行，使用document.title()作为标题
         if (lines.isEmpty()) {
-            lines.add("未命名文档")
+            title = document.title().ifEmpty { "未命名文档" }
+            lines.add(title)
+        } else {
+            // 第一行作为标题
+            title = lines.removeAt(0).trim()
         }
         
-        // 第一行作为标题
-        val title = lines.removeAt(0).trim()
+        // 添加标题作为第一行
         sb.append(title).append("\n\n")
         
         // 其余行前面空出2个字符，表示段落开始

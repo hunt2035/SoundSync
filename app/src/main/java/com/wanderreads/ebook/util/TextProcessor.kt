@@ -73,7 +73,7 @@ object TextProcessor {
     suspend fun saveTextToFile(
         context: Context,
         text: String,
-        fileName: String
+        bookName: String
     ): Result<File> = withContext(Dispatchers.IO) {
         var outputFile: File? = null
         var createdExternalFile = false
@@ -81,6 +81,13 @@ object TextProcessor {
         try {
             // 处理文本
             val processedText = processText(text)
+            
+            // 从处理后的文本中提取第一行作为书名
+            val actualBookName = extractTitle(processedText)
+            Log.d(TAG, "提取的书名: $actualBookName")
+            
+            // 使用FileNamingUtil生成文件名
+            val fileName = FileNamingUtil.generateTextFileName(actualBookName)
             
             // 尝试保存到外部存储
             val canUseExternalStorage = hasExternalStoragePermission()
@@ -125,8 +132,8 @@ object TextProcessor {
                             }
                         }
                         
-                        // 生成txt文件
-                        outputFile = File(txtFilesDir, "$fileName.txt")
+                        // 生成md文件
+                        outputFile = File(txtFilesDir, fileName)
                         Log.d(TAG, "将使用外部Documents/WanderReads/txtfiles目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
@@ -160,8 +167,8 @@ object TextProcessor {
                             throw IOException("无法创建txtfiles目录")
                         }
                         
-                        // 生成txt文件
-                        outputFile = File(txtFilesDir, "$fileName.txt")
+                        // 生成md文件
+                        outputFile = File(txtFilesDir, fileName)
                         Log.d(TAG, "将使用外部Documents/WanderReads/txtfiles目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
@@ -189,8 +196,8 @@ object TextProcessor {
                             throw IOException("无法创建txtfiles目录")
                         }
                         
-                        // 生成txt文件
-                        outputFile = File(txtFilesDir, "$fileName.txt")
+                        // 生成md文件
+                        outputFile = File(txtFilesDir, fileName)
                         Log.d(TAG, "将使用外部Documents/WanderReads/txtfiles目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
@@ -239,7 +246,7 @@ object TextProcessor {
                             }
                         }
                         
-                        outputFile = File(txtFilesDir, "$fileName.txt")
+                        outputFile = File(txtFilesDir, fileName)
                         Log.d(TAG, "将使用应用专属存储目录保存文件: ${outputFile.absolutePath}")
                         
                         // 写入文件
@@ -262,7 +269,7 @@ object TextProcessor {
             
             // 最后的备用方案：使用应用私有目录
             if (outputFile == null || !createdExternalFile) {
-                outputFile = saveToInternalStorage(context, processedText, fileName).getOrThrow()
+                outputFile = saveToInternalStorage(context, processedText, bookName).getOrThrow()
             }
             
             // 通知媒体库更新（适用于外部存储）
@@ -301,7 +308,7 @@ object TextProcessor {
     private suspend fun saveToInternalStorage(
         context: Context,
         text: String,
-        fileName: String
+        bookName: String
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "尝试保存到应用私有目录")
@@ -315,8 +322,15 @@ object TextProcessor {
                 }
             }
             
-            // 生成txt文件
-            val targetFile = File(targetDir, "$fileName.txt")
+            // 从文本中提取书名
+            val actualBookName = extractTitle(text)
+            Log.d(TAG, "提取的书名: $actualBookName")
+            
+            // 使用FileNamingUtil生成文件名
+            val fileName = FileNamingUtil.generateTextFileName(actualBookName)
+            
+            // 生成md文件
+            val targetFile = File(targetDir, fileName)
             
             // 写入文件
             FileOutputStream(targetFile).use { outputStream ->
@@ -334,14 +348,10 @@ object TextProcessor {
     
     /**
      * 从文本内容中提取标题
-     * 使用第一行作为标题，如果超过16个字符则截断
+     * 使用第一行作为标题，如果为空则使用"新建文本"
      */
     fun extractTitle(text: String): String {
         val firstLine = text.trim().split("\n").firstOrNull()?.trim() ?: "新建文本"
-        return if (firstLine.length > 16) {
-            firstLine.substring(0, 16)
-        } else {
-            firstLine
-        }
+        return firstLine
     }
 } 

@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.wanderreads.ebook.domain.model.BookFormat
+import com.wanderreads.ebook.util.FileNamingUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -66,7 +67,10 @@ object FileUtil {
      */
     suspend fun copyToExternalStorage(context: Context, uri: Uri, subDir: String): Result<File> = withContext(Dispatchers.IO) {
         try {
-            val fileName = getFileNameFromUri(context, uri)
+            val originalFileName = getFileNameFromUri(context, uri)
+            
+            // 使用FileNamingUtil生成文件名
+            val fileName = FileNamingUtil.generateImportedFileName(originalFileName)
             
             // 创建外部存储目录
             val externalDocumentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)

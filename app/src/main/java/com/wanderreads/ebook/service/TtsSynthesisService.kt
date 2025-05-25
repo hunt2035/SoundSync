@@ -38,6 +38,7 @@ import java.io.OutputStream
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
+import com.wanderreads.ebook.util.FileNamingUtil
 
 /**
  * TTS语音合成服务
@@ -435,7 +436,8 @@ class TtsSynthesisService : Service() {
                         .let { title -> 
                             if (title.length > 30) title.substring(0, 30) else title 
                         }
-                    val fileName = "${System.currentTimeMillis()}_$safeTitle.mp3"
+                    // 使用FileNamingUtil生成文件名
+                    val fileName = FileNamingUtil.generateVoiceFileName(safeTitle)
                     val outputFile = File(outputDir, fileName)
                     it.outputPath = outputFile.absolutePath
                     
