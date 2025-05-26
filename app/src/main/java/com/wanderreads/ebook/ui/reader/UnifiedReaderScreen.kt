@@ -367,7 +367,7 @@ fun UnifiedReaderScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("开始朗读", color = whiteText) },
+                                text = { Text(if (isTtsActive) "停止朗读" else "朗读本页", color = whiteText) },
                                 onClick = { 
                                     showMenu = false
                                     isTtsActive = viewModel.toggleTts() 
@@ -380,7 +380,7 @@ fun UnifiedReaderScreen(
                                 leadingIcon = {
                                     Icon(
                                         imageVector = if (isTtsActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                                        contentDescription = if (isTtsActive) "停止朗读" else "开始朗读",
+                                        contentDescription = if (isTtsActive) "停止朗读" else "朗读本页",
                                         tint = whiteText
                                     )
                                 }
@@ -548,25 +548,30 @@ fun UnifiedReaderScreen(
                             )
                         }
                         
-                        // 朗读图标
-                        IconButton(onClick = { 
-                            Log.d("TTS_DEBUG", "点击朗读图标")
-                            isTtsActive = viewModel.toggleTts()
-                            Log.d("TTS_DEBUG", "toggleTts返回: $isTtsActive")
-                            
-                            if (isTtsActive) {
-                                showTtsFloatingWindow = true
-                                ttsWindowKey++ // 强制刷新悬浮窗
-                                Log.d("TTS_DEBUG", "设置showTtsFloatingWindow = true")
-                            } else {
-                                showTtsFloatingWindow = false
-                                Log.d("TTS_DEBUG", "设置showTtsFloatingWindow = false")
-                            }
-                        }) {
-                            Icon(
-                                imageVector = if (isTtsActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
-                                contentDescription = if (isTtsActive) "停止朗读" else "开始朗读",
-                                tint = whiteText
+                        // 朗读本页按钮 - 从图标按钮改为文字按钮
+                        androidx.compose.material3.Button(
+                            onClick = { 
+                                Log.d("TTS_DEBUG", "点击朗读本页按钮")
+                                isTtsActive = viewModel.toggleTts()
+                                Log.d("TTS_DEBUG", "toggleTts返回: $isTtsActive")
+                                
+                                if (isTtsActive) {
+                                    showTtsFloatingWindow = true
+                                    ttsWindowKey++ // 强制刷新悬浮窗
+                                    Log.d("TTS_DEBUG", "设置showTtsFloatingWindow = true")
+                                } else {
+                                    showTtsFloatingWindow = false
+                                    Log.d("TTS_DEBUG", "设置showTtsFloatingWindow = false")
+                                }
+                            },
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = if (isTtsActive) Color(0xFF64B5F6) else themeBlue,
+                                contentColor = whiteText
+                            )
+                        ) {
+                            Text(
+                                text = if (isTtsActive) "停止朗读" else "朗读本页",
+                                color = whiteText
                             )
                         }
                         
@@ -592,39 +597,6 @@ fun UnifiedReaderScreen(
                             )
                         }
                         
-                        // 分享图标
-                        IconButton(onClick = { 
-                            // 获取当前页文本内容
-                            val currentText = uiState.currentContent?.text ?: ""
-                            if (currentText.isNotEmpty()) {
-                                // 准备分享文本，包含书名和当前阅读内容
-                                val bookTitle = uiState.book?.title ?: "电子书"
-                                val shareText = "我正在阅读《$bookTitle》，分享一段内容：\n\n${
-                                    if (currentText.length > 300) 
-                                        currentText.substring(0, 300) + "..." 
-                                    else 
-                                        currentText
-                                }"
-                                
-                                // 使用系统分享功能
-                                val shareIntent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, shareText)
-                                    type = "text/plain"
-                                }
-                                
-                                context.startActivity(Intent.createChooser(shareIntent, "分享到"))
-                            } else {
-                                Toast.makeText(context, "当前页面没有可分享的文本内容", Toast.LENGTH_SHORT).show()
-                            }
-                        }) {
-                            Icon(
-                                Icons.Default.Share,
-                                contentDescription = "分享",
-                                tint = whiteText
-                            )
-                        }
-                        
                         // 阅读设置图标
                         IconButton(onClick = { showSettings = true }) {
                             Icon(
@@ -645,109 +617,6 @@ fun UnifiedReaderScreen(
                 .background(navyBlueBackground)
                 .padding(paddingValues)
         ) {
-            // TTS朗读控制悬浮窗
-            if (showTtsFloatingWindow) {
-                Log.d("TTS_DEBUG", "准备显示悬浮窗，key: $ttsWindowKey")
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .zIndex(10f) // 确保悬浮窗在最上层
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .offset { IntOffset(ttsWindowPosition.x.roundToInt(), ttsWindowPosition.y.roundToInt()) }
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .shadow(4.dp, shape = MaterialTheme.shapes.extraLarge)
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onPress = { offset ->
-                                            isDraggingTtsWindow = true
-                                            awaitRelease()
-                                            isDraggingTtsWindow = false
-                                        }
-                                    )
-                                }
-                                .pointerInput(Unit) {
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            val dragEvent = event.changes.firstOrNull()
-                                            if (dragEvent != null && dragEvent.pressed && isDraggingTtsWindow) {
-                                                dragEvent.consume()
-                                                val dragAmount = dragEvent.position - dragEvent.previousPosition
-                                                ttsWindowPosition = Offset(
-                                                    x = (ttsWindowPosition.x + dragAmount.x).coerceIn(0f, screenWidthPx - (floatingWindowWidth * density)),
-                                                    y = (ttsWindowPosition.y + dragAmount.y).coerceIn(0f, 800f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                },
-                            shape = MaterialTheme.shapes.extraLarge,
-                            color = Color(0xFF2C3E50) // 不透明的深蓝色背景
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .width(floatingWindowWidth.dp)
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // 播放/暂停按钮
-                                IconButton(
-                                    onClick = {
-                                        // 切换播放/暂停状态
-                                        isTtsActive = !isTtsActive
-                                        if (isTtsActive) {
-                                            viewModel.resumeTts()
-                                        } else {
-                                            viewModel.pauseTts()
-                                        }
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = if (isTtsActive) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isTtsActive) "暂停" else "播放",
-                                        tint = Color.White
-                                    )
-                                }
-                                
-                                // 停止按钮
-                                IconButton(
-                                    onClick = {
-                                        isTtsActive = false
-                                        viewModel.stopTts()
-                                        showTtsFloatingWindow = false
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Stop,
-                                        contentDescription = "停止",
-                                        tint = Color.White
-                                    )
-                                }
-                                
-                                // 书籍列表按钮（三个横线）
-                                IconButton(
-                                    onClick = {
-                                        // 显示正在播放的书籍列表，这里暂时只有一本
-                                        Toast.makeText(context, "当前只有一本书在朗读", Toast.LENGTH_SHORT).show()
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.List,
-                                        contentDescription = "播放列表",
-                                        tint = Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            
             // 内容区域 - 占据90%的空间
             Box(
                 modifier = Modifier
@@ -1017,6 +886,103 @@ fun UnifiedReaderScreen(
                                     } else {
                                         Spacer(modifier = Modifier.height(16.dp))
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // TTS朗读控制悬浮窗 - 放在内容区域内，使用Popup
+                if (showTtsFloatingWindow) {
+                    Log.d("TTS_DEBUG", "准备显示悬浮窗，key: $ttsWindowKey")
+                    Popup(
+                        alignment = Alignment.TopStart,
+                        offset = IntOffset(ttsWindowPosition.x.roundToInt(), ttsWindowPosition.y.roundToInt())
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .shadow(4.dp, shape = MaterialTheme.shapes.extraLarge)
+                                .pointerInput(Unit) {
+                                    detectTapGestures(
+                                        onPress = { offset ->
+                                            isDraggingTtsWindow = true
+                                            awaitRelease()
+                                            isDraggingTtsWindow = false
+                                        }
+                                    )
+                                }
+                                .pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val dragEvent = event.changes.firstOrNull()
+                                            if (dragEvent != null && dragEvent.pressed && isDraggingTtsWindow) {
+                                                dragEvent.consume()
+                                                val dragAmount = dragEvent.position - dragEvent.previousPosition
+                                                ttsWindowPosition = Offset(
+                                                    x = (ttsWindowPosition.x + dragAmount.x).coerceIn(0f, screenWidthPx - (floatingWindowWidth * density)),
+                                                    y = (ttsWindowPosition.y + dragAmount.y).coerceIn(0f, 800f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                            shape = MaterialTheme.shapes.extraLarge,
+                            color = Color(0xFF2C3E50) // 不透明的深蓝色背景
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .width(floatingWindowWidth.dp)
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 播放/暂停按钮
+                                IconButton(
+                                    onClick = {
+                                        // 切换播放/暂停状态
+                                        isTtsActive = !isTtsActive
+                                        if (isTtsActive) {
+                                            viewModel.resumeTts()
+                                        } else {
+                                            viewModel.pauseTts()
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = if (isTtsActive) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = if (isTtsActive) "暂停" else "播放",
+                                        tint = Color.White
+                                    )
+                                }
+                                
+                                // 停止按钮
+                                IconButton(
+                                    onClick = {
+                                        isTtsActive = false
+                                        viewModel.stopTts()
+                                        showTtsFloatingWindow = false
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Stop,
+                                        contentDescription = "停止",
+                                        tint = Color.White
+                                    )
+                                }
+                                
+                                // 书籍列表按钮（三个横线）
+                                IconButton(
+                                    onClick = {
+                                        // 显示正在播放的书籍列表，这里暂时只有一本
+                                        Toast.makeText(context, "当前只有一本书在朗读", Toast.LENGTH_SHORT).show()
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.List,
+                                        contentDescription = "播放列表",
+                                        tint = Color.White
+                                    )
                                 }
                             }
                         }
