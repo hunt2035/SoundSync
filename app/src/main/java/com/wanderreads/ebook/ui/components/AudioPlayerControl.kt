@@ -1,0 +1,173 @@
+package com.wanderreads.ebook.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import com.wanderreads.ebook.util.TtsManager
+import kotlin.math.roundToInt
+
+/**
+ * 音频播放控件
+ * 在阅读界面显示TTS朗读控制
+ */
+@Composable
+fun AudioPlayerControl(
+    ttsStatus: Int, // TTS状态
+    onPlayPause: () -> Unit, // 播放/暂停回调
+    onStop: () -> Unit, // 停止回调
+    onOffsetChange: (IntOffset) -> Unit, // 位置变化回调
+    modifier: Modifier = Modifier
+) {
+    val isDragging = remember { mutableStateOf(false) }
+    val dragOffset = remember { mutableStateOf(IntOffset(0, 0)) }
+    val density = LocalDensity.current
+    val isPlaying = ttsStatus == TtsManager.STATUS_PLAYING
+
+    Surface(
+        modifier = modifier
+            .shadow(4.dp, shape = RoundedCornerShape(32.dp))
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { isDragging.value = true },
+                    onDragEnd = { isDragging.value = false },
+                    onDragCancel = { isDragging.value = false },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        dragOffset.value = IntOffset(
+                            dragOffset.value.x + dragAmount.x.roundToInt(),
+                            dragOffset.value.y + dragAmount.y.roundToInt()
+                        )
+                        onOffsetChange(dragOffset.value)
+                    }
+                )
+            },
+        shape = RoundedCornerShape(32.dp),
+        color = Color(0xFF1A2635) // 更深的不透明蓝色背景
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 封面图标（圆形）
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF0D47A1)), // 更深的不透明蓝色
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LibraryMusic,
+                    contentDescription = "封面",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            // "边听边看"文字按钮
+            Button(
+                onClick = { /* 目前不需要操作 */ },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF0D47A1) // 更深的不透明蓝色
+                ),
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier.height(36.dp)
+            ) {
+                Text(
+                    text = "边听边看",
+                    color = Color.White
+                )
+            }
+            
+            // 播放/暂停按钮
+            IconButton(
+                onClick = onPlayPause,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "暂停" else "播放",
+                    tint = Color.White
+                )
+            }
+            
+            // 停止按钮
+            IconButton(
+                onClick = onStop,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Stop,
+                    contentDescription = "停止",
+                    tint = Color.White
+                )
+            }
+            
+            // 三条横线（示意菜单）
+            Column(
+                modifier = Modifier
+                    .width(18.dp)
+                    .height(24.dp),
+                verticalArrangement = Arrangement.SpaceEvenly
+            ) {
+                repeat(3) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .background(Color.White)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AudioPlayerControlPreview() {
+    MaterialTheme {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .background(Color.Gray),
+            contentAlignment = Alignment.Center
+        ) {
+            AudioPlayerControl(
+                ttsStatus = TtsManager.STATUS_PLAYING,
+                onPlayPause = { },
+                onStop = { },
+                onOffsetChange = { }
+            )
+        }
+    }
+} 

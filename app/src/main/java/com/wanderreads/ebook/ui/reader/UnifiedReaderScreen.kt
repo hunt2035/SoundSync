@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Popup
 import android.content.Intent
+import android.speech.tts.TextToSpeech
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
@@ -105,6 +106,7 @@ import com.wanderreads.ebook.domain.model.SynthesisRange
 import com.wanderreads.ebook.ui.components.SynthesisDialog
 import com.wanderreads.ebook.ui.components.SynthesisProgressDialog
 import com.wanderreads.ebook.service.TtsSynthesisService
+import com.wanderreads.ebook.service.TtsSynthesisService.SynthesisState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.WindowInsets
@@ -113,6 +115,8 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.offset
+import com.wanderreads.ebook.ui.components.AudioPlayerControl
+import com.wanderreads.ebook.util.TtsManager
 
 /**
  * 统一阅读器屏幕
@@ -131,16 +135,20 @@ fun UnifiedReaderScreen(
     val statusBarBackground = Color.White.copy(alpha = 0.7f) // 半透明白色背景
     
     val uiState by viewModel.uiState.collectAsState()
+    val ttsState by viewModel.ttsState.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     
     // 获取屏幕宽度(像素)
     val screenWidthPx = LocalContext.current.resources.displayMetrics.widthPixels
+    val screenHeightPx = LocalContext.current.resources.displayMetrics.heightPixels
+    
     // 计算屏幕宽度(dp)
     val density = LocalContext.current.resources.displayMetrics.density
     val screenWidthDp = (screenWidthPx / density).toInt()
-    // 计算悬浮窗宽度(屏幕宽度的一半)
-    val floatingWindowWidth = screenWidthDp / 2
+    
+    // 音频控件宽度(屏幕宽度的65%)
+    val audioControlWidth = (screenWidthDp * 0.65f).toInt()
     
     // 控制顶部和底部工具栏的显示
     var showControls by remember { mutableStateOf(false) }
@@ -173,17 +181,16 @@ fun UnifiedReaderScreen(
         label = "recording scale animation"
     )
     
-    // 控制朗读悬浮窗的显示
-    var showTtsFloatingWindow by remember { mutableStateOf(false) }
+    // 音频播放控件的显示
+    var showAudioControl by remember { mutableStateOf(false) }
     
-    // 控制朗读悬浮窗的位置 - 默认显示在屏幕中央
-    var ttsWindowPosition by remember { mutableStateOf(Offset(screenWidthPx / 2f - (floatingWindowWidth * density / 2), screenWidthPx / 3f)) }
-    
-    // 记录朗读悬浮窗的拖动状态
-    var isDraggingTtsWindow by remember { mutableStateOf(false) }
-    
-    // 强制刷新悬浮窗的状态
-    var ttsWindowKey by remember { mutableStateOf(0) }
+    // 音频播放控件的位置 - 默认显示在距离屏幕底部240dp处，左右居中
+    var audioControlPosition by remember { 
+        mutableStateOf(IntOffset(
+            ((screenWidthPx - (audioControlWidth * density)) / 2).toInt(), 
+            (screenHeightPx - 270 * density).toInt() // 距离屏幕底部240dp
+        ).toOffset()) 
+    }
     
     // WebView引用 (用于EPUB)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
@@ -194,11 +201,48 @@ fun UnifiedReaderScreen(
     // 检测手势
     var startTouchX by remember { mutableStateOf(0f) }
     
+    // 添加TTS活动状态变量
+    var isTtsActive by remember { mutableStateOf(false) }
+    
     // 初始化TTS
     LaunchedEffect(Unit) {
         viewModel.initTts { status ->
             // TTS初始化完成
-            Log.d("TTS_DEBUG", "TTS初始化完成，状态: $status")
+            if (status != TextToSpeech.SUCCESS) {
+                Toast.makeText(context, "TTS引擎初始化失败", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    
+    // 监听TTS状态变化
+    LaunchedEffect(ttsState) {
+        // 根据TTS状态决定是否显示控件
+        val ttsIsActive = ttsState.status != TtsManager.STATUS_STOPPED
+        
+        // 更新isTtsActive变量，保持与全局TTS状态一致
+        isTtsActive = ttsIsActive
+        
+        // 只有当控制栏显示且TTS活跃时才显示音频控件
+        showAudioControl = showControls && ttsIsActive
+        
+        // 如果正在某页朗读，但当前页面不是朗读页，可以添加提示或自动跳转
+        if (ttsIsActive && ttsState.currentPage > 0 && ttsState.currentPage != uiState.currentPage) {
+            // 可以选择自动跳转到朗读页面
+            // viewModel.navigateToTtsPage()
+            
+            // 或者显示提示
+            Toast.makeText(
+                context, 
+                "正在第${ttsState.currentPage + 1}页朗读", 
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    // 监听TTS活动状态变化
+    LaunchedEffect(isTtsActive) {
+        if (isTtsActive) {
+            showAudioControl = true
         }
     }
     
@@ -245,15 +289,6 @@ fun UnifiedReaderScreen(
         }
     }
     
-    var isTtsActive by remember { mutableStateOf(false) }
-    
-    // 监听TTS状态变化
-    LaunchedEffect(isTtsActive) {
-        if (isTtsActive) {
-            showTtsFloatingWindow = true
-        }
-    }
-    
     // 语音合成对话框状态
     var showSynthesisDialog by remember { mutableStateOf(false) }
     
@@ -277,15 +312,8 @@ fun UnifiedReaderScreen(
                 }
             }
             
-            // 根据状态显示进度对话框
-            when (state.status) {
-                TtsSynthesisService.STATUS_PREPARING, 
-                TtsSynthesisService.STATUS_SYNTHESIZING -> {
-                    showSynthesisProgressDialog = true
-                }
-                // 完成、错误或取消状态不再自动关闭对话框
-                // 让用户看到结果后手动关闭
-            }
+            // 不再在这里控制对话框的显示与隐藏
+            // 只有在合成完成、出错或取消时，才允许用户手动关闭对话框
         }
     }
     
@@ -372,9 +400,9 @@ fun UnifiedReaderScreen(
                                     showMenu = false
                                     isTtsActive = viewModel.toggleTts() 
                                     if (isTtsActive) {
-                                        showTtsFloatingWindow = true
+                                        showAudioControl = true
                                     } else {
-                                        showTtsFloatingWindow = false
+                                        showAudioControl = false
                                     }
                                 },
                                 leadingIcon = {
@@ -551,27 +579,39 @@ fun UnifiedReaderScreen(
                         // 朗读本页按钮 - 从图标按钮改为文字按钮
                         androidx.compose.material3.Button(
                             onClick = { 
-                                Log.d("TTS_DEBUG", "点击朗读本页按钮")
-                                isTtsActive = viewModel.toggleTts()
-                                Log.d("TTS_DEBUG", "toggleTts返回: $isTtsActive")
-                                
-                                if (isTtsActive) {
-                                    showTtsFloatingWindow = true
-                                    ttsWindowKey++ // 强制刷新悬浮窗
-                                    Log.d("TTS_DEBUG", "设置showTtsFloatingWindow = true")
-                                } else {
-                                    showTtsFloatingWindow = false
-                                    Log.d("TTS_DEBUG", "设置showTtsFloatingWindow = false")
+                                when (ttsState.status) {
+                                    TtsManager.STATUS_STOPPED -> {
+                                        // 从停止状态开始朗读本页
+                                        viewModel.toggleTts()
+                                    }
+                                    TtsManager.STATUS_PAUSED -> {
+                                        // 从暂停状态重新开始朗读本页（先停止再开始）
+                                        viewModel.stopTts()
+                                        viewModel.toggleTts()
+                                    }
+                                    else -> {
+                                        // 其他状态不应该触发点击
+                                    }
                                 }
                             },
+                            enabled = ttsState.status != TtsManager.STATUS_PLAYING, // 如果正在朗读状态，禁用按钮
                             colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = if (isTtsActive) Color(0xFF64B5F6) else themeBlue,
-                                contentColor = whiteText
-                            )
+                                containerColor = if (ttsState.status != TtsManager.STATUS_STOPPED) Color(0xFF64B5F6) else themeBlue,
+                                contentColor = whiteText,
+                                disabledContainerColor = Color(0xFF808080) // 明显的灰色背景
+                            ),
+                            modifier = Modifier.graphicsLayer {
+                                // 当处于朗读状态时，降低按钮透明度，增强灰色效果
+                                alpha = if (ttsState.status == TtsManager.STATUS_PLAYING) 0.7f else 1.0f
+                            }
                         ) {
                             Text(
-                                text = if (isTtsActive) "停止朗读" else "朗读本页",
-                                color = whiteText
+                                text = when (ttsState.status) {
+                                    TtsManager.STATUS_PLAYING -> "朗读中..."
+                                    TtsManager.STATUS_PAUSED -> "已暂停"
+                                    else -> "朗读本页"
+                                },
+                                color = if (ttsState.status == TtsManager.STATUS_PLAYING) Color.LightGray else whiteText
                             )
                         }
                         
@@ -628,8 +668,8 @@ fun UnifiedReaderScreen(
                                 if (showControls) {
                                     // 当控制栏显示时，任何区域点击都会隐藏控制栏和朗读悬浮窗
                                     showControls = false
-                                    if (showTtsFloatingWindow) {
-                                        showTtsFloatingWindow = false
+                                    if (showAudioControl) {
+                                        showAudioControl = false
                                     }
                                 } else {
                                     // 控制栏隐藏时
@@ -644,10 +684,10 @@ fun UnifiedReaderScreen(
                                     // 点击中间区域，同时显示控制栏和朗读控制悬浮窗
                                     else {
                                         showControls = true
-                                        if (isTtsActive) {
-                                            showTtsFloatingWindow = true
-                                            ttsWindowKey++ // 强制刷新悬浮窗
-                                            Log.d("TTS_DEBUG", "中间区域点击，设置showTtsFloatingWindow = true")
+                                        // 如果TTS处于朗读状态或暂停状态，显示音频控制悬浮窗
+                                        if (ttsState.status == TtsManager.STATUS_PLAYING || 
+                                            ttsState.status == TtsManager.STATUS_PAUSED) {
+                                            showAudioControl = true
                                         }
                                     }
                                 }
@@ -714,7 +754,7 @@ fun UnifiedReaderScreen(
                                                 if (showControls) {
                                                     // 当控制栏显示时，任何区域点击都会隐藏控制栏和朗读悬浮窗
                                                     showControls = false
-                                                    showTtsFloatingWindow = false
+                                                    showAudioControl = false
                                                 } else {
                                                     // 控制栏隐藏时
                                                     // 点击左侧1/3区域，向前翻页
@@ -728,8 +768,10 @@ fun UnifiedReaderScreen(
                                                     // 点击中间区域，同时显示控制栏和朗读控制悬浮窗
                                                     else {
                                                         showControls = true
-                                                        if (isTtsActive) {
-                                                            showTtsFloatingWindow = true
+                                                        // 如果TTS处于朗读状态或暂停状态，显示音频控制悬浮窗
+                                                        if (ttsState.status == TtsManager.STATUS_PLAYING || 
+                                                            ttsState.status == TtsManager.STATUS_PAUSED) {
+                                                            showAudioControl = true
                                                         }
                                                     }
                                                 }
@@ -892,100 +934,38 @@ fun UnifiedReaderScreen(
                     }
                 }
                 
-                // TTS朗读控制悬浮窗 - 放在内容区域内，使用Popup
-                if (showTtsFloatingWindow) {
-                    Log.d("TTS_DEBUG", "准备显示悬浮窗，key: $ttsWindowKey")
-                    Popup(
-                        alignment = Alignment.TopStart,
-                        offset = IntOffset(ttsWindowPosition.x.roundToInt(), ttsWindowPosition.y.roundToInt())
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .shadow(4.dp, shape = MaterialTheme.shapes.extraLarge)
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onPress = { offset ->
-                                            isDraggingTtsWindow = true
-                                            awaitRelease()
-                                            isDraggingTtsWindow = false
-                                        }
-                                    )
-                                }
-                                .pointerInput(Unit) {
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            val dragEvent = event.changes.firstOrNull()
-                                            if (dragEvent != null && dragEvent.pressed && isDraggingTtsWindow) {
-                                                dragEvent.consume()
-                                                val dragAmount = dragEvent.position - dragEvent.previousPosition
-                                                ttsWindowPosition = Offset(
-                                                    x = (ttsWindowPosition.x + dragAmount.x).coerceIn(0f, screenWidthPx - (floatingWindowWidth * density)),
-                                                    y = (ttsWindowPosition.y + dragAmount.y).coerceIn(0f, 800f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                },
-                            shape = MaterialTheme.shapes.extraLarge,
-                            color = Color(0xFF2C3E50) // 不透明的深蓝色背景
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .width(floatingWindowWidth.dp)
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // 播放/暂停按钮
-                                IconButton(
-                                    onClick = {
-                                        // 切换播放/暂停状态
-                                        isTtsActive = !isTtsActive
-                                        if (isTtsActive) {
-                                            viewModel.resumeTts()
-                                        } else {
-                                            viewModel.pauseTts()
-                                        }
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = if (isTtsActive) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isTtsActive) "暂停" else "播放",
-                                        tint = Color.White
-                                    )
-                                }
-                                
-                                // 停止按钮
-                                IconButton(
-                                    onClick = {
-                                        isTtsActive = false
-                                        viewModel.stopTts()
-                                        showTtsFloatingWindow = false
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Stop,
-                                        contentDescription = "停止",
-                                        tint = Color.White
-                                    )
-                                }
-                                
-                                // 书籍列表按钮（三个横线）
-                                IconButton(
-                                    onClick = {
-                                        // 显示正在播放的书籍列表，这里暂时只有一本
-                                        Toast.makeText(context, "当前只有一本书在朗读", Toast.LENGTH_SHORT).show()
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.List,
-                                        contentDescription = "播放列表",
-                                        tint = Color.White
-                                    )
-                                }
+                // 添加AudioPlayerControl组件
+                if (showAudioControl) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .offset { 
+                                IntOffset(
+                                    audioControlPosition.x.roundToInt(), 
+                                    audioControlPosition.y.roundToInt()
+                                ) 
                             }
-                        }
+                    ) {
+                        AudioPlayerControl(
+                            ttsStatus = ttsState.status,
+                            onPlayPause = {
+                                if (ttsState.status == TtsManager.STATUS_PLAYING) {
+                                    viewModel.pauseTts()
+                                } else {
+                                    viewModel.resumeTts()
+                                }
+                            },
+                            onStop = {
+                                viewModel.stopTts()
+                            },
+                            onOffsetChange = { offset ->
+                                audioControlPosition = audioControlPosition.copy(
+                                    x = (audioControlPosition.x + offset.x).coerceIn(0f, screenWidthPx - (audioControlWidth * density)),
+                                    y = (audioControlPosition.y + offset.y).coerceIn(0f, screenHeightPx - 240 * density)
+                                )
+                            },
+                            modifier = Modifier.width(audioControlWidth.dp)
+                        )
                     }
                 }
             }
@@ -1176,6 +1156,7 @@ fun UnifiedReaderScreen(
                 onStartSynthesis = { params ->
                     viewModel.startSynthesis(params)
                     showSynthesisDialog = false
+                    // 立即显示进度对话框，不等待状态更新
                     showSynthesisProgressDialog = true
                 },
                 // 添加内容检查
@@ -1185,25 +1166,31 @@ fun UnifiedReaderScreen(
         
         // 添加语音合成进度对话框
         if (showSynthesisProgressDialog) {
-            synthesisState?.let { state ->
-                SynthesisProgressDialog(
-                    progress = state.progress,
-                    message = state.message,
-                    onDismiss = {
-                        // 允许在错误、完成或取消状态下点击外部关闭
-                        if (state.status == TtsSynthesisService.STATUS_ERROR || 
-                            state.status == TtsSynthesisService.STATUS_COMPLETED ||
-                            state.status == TtsSynthesisService.STATUS_CANCELED) {
-                            showSynthesisProgressDialog = false
-                        }
-                    },
-                    onCancel = {
-                        viewModel.cancelSynthesis()
-                        // 直接关闭对话框，不等待状态变化
+            // 即使synthesisState为null，也显示一个初始的进度对话框
+            val state = synthesisState ?: SynthesisState(
+                status = TtsSynthesisService.STATUS_PREPARING,
+                message = "正在准备语音合成...",
+                progress = 0
+            )
+            
+            SynthesisProgressDialog(
+                progress = state.progress,
+                message = state.message,
+                onDismiss = {
+                    // 允许在错误、完成或取消状态下点击外部关闭
+                    if (state.status == TtsSynthesisService.STATUS_ERROR || 
+                        state.status == TtsSynthesisService.STATUS_COMPLETED ||
+                        state.status == TtsSynthesisService.STATUS_CANCELED) {
                         showSynthesisProgressDialog = false
                     }
-                )
-            }
+                    // 在合成进行中，点击外部不关闭对话框
+                },
+                onCancel = {
+                    viewModel.cancelSynthesis()
+                    // 点击取消按钮时，直接关闭对话框
+                    showSynthesisProgressDialog = false
+                }
+            )
         }
         
         // 合成语音列表界面
@@ -1275,4 +1262,9 @@ private fun formatTextContent(text: String): List<String> {
     }
     
     return paragraphs.map { it.trim() }
+}
+
+// 将IntOffset转换为Offset的扩展函数
+private fun IntOffset.toOffset(): Offset {
+    return Offset(x.toFloat(), y.toFloat())
 } 

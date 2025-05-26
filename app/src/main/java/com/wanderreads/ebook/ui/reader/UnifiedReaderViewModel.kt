@@ -38,6 +38,7 @@ import com.wanderreads.ebook.domain.model.Record
 import com.wanderreads.ebook.domain.model.SynthesisParams
 import com.wanderreads.ebook.domain.model.SynthesisRange
 import com.wanderreads.ebook.service.TtsSynthesisService
+import com.wanderreads.ebook.service.TtsService
 import com.wanderreads.ebook.ui.settings.SettingsViewModel
 import com.wanderreads.ebook.util.PageDirection
 import com.wanderreads.ebook.util.reader.BookReaderEngine
@@ -60,6 +61,7 @@ import java.util.Date
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 import android.os.Environment
+import com.wanderreads.ebook.util.TtsManager
 
 /**
  * 统一的阅读器ViewModel
@@ -83,13 +85,35 @@ class UnifiedReaderViewModel(
     private val _uiState = MutableStateFlow(UnifiedReaderUiState())
     val uiState: StateFlow<UnifiedReaderUiState> = _uiState.asStateFlow()
     
-    // TTS引擎
-    private var tts: TextToSpeech? = null
-    private var isTtsActive = false
+    // TTS管理器
+    private val ttsManager = TtsManager.getInstance(getApplication())
+    
+    // TTS状态
+    val ttsState = ttsManager.ttsState
     
     // 静音检测相关
     private var silenceDetectionJob: kotlinx.coroutines.Job? = null
     private var lastAudioActivity = 0L
+    
+    // TTS服务相关
+    private var ttsService: TtsService? = null
+    private var ttsServiceBound = false
+    
+    // TTS服务连接
+    private val ttsServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as TtsService.LocalBinder
+            ttsService = binder.getService()
+            ttsServiceBound = true
+            Log.d(TAG, "TTS服务已连接")
+        }
+        
+        override fun onServiceDisconnected(name: ComponentName?) {
+            ttsService = null
+            ttsServiceBound = false
+            Log.d(TAG, "TTS服务已断开")
+        }
+    }
     
     // 语音合成服务
     private var ttsSynthesisService: TtsSynthesisService? = null
@@ -99,24 +123,25 @@ class UnifiedReaderViewModel(
     private val _synthesisState = MutableStateFlow<TtsSynthesisService.SynthesisState?>(null)
     val synthesisState: StateFlow<TtsSynthesisService.SynthesisState?> = _synthesisState.asStateFlow()
     
-    // 服务连接
-    private val serviceConnection = object : ServiceConnection {
+    // 语音合成服务连接
+    private val synthServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as TtsSynthesisService.LocalBinder
             ttsSynthesisService = binder.getService()
             serviceBound = true
+            Log.d(TAG, "语音合成服务已连接")
             
-            // 开始监听合成状态
-            viewModelScope.launch {
-                ttsSynthesisService?.synthesisState?.collect { state ->
-                    _synthesisState.value = state
-                }
+            // 如果有待处理的合成任务，可以在这里执行
+            if (_uiState.value.message == "正在准备语音合成...") {
+                // 通知用户服务已连接
+                _uiState.update { it.copy(message = "语音合成服务已连接，正在准备...") }
             }
         }
         
         override fun onServiceDisconnected(name: ComponentName?) {
             ttsSynthesisService = null
             serviceBound = false
+            Log.d(TAG, "语音合成服务已断开")
         }
     }
     
@@ -132,6 +157,33 @@ class UnifiedReaderViewModel(
         loadBook()
         bindSynthesisService()
         loadSynthesizedAudioList()
+        
+        // 观察TTS状态
+        viewModelScope.launch {
+            ttsState.collect { state ->
+                // 当TTS状态更新时，可以在这里执行其他操作
+                // 例如，如果TTS读完了一页但状态是继续读，就自动翻页
+                if (state.status == TtsManager.STATUS_PLAYING && state.pageCompleted) {
+                    // 当前页朗读完成，检查是否有下一页
+                    readerEngine?.let { engine ->
+                        if (engine.hasNextPage()) {
+                            // 有下一页，自动翻页并继续朗读
+                            navigatePage(PageDirection.NEXT)
+                            // 重置pageCompleted状态
+                            ttsManager.resetPageCompletedFlag()
+                            // 朗读新页面
+                            val nextPageText = engine.getCurrentPageText()
+                            if (!nextPageText.isNullOrBlank()) {
+                                ttsManager.startReading(bookId, _uiState.value.currentPage, nextPageText)
+                            }
+                        } else {
+                            // 已到最后一页，停止朗读
+                            ttsManager.stopReading()
+                        }
+                    }
+                }
+            }
+        }
     }
     
     /**
@@ -208,52 +260,54 @@ class UnifiedReaderViewModel(
     /**
      * 初始化TTS
      */
-    fun initTts(onInitListener: (status: Int) -> Unit) {
-        if (tts == null) {
-            Log.d(TAG, "开始初始化TTS引擎")
-            tts = TextToSpeech(getApplication()) { status ->
-                if (status == TextToSpeech.SUCCESS) {
-                    Log.d(TAG, "TTS引擎初始化成功")
-                    tts?.language = Locale.CHINESE
-                    
-                    // 设置TTS进度监听器
-                    tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                        override fun onStart(utteranceId: String) {
-                            Log.d(TAG, "开始朗读: $utteranceId")
-                        }
-                        
-                        override fun onDone(utteranceId: String) {
-                            Log.d(TAG, "朗读完成: $utteranceId")
-                            
-                            // 如果还在朗读模式，自动朗读下一页
-                            if (isTtsActive) {
-                                viewModelScope.launch {
-                                    if (readerEngine?.hasNextPage() == true) {
-                                        navigatePage(PageDirection.NEXT)
-                                    } else {
-                                        // 已到最后一页，停止朗读
-                                        Log.d(TAG, "已到最后一页，停止朗读")
-                                        isTtsActive = false
-                                    }
-                                }
-                            }
-                        }
-                        
-                        override fun onError(utteranceId: String) {
-                            Log.e(TAG, "朗读错误: $utteranceId")
-                            isTtsActive = false
-                        }
-                    })
-                    
-                    readerEngine?.initTts(tts!!)
-                } else {
-                    Log.e(TAG, "TTS引擎初始化失败，状态码: $status")
-                }
-                onInitListener(status)
+    fun initTts(onInitComplete: (Int) -> Unit) {
+        viewModelScope.launch {
+            val success = ttsManager.initialize()
+            if (success) {
+                // 初始化成功，绑定TTS服务
+                bindTtsService()
+                onInitComplete(TextToSpeech.SUCCESS)
+            } else {
+                // 初始化失败
+                onInitComplete(TextToSpeech.ERROR)
             }
-        } else {
-            Log.d(TAG, "TTS引擎已初始化")
-            onInitListener(TextToSpeech.SUCCESS)
+        }
+    }
+    
+    /**
+     * 绑定TTS服务
+     */
+    private fun bindTtsService() {
+        try {
+            val intent = Intent(getApplication(), TtsService::class.java)
+            // 添加书籍标题信息
+            _uiState.value.book?.let { book ->
+                intent.putExtra("bookTitle", book.title)
+            }
+            getApplication<Application>().bindService(
+                intent,
+                ttsServiceConnection,
+                Context.BIND_AUTO_CREATE
+            )
+            ttsServiceBound = true
+            Log.d(TAG, "开始绑定TTS服务")
+        } catch (e: Exception) {
+            Log.e(TAG, "绑定TTS服务失败", e)
+        }
+    }
+    
+    /**
+     * 解绑TTS服务
+     */
+    private fun unbindTtsService() {
+        if (ttsServiceBound) {
+            try {
+                getApplication<Application>().unbindService(ttsServiceConnection)
+                ttsServiceBound = false
+                Log.d(TAG, "解绑TTS服务")
+            } catch (e: Exception) {
+                Log.e(TAG, "解绑TTS服务失败", e)
+            }
         }
     }
     
@@ -261,74 +315,107 @@ class UnifiedReaderViewModel(
      * 开始或停止朗读
      */
     fun toggleTts(): Boolean {
-        Log.d(TAG, "调用toggleTts，当前状态: $isTtsActive")
-        isTtsActive = !isTtsActive
+        val currentState = ttsState.value.status
         
-        if (isTtsActive) {
-            Log.d(TAG, "开始朗读当前页面")
-            speakCurrentPage()
-        } else {
-            Log.d(TAG, "停止朗读")
-            tts?.stop()
+        return when (currentState) {
+            TtsManager.STATUS_STOPPED -> {
+                // 如果是停止状态，开始朗读
+                startReading()
+                true
+            }
+            TtsManager.STATUS_PLAYING -> {
+                // 如果是朗读状态，暂停朗读
+                ttsManager.pauseReading()
+                false
+            }
+            TtsManager.STATUS_PAUSED -> {
+                // 如果是暂停状态，继续朗读
+                ttsManager.resumeReading()
+                true
+            }
+            else -> false
+        }
+    }
+    
+    /**
+     * 开始朗读当前页面
+     */
+    private fun startReading() {
+        val textToSpeak = readerEngine?.getCurrentPageText() ?: return
+        if (textToSpeak.isBlank()) return
+        
+        val currentPage = _uiState.value.currentPage
+        
+        // 如果未绑定TTS服务，先启动并绑定服务
+        if (!ttsServiceBound) {
+            startAndBindTtsService()
         }
         
-        return isTtsActive
+        // 重置页面完成标志
+        ttsManager.resetPageCompletedFlag()
+        
+        // 开始朗读
+        ttsManager.startReading(bookId, currentPage, textToSpeak)
+    }
+    
+    /**
+     * 启动并绑定TTS服务
+     */
+    private fun startAndBindTtsService() {
+        val serviceIntent = Intent(getApplication(), TtsService::class.java).apply {
+            putExtra("bookTitle", _uiState.value.book?.title ?: "")
+        }
+        
+        // 启动服务
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            getApplication<Application>().startForegroundService(serviceIntent)
+        } else {
+            getApplication<Application>().startService(serviceIntent)
+        }
+        
+        // 绑定服务
+        getApplication<Application>().bindService(
+            serviceIntent,
+            ttsServiceConnection,
+            Context.BIND_AUTO_CREATE
+        )
     }
     
     /**
      * 暂停朗读
      */
     fun pauseTts() {
-        Log.d(TAG, "暂停朗读")
-        if (tts?.isSpeaking == true) {
-            tts?.stop()
-        }
+        ttsManager.pauseReading()
     }
     
     /**
      * 继续朗读
      */
     fun resumeTts() {
-        Log.d(TAG, "继续朗读")
-        if (tts?.isSpeaking == false) {
-            speakCurrentPage()
-        }
+        ttsManager.resumeReading()
     }
     
     /**
      * 停止朗读
      */
     fun stopTts() {
-        Log.d(TAG, "停止朗读")
-        isTtsActive = false
-        tts?.stop()
+        ttsManager.stopReading()
     }
     
     /**
-     * 朗读当前页面
+     * 获取当前TTS状态
      */
-    private fun speakCurrentPage() {
-        val textToSpeak = readerEngine?.getCurrentPageText()
-        
-        if (textToSpeak.isNullOrEmpty()) {
-            Log.e(TAG, "获取当前页面文本失败或文本为空")
-            isTtsActive = false
-            return
-        }
-        
-        Log.d(TAG, "准备朗读文本，长度: ${textToSpeak.length}")
-        
-        if (textToSpeak.isNotEmpty() && isTtsActive) {
-            val params = Bundle()
-            val utteranceId = "TTS_${UUID.randomUUID()}"
-            val result = tts?.speak(
-                textToSpeak,
-                TextToSpeech.QUEUE_FLUSH,
-                params,
-                utteranceId
-            )
-            
-            Log.d(TAG, "TTS.speak调用结果: $result")
+    fun getTtsStatus(): Int {
+        return ttsState.value.status
+    }
+    
+    /**
+     * 跳转到TTS正在朗读的页面
+     */
+    fun navigateToTtsPage() {
+        val ttsPage = ttsState.value.currentPage
+        if (ttsPage > 0) {
+            goToPage(ttsPage)
         }
     }
     
@@ -337,10 +424,8 @@ class UnifiedReaderViewModel(
      */
     fun navigatePage(direction: PageDirection) {
         viewModelScope.launch {
-            if (isTtsActive) {
-                // 如果正在朗读，先停止当前页的朗读
-                tts?.stop()
-            }
+            // 翻页不应该影响TTS朗读状态
+            // TTS朗读是全局事件，翻页时不应该暂停或停止朗读
             
             readerEngine?.navigatePage(direction)
             
@@ -353,11 +438,6 @@ class UnifiedReaderViewModel(
                     )
                 }
             }
-            
-            // 如果正在朗读，自动朗读新的页面
-            if (isTtsActive) {
-                speakCurrentPage()
-            }
         }
     }
     
@@ -366,10 +446,7 @@ class UnifiedReaderViewModel(
      */
     fun goToPage(page: Int) {
         viewModelScope.launch {
-            if (isTtsActive) {
-                // 如果正在朗读，先停止
-                tts?.stop()
-            }
+            // 跳转页面不应该影响TTS朗读状态
             
             readerEngine?.goToPage(page)
             
@@ -382,11 +459,6 @@ class UnifiedReaderViewModel(
                     )
                 }
             }
-            
-            // 如果正在朗读，自动朗读新的页面
-            if (isTtsActive) {
-                speakCurrentPage()
-            }
         }
     }
     
@@ -395,10 +467,7 @@ class UnifiedReaderViewModel(
      */
     fun goToChapter(chapterIndex: Int) {
         viewModelScope.launch {
-            if (isTtsActive) {
-                // 如果正在朗读，先停止
-                tts?.stop()
-            }
+            // 跳转章节不应该影响TTS朗读状态
             
             readerEngine?.goToChapter(chapterIndex)
             
@@ -410,11 +479,6 @@ class UnifiedReaderViewModel(
                         chapterTitle = engine.getCurrentChapterTitle()
                     )
                 }
-            }
-            
-            // 如果正在朗读，自动朗读新的页面
-            if (isTtsActive) {
-                speakCurrentPage()
             }
         }
     }
@@ -516,12 +580,17 @@ class UnifiedReaderViewModel(
             saveReadingProgress()
             
             // 停止TTS
-            tts?.stop()
-            tts?.shutdown()
-            tts = null
+            ttsManager.stopReading()
             
-            // 解绑合成服务
-            unbindSynthesisService()
+            // 解绑TTS服务
+            unbindTtsService()
+            
+            // 如果使用了@Composable层面的remember，注意这里不会被调用
+            // 仅在ViewModel实际被清除时才会被调用
+            if (serviceBound) {
+                getApplication<Application>().unbindService(synthServiceConnection)
+                serviceBound = false
+            }
             
             readerEngine?.close()
             readerEngine = null
@@ -543,7 +612,7 @@ class UnifiedReaderViewModel(
         getApplication<Application>().startService(intent)
         getApplication<Application>().bindService(
             intent,
-            serviceConnection,
+            synthServiceConnection,
             Context.BIND_AUTO_CREATE
         )
     }
@@ -553,7 +622,7 @@ class UnifiedReaderViewModel(
      */
     private fun unbindSynthesisService() {
         if (serviceBound) {
-            getApplication<Application>().unbindService(serviceConnection)
+            getApplication<Application>().unbindService(synthServiceConnection)
             serviceBound = false
         }
     }
@@ -644,6 +713,9 @@ class UnifiedReaderViewModel(
         val callback = object : TtsSynthesisService.SynthesisCallback {
             override fun onProgress(progress: Int) {
                 // 进度回调，更新UI
+                _uiState.update { it.copy(
+                    message = "正在合成语音...（${progress}%）"
+                ) }
             }
             
             override fun onCompleted(outputPath: String) {
