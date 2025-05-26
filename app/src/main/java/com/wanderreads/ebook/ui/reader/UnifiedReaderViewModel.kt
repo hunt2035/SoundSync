@@ -206,12 +206,14 @@ class UnifiedReaderViewModel(
     }
     
     /**
-     * 初始化文本朗读
+     * 初始化TTS
      */
     fun initTts(onInitListener: (status: Int) -> Unit) {
         if (tts == null) {
+            Log.d(TAG, "开始初始化TTS引擎")
             tts = TextToSpeech(getApplication()) { status ->
                 if (status == TextToSpeech.SUCCESS) {
+                    Log.d(TAG, "TTS引擎初始化成功")
                     tts?.language = Locale.CHINESE
                     
                     // 设置TTS进度监听器
@@ -230,6 +232,7 @@ class UnifiedReaderViewModel(
                                         navigatePage(PageDirection.NEXT)
                                     } else {
                                         // 已到最后一页，停止朗读
+                                        Log.d(TAG, "已到最后一页，停止朗读")
                                         isTtsActive = false
                                     }
                                 }
@@ -243,10 +246,13 @@ class UnifiedReaderViewModel(
                     })
                     
                     readerEngine?.initTts(tts!!)
+                } else {
+                    Log.e(TAG, "TTS引擎初始化失败，状态码: $status")
                 }
                 onInitListener(status)
             }
         } else {
+            Log.d(TAG, "TTS引擎已初始化")
             onInitListener(TextToSpeech.SUCCESS)
         }
     }
@@ -255,11 +261,14 @@ class UnifiedReaderViewModel(
      * 开始或停止朗读
      */
     fun toggleTts(): Boolean {
+        Log.d(TAG, "调用toggleTts，当前状态: $isTtsActive")
         isTtsActive = !isTtsActive
         
         if (isTtsActive) {
+            Log.d(TAG, "开始朗读当前页面")
             speakCurrentPage()
         } else {
+            Log.d(TAG, "停止朗读")
             tts?.stop()
         }
         
@@ -270,6 +279,7 @@ class UnifiedReaderViewModel(
      * 暂停朗读
      */
     fun pauseTts() {
+        Log.d(TAG, "暂停朗读")
         if (tts?.isSpeaking == true) {
             tts?.stop()
         }
@@ -279,6 +289,7 @@ class UnifiedReaderViewModel(
      * 继续朗读
      */
     fun resumeTts() {
+        Log.d(TAG, "继续朗读")
         if (tts?.isSpeaking == false) {
             speakCurrentPage()
         }
@@ -288,6 +299,7 @@ class UnifiedReaderViewModel(
      * 停止朗读
      */
     fun stopTts() {
+        Log.d(TAG, "停止朗读")
         isTtsActive = false
         tts?.stop()
     }
@@ -296,17 +308,27 @@ class UnifiedReaderViewModel(
      * 朗读当前页面
      */
     private fun speakCurrentPage() {
-        val textToSpeak = readerEngine?.getCurrentPageText() ?: return
+        val textToSpeak = readerEngine?.getCurrentPageText()
+        
+        if (textToSpeak.isNullOrEmpty()) {
+            Log.e(TAG, "获取当前页面文本失败或文本为空")
+            isTtsActive = false
+            return
+        }
+        
+        Log.d(TAG, "准备朗读文本，长度: ${textToSpeak.length}")
         
         if (textToSpeak.isNotEmpty() && isTtsActive) {
             val params = Bundle()
             val utteranceId = "TTS_${UUID.randomUUID()}"
-            tts?.speak(
+            val result = tts?.speak(
                 textToSpeak,
                 TextToSpeech.QUEUE_FLUSH,
                 params,
                 utteranceId
             )
+            
+            Log.d(TAG, "TTS.speak调用结果: $result")
         }
     }
     

@@ -108,6 +108,11 @@ import com.wanderreads.ebook.service.TtsSynthesisService
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.WindowInsets
+import android.util.Log
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.offset
 
 /**
  * 统一阅读器屏幕
@@ -171,11 +176,14 @@ fun UnifiedReaderScreen(
     // 控制朗读悬浮窗的显示
     var showTtsFloatingWindow by remember { mutableStateOf(false) }
     
-    // 控制朗读悬浮窗的位置 - 默认显示在屏幕中央偏下的位置
-    var ttsWindowPosition by remember { mutableStateOf(Offset((screenWidthPx / 4).toFloat(), 400f)) }
+    // 控制朗读悬浮窗的位置 - 默认显示在屏幕中央
+    var ttsWindowPosition by remember { mutableStateOf(Offset(screenWidthPx / 2f - (floatingWindowWidth * density / 2), screenWidthPx / 3f)) }
     
     // 记录朗读悬浮窗的拖动状态
     var isDraggingTtsWindow by remember { mutableStateOf(false) }
+    
+    // 强制刷新悬浮窗的状态
+    var ttsWindowKey by remember { mutableStateOf(0) }
     
     // WebView引用 (用于EPUB)
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
@@ -190,6 +198,7 @@ fun UnifiedReaderScreen(
     LaunchedEffect(Unit) {
         viewModel.initTts { status ->
             // TTS初始化完成
+            Log.d("TTS_DEBUG", "TTS初始化完成，状态: $status")
         }
     }
     
@@ -541,11 +550,17 @@ fun UnifiedReaderScreen(
                         
                         // 朗读图标
                         IconButton(onClick = { 
+                            Log.d("TTS_DEBUG", "点击朗读图标")
                             isTtsActive = viewModel.toggleTts()
+                            Log.d("TTS_DEBUG", "toggleTts返回: $isTtsActive")
+                            
                             if (isTtsActive) {
                                 showTtsFloatingWindow = true
+                                ttsWindowKey++ // 强制刷新悬浮窗
+                                Log.d("TTS_DEBUG", "设置showTtsFloatingWindow = true")
                             } else {
                                 showTtsFloatingWindow = false
+                                Log.d("TTS_DEBUG", "设置showTtsFloatingWindow = false")
                             }
                         }) {
                             Icon(
@@ -632,13 +647,15 @@ fun UnifiedReaderScreen(
         ) {
             // TTS朗读控制悬浮窗
             if (showTtsFloatingWindow) {
-                Popup {
+                Log.d("TTS_DEBUG", "准备显示悬浮窗，key: $ttsWindowKey")
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(10f) // 确保悬浮窗在最上层
+                ) {
                     Box(
                         modifier = Modifier
-                            .graphicsLayer {
-                                translationX = ttsWindowPosition.x
-                                translationY = ttsWindowPosition.y
-                            }
+                            .offset { IntOffset(ttsWindowPosition.x.roundToInt(), ttsWindowPosition.y.roundToInt()) }
                     ) {
                         Surface(
                             modifier = Modifier
@@ -760,6 +777,8 @@ fun UnifiedReaderScreen(
                                         showControls = true
                                         if (isTtsActive) {
                                             showTtsFloatingWindow = true
+                                            ttsWindowKey++ // 强制刷新悬浮窗
+                                            Log.d("TTS_DEBUG", "中间区域点击，设置showTtsFloatingWindow = true")
                                         }
                                     }
                                 }
