@@ -241,7 +241,7 @@ fun UnifiedReaderScreen(
     
     // 监听TTS活动状态变化
     LaunchedEffect(isTtsActive) {
-        if (isTtsActive) {
+        if (isTtsActive && showControls) {
             showAudioControl = true
         }
     }
@@ -399,7 +399,7 @@ fun UnifiedReaderScreen(
                                 onClick = { 
                                     showMenu = false
                                     isTtsActive = viewModel.toggleTts() 
-                                    if (isTtsActive) {
+                                    if (isTtsActive && showControls) {
                                         showAudioControl = true
                                     } else {
                                         showAudioControl = false
@@ -608,7 +608,7 @@ fun UnifiedReaderScreen(
                             Text(
                                 text = when (ttsState.status) {
                                     TtsManager.STATUS_PLAYING -> "朗读中..."
-                                    TtsManager.STATUS_PAUSED -> "已暂停"
+                                    TtsManager.STATUS_PAUSED -> "朗读本页"
                                     else -> "朗读本页"
                                 },
                                 color = if (ttsState.status == TtsManager.STATUS_PLAYING) Color.LightGray else whiteText
@@ -935,7 +935,7 @@ fun UnifiedReaderScreen(
                 }
                 
                 // 添加AudioPlayerControl组件
-                if (showAudioControl) {
+                if (showAudioControl && showControls) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
