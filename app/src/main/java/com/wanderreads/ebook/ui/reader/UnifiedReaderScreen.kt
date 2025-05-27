@@ -184,11 +184,11 @@ fun UnifiedReaderScreen(
     // 音频播放控件的显示
     var showAudioControl by remember { mutableStateOf(false) }
     
-    // 音频播放控件的位置 - 默认显示在距离屏幕底部240dp处，左右居中
+    // 音频播放控件的位置 - 默认显示在距离屏幕底部270dp处，左右居中
     var audioControlPosition by remember { 
         mutableStateOf(IntOffset(
             ((screenWidthPx - (audioControlWidth * density)) / 2).toInt(), 
-            (screenHeightPx - 270 * density).toInt() // 距离屏幕底部240dp
+            (screenHeightPx - 270 * density).toInt() // 距离屏幕底部270dp
         ).toOffset()) 
     }
     
@@ -961,7 +961,7 @@ fun UnifiedReaderScreen(
                             onOffsetChange = { offset ->
                                 audioControlPosition = audioControlPosition.copy(
                                     x = (audioControlPosition.x + offset.x).coerceIn(0f, screenWidthPx - (audioControlWidth * density)),
-                                    y = (audioControlPosition.y + offset.y).coerceIn(0f, screenHeightPx - 240 * density)
+                                    y = (audioControlPosition.y + offset.y).coerceIn(0f, screenHeightPx - 270 * density)
                                 )
                             },
                             modifier = Modifier.width(audioControlWidth.dp)
