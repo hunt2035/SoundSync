@@ -30,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -225,6 +226,9 @@ fun AppNavigation() {
         ) 
     }
     
+    // 收集UI状态
+    val uiState by bookshelfViewModel.uiState.collectAsState()
+    
     // 网址导入对话框状态
     var showWebImportDialog by remember { mutableStateOf(false) }
     // 导入错误状态
@@ -269,11 +273,6 @@ fun AppNavigation() {
                     // 处理导入网页的逻辑
                     bookshelfViewModel.importBookFromUrl(url)
                     showWebImportDialog = false
-                    
-                    // 监听导入错误
-                    bookshelfViewModel.uiState.value.error?.let { error ->
-                        importError = error
-                    }
                 } catch (e: Exception) {
                     importError = "导入失败: ${e.message}"
                 }
@@ -282,8 +281,8 @@ fun AppNavigation() {
     }
     
     // 监听导入状态变化
-    LaunchedEffect(bookshelfViewModel.uiState.value.error) {
-        bookshelfViewModel.uiState.value.error?.let { error ->
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { error ->
             importError = error
         }
     }
