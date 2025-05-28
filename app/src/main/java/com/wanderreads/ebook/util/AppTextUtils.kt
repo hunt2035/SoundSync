@@ -16,7 +16,6 @@ object AppTextUtils {
      */
     private val SENTENCE_DELIMITER_REGEX = Regex(
         "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
-       // "([.!?;:]$)|" +     // 英文标点在行尾
         "[!?;:]|" +         // 英文标点
         "[。！？；：]|" +    // 中文标点
         "\\.{3,}|…{1,}|" +  // 英文省略号和中文省略号
@@ -36,17 +35,40 @@ object AppTextUtils {
     private val LINE_DELIMITER_REGEX = Regex("\\n|\\r\\n")
     
     /**
-     * 将文本分割为句子
+     * 将文本分割为句子，保留句子末尾的分隔符
      * 
      * @param text 要分割的文本
-     * @return 句子列表
+     * @return 句子列表，每个句子包含末尾的分隔符
      */
     fun splitTextIntoSentences(text: String): List<String> {
         if (text.isEmpty()) return emptyList()
         
-        // 使用句子分隔正则表达式分割文本
-        return text.split(SENTENCE_DELIMITER_REGEX)
-            .filter { it.isNotBlank() }  // 过滤空白句子
+        val result = mutableListOf<String>()
+        val matcher = SENTENCE_DELIMITER_REGEX.toPattern().matcher(text)
+        
+        var lastEnd = 0
+        while (matcher.find()) {
+            val start = lastEnd
+            val end = matcher.end()
+            
+            // 提取句子内容（包括分隔符）
+            val sentenceText = text.substring(start, end)
+            if (sentenceText.isNotBlank()) {
+                result.add(sentenceText)
+            }
+            
+            lastEnd = end
+        }
+        
+        // 添加最后一个句子（如果没有分隔符）
+        if (lastEnd < text.length) {
+            val lastSentence = text.substring(lastEnd)
+            if (lastSentence.isNotBlank()) {
+                result.add(lastSentence)
+            }
+        }
+        
+        return result.filter { it.isNotBlank() }  // 过滤空白句子
     }
     
     /**
@@ -89,10 +111,10 @@ object AppTextUtils {
             val start = lastEnd
             val end = matcher.end()
             
-            // 提取句子内容（不包括分隔符）
-            val sentenceText = text.substring(start, matcher.start())
+            // 提取句子内容（包括分隔符）
+            val sentenceText = text.substring(start, end)
             if (sentenceText.isNotBlank()) {
-                result.add(SentenceInfo(sentenceText, start, matcher.start()))
+                result.add(SentenceInfo(sentenceText, start, end))
             }
             
             lastEnd = end

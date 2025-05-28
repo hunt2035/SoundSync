@@ -1174,12 +1174,20 @@ class UnifiedReaderViewModel(
         // 首先对段落进行预处理，去除前后空白
         val trimmedParagraph = paragraph.trim()
         
+        // 由于整个页面就是一个段落，直接返回所有句子
+        if (trimmedParagraph == pageSentences.joinToString("")) {
+            return pageSentences
+        }
+        
         // 遍历整个页面的句子序列
+        var currentPosition = 0
         for (sentence in pageSentences) {
-            // 如果句子是段落的一部分，则添加到结果列表中
-            // 使用trimmed版本进行比较，避免空白字符导致的匹配问题
-            if (trimmedParagraph.contains(sentence)) {
+            // 在段落中查找当前句子
+            val sentenceStart = trimmedParagraph.indexOf(sentence, currentPosition)
+            
+            if (sentenceStart >= 0) {
                 result.add(sentence)
+                currentPosition = sentenceStart + sentence.length
             }
         }
         
