@@ -95,6 +95,9 @@ class TtsManager private constructor(private val context: Context) {
                                         currentSentenceIndex = sentenceIndex,
                                         currentSentence = sentencesList[sentenceIndex]
                                     )
+                                    
+                                    // 记录日志，便于调试
+                                    Log.d(TAG, "高亮句子: ${sentencesList[sentenceIndex]}")
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "解析utteranceId失败", e)

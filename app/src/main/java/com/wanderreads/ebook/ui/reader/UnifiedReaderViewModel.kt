@@ -1168,11 +1168,30 @@ class UnifiedReaderViewModel(
         // 如果段落为空，返回空列表
         if (paragraph.isEmpty()) return emptyList()
         
-        // 分割段落中的句子
-        val paragraphSentences = com.wanderreads.ebook.util.AppTextUtils.splitTextIntoSentences(paragraph)
+        // 从整个页面的句子序列中找出属于这个段落的句子
+        val result = mutableListOf<String>()
         
-        // 返回段落中的句子列表
-        return paragraphSentences
+        // 首先对段落进行预处理，去除前后空白
+        val trimmedParagraph = paragraph.trim()
+        
+        // 遍历整个页面的句子序列
+        for (sentence in pageSentences) {
+            // 如果句子是段落的一部分，则添加到结果列表中
+            // 使用trimmed版本进行比较，避免空白字符导致的匹配问题
+            if (trimmedParagraph.contains(sentence)) {
+                result.add(sentence)
+            }
+        }
+        
+        // 如果没有找到任何句子，可能是因为段落包含特殊格式
+        // 在这种情况下，我们直接使用整个段落作为一个句子
+        if (result.isEmpty() && trimmedParagraph.isNotEmpty()) {
+            // 记录日志以便调试
+            Log.d(TAG, "段落未找到匹配句子，使用整个段落: ${trimmedParagraph.take(50)}...")
+            result.add(trimmedParagraph)
+        }
+        
+        return result
     }
 }
 

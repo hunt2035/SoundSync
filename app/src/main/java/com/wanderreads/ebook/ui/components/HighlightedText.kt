@@ -19,6 +19,7 @@ import com.wanderreads.ebook.util.TtsManager
  * @param text 完整的文本内容
  * @param sentences 分割后的句子列表
  * @param highlightIndex 当前高亮的句子索引
+ * @param highlightSentence 当前高亮的句子内容
  * @param isHighlighting 是否处于高亮状态
  * @param ttsStatus TTS当前状态，决定高亮颜色
  * @param textStyle 文本样式
@@ -55,6 +56,13 @@ fun HighlightedText(
         return
     }
     
+    // 获取当前高亮的句子内容
+    val highlightSentence = if (highlightIndex >= 0 && highlightIndex < sentences.size) {
+        sentences[highlightIndex]
+    } else {
+        ""
+    }
+    
     // 构建带有高亮的文本
     val annotatedString = buildAnnotatedString {
         var currentPosition = 0
@@ -73,7 +81,8 @@ fun HighlightedText(
                 }
                 
                 // 添加句子，如果是当前朗读的句子则高亮
-                if (i == highlightIndex) {
+                // 直接比较句子内容，而不是依赖索引
+                if (sentence == highlightSentence && highlightSentence.isNotEmpty()) {
                     withStyle(style = SpanStyle(color = highlightColor)) {
                         append(sentence)
                     }

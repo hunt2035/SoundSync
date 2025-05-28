@@ -925,12 +925,15 @@ fun UnifiedReaderScreen(
                                     .fillMaxSize()
                                     .verticalScroll(rememberScrollState())
                             ) {
-                                formattedText.forEach { paragraph ->
+                                // 由于整个页面就是一个段落，所以这里只有一个元素
+                                if (formattedText.isNotEmpty()) {
+                                    val paragraph = formattedText[0]
                                     if (paragraph.isNotBlank()) {
-                                        // 使用HighlightedText替换原来的Text
+                                        // 从整个页面句子序列中获取该段落对应的句子
+                                        val pageSentences = viewModel.getSentencesForParagraph(paragraph)
                                         HighlightedText(
                                             text = paragraph,
-                                            sentences = viewModel.getSentencesForParagraph(paragraph),
+                                            sentences = pageSentences,
                                             highlightIndex = highlightState.currentSentenceIndex,
                                             isHighlighting = highlightState.isHighlighting && 
                                                 (ttsState.status == TtsManager.STATUS_PLAYING || ttsState.status == TtsManager.STATUS_PAUSED),
@@ -944,8 +947,6 @@ fun UnifiedReaderScreen(
                                                 .fillMaxWidth()
                                                 .padding(vertical = 8.dp)
                                         )
-                                    } else {
-                                        Spacer(modifier = Modifier.height(16.dp))
                                     }
                                 }
                             }
@@ -1270,8 +1271,8 @@ private fun textClickableModifier(onClick: () -> Unit): Modifier {
  * 格式化文本内容，将单个文本字符串分割成段落列表
  */
 private fun formatTextContent(text: String): List<String> {
-    // 使用AppTextUtils中的段落分割方法
-    return AppTextUtils.splitTextIntoParagraphs(text)
+    // 将整个页面作为一个段落返回，不再细分段落
+    return listOf(text)
 }
 
 // 将IntOffset转换为Offset的扩展函数
