@@ -540,8 +540,16 @@ class TtsSynthesisService : Service() {
                     
                     // 如果单个段落就超过了块大小限制，需要进一步分割
                     if (paragraph.length > TEXT_CHUNK_SIZE) {
-                        // 按句子分割大段落
-                        val sentences = paragraph.split(". ", "! ", "? ", "。", "！", "？")
+                        // 按句子分割大段落，使用更精确的句子分隔方式
+                        val sentences = paragraph.split(
+                            Regex(
+                                "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
+                                "([.!?;:]$)|" +         // 英文标点在行尾
+                                "[。！？；：]|" +        // 中文标点
+                                "\\.{3,}|…{1,}"         // 英文省略号和中文省略号
+                            )
+                        ).filter { it.isNotBlank() }    // 过滤空白句子
+                        
                         for (sentence in sentences) {
                             if (currentChunk.length + sentence.length > TEXT_CHUNK_SIZE) {
                                 if (currentChunk.isNotEmpty()) {

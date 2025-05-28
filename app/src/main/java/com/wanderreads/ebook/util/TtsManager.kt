@@ -81,7 +81,18 @@ class TtsManager private constructor(private val context: Context) {
                         // 如果是句子朗读完成，继续读下一句
                         if (utteranceId.startsWith("TTS_SENTENCE_") && _ttsState.value.status == STATUS_PLAYING) {
                             currentSentenceIndex++
-                            val sentences = currentText.split(Regex("[.。!！?？;；]"))
+                            // 更精确的句子分隔正则表达式，处理点+空格的情况，同时增加中英文冒号和省略号
+                            val sentences = currentText.split(
+                                Regex(
+                            // "([.!?;:][\\s\\n])|" +  // 英文标点后跟空白或换行
+                                    "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
+
+                                    "([.!?;:]$)|" +         // 英文标点在行尾
+                                    "[。！？；：]|" +        // 中文标点
+                                    "\\.{3,}|…{1,}"         // 英文省略号和中文省略号
+                                )
+                            ).filter { it.isNotBlank() }    // 过滤空白句子
+                            
                             if (currentSentenceIndex < sentences.size) {
                                 // 继续朗读下一句
                                 speakSentence(sentences[currentSentenceIndex], currentSentenceIndex)
