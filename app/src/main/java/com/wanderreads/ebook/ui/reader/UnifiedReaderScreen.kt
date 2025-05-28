@@ -79,6 +79,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -117,6 +118,7 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.offset
 import com.wanderreads.ebook.ui.components.AudioPlayerControl
 import com.wanderreads.ebook.util.TtsManager
+import com.wanderreads.ebook.ui.components.HighlightedText
 
 /**
  * 统一阅读器屏幕
@@ -203,6 +205,9 @@ fun UnifiedReaderScreen(
     
     // 添加TTS活动状态变量
     var isTtsActive by remember { mutableStateOf(false) }
+    
+    // 收集高亮状态
+    val highlightState by viewModel.highlightState.collectAsState()
     
     // 初始化TTS
     LaunchedEffect(Unit) {
@@ -916,11 +921,18 @@ fun UnifiedReaderScreen(
                             ) {
                                 formattedText.forEach { paragraph ->
                                     if (paragraph.isNotBlank()) {
-                                        Text(
+                                        // 使用HighlightedText替换原来的Text
+                                        HighlightedText(
                                             text = paragraph,
-                                            fontSize = currentConfig.fontSize.sp,
-                                            lineHeight = (currentConfig.fontSize * 1.5).sp,
-                                            color = whiteText,
+                                            sentences = viewModel.getSentencesForParagraph(paragraph),
+                                            highlightIndex = highlightState.currentSentenceIndex,
+                                            isHighlighting = highlightState.isHighlighting && 
+                                                ttsState.status == TtsManager.STATUS_PLAYING,
+                                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                                fontSize = currentConfig.fontSize.sp,
+                                                lineHeight = (currentConfig.fontSize * 1.5).sp,
+                                                fontFamily = FontFamily.Serif
+                                            ),
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .padding(vertical = 8.dp)

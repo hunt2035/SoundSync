@@ -43,6 +43,10 @@ class TtsManager private constructor(private val context: Context) {
     private val _ttsState = MutableStateFlow(TtsState())
     val ttsState: StateFlow<TtsState> = _ttsState.asStateFlow()
     
+    // 当前高亮的句子状态
+    private val _highlightState = MutableStateFlow(SentenceHighlightState())
+    val highlightState: StateFlow<SentenceHighlightState> = _highlightState.asStateFlow()
+    
     // 当前朗读的页面信息
     private var currentBookId: String? = null
     private var currentPageIndex: Int = 0
@@ -50,6 +54,9 @@ class TtsManager private constructor(private val context: Context) {
     
     // 当前朗读的句子位置
     private var currentSentenceIndex: Int = 0
+    
+    // 当前页面的句子列表
+    private var sentencesList: List<String> = emptyList()
     
     // 初始化标志
     private var isInitialized = false
@@ -73,6 +80,26 @@ class TtsManager private constructor(private val context: Context) {
                     override fun onStart(utteranceId: String) {
                         Log.d(TAG, "开始朗读: $utteranceId")
                         _ttsState.value = _ttsState.value.copy(status = STATUS_PLAYING)
+                        
+                        // 如果是句子朗读，更新高亮状态
+                        if (utteranceId.startsWith("TTS_SENTENCE_")) {
+                            try {
+                                // 从utteranceId解析句子索引，格式为"TTS_SENTENCE_索引_UUID"
+                                val indexPart = utteranceId.split("_")[2]
+                                val sentenceIndex = indexPart.toIntOrNull() ?: 0
+                                
+                                // 更新高亮状态
+                                if (sentenceIndex < sentencesList.size) {
+                                    _highlightState.value = _highlightState.value.copy(
+                                        isHighlighting = true,
+                                        currentSentenceIndex = sentenceIndex,
+                                        currentSentence = sentencesList[sentenceIndex]
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "解析utteranceId失败", e)
+                            }
+                        }
                     }
                     
                     override fun onDone(utteranceId: String) {
@@ -81,25 +108,21 @@ class TtsManager private constructor(private val context: Context) {
                         // 如果是句子朗读完成，继续读下一句
                         if (utteranceId.startsWith("TTS_SENTENCE_") && _ttsState.value.status == STATUS_PLAYING) {
                             currentSentenceIndex++
-                            // 更精确的句子分隔正则表达式，处理点+空格的情况，同时增加中英文冒号和省略号
-                            val sentences = currentText.split(
-                                Regex(
-                            // "([.!?;:][\\s\\n])|" +  // 英文标点后跟空白或换行
-                                    "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
-
-                                    "([.!?;:]$)|" +         // 英文标点在行尾
-                                    "[。！？；：]|" +        // 中文标点
-                                    "\\.{3,}|…{1,}"         // 英文省略号和中文省略号
-                                )
-                            ).filter { it.isNotBlank() }    // 过滤空白句子
                             
-                            if (currentSentenceIndex < sentences.size) {
+                            if (currentSentenceIndex < sentencesList.size) {
                                 // 继续朗读下一句
-                                speakSentence(sentences[currentSentenceIndex], currentSentenceIndex)
+                                speakSentence(sentencesList[currentSentenceIndex], currentSentenceIndex)
                             } else {
                                 // 所有句子朗读完成，但不改变状态，让ViewModel决定是否继续
                                 _ttsState.value = _ttsState.value.copy(
                                     pageCompleted = true
+                                )
+                                
+                                // 清除高亮状态
+                                _highlightState.value = _highlightState.value.copy(
+                                    isHighlighting = false,
+                                    currentSentenceIndex = -1,
+                                    currentSentence = ""
                                 )
                             }
                         } else if (utteranceId.startsWith("TTS_FULL_")) {
@@ -107,12 +130,26 @@ class TtsManager private constructor(private val context: Context) {
                             _ttsState.value = _ttsState.value.copy(
                                 pageCompleted = true
                             )
+                            
+                            // 清除高亮状态
+                            _highlightState.value = _highlightState.value.copy(
+                                isHighlighting = false,
+                                currentSentenceIndex = -1,
+                                currentSentence = ""
+                            )
                         }
                     }
                     
                     override fun onError(utteranceId: String) {
                         Log.e(TAG, "朗读错误: $utteranceId")
                         _ttsState.value = _ttsState.value.copy(status = STATUS_STOPPED)
+                        
+                        // 清除高亮状态
+                        _highlightState.value = _highlightState.value.copy(
+                            isHighlighting = false,
+                            currentSentenceIndex = -1,
+                            currentSentence = ""
+                        )
                     }
                     
                     // API 23以下的错误回调
@@ -157,6 +194,9 @@ class TtsManager private constructor(private val context: Context) {
         currentText = text
         currentSentenceIndex = 0
         
+        // 分割句子
+        sentencesList = splitTextIntoSentences(text)
+        
         // 更新状态
         _ttsState.value = _ttsState.value.copy(
             status = STATUS_PLAYING,
@@ -164,8 +204,13 @@ class TtsManager private constructor(private val context: Context) {
             currentPage = pageIndex
         )
         
-        // 开始朗读
-        speakText(text)
+        // 如果有句子，开始逐句朗读
+        if (sentencesList.isNotEmpty()) {
+            speakSentence(sentencesList[0], 0)
+        } else {
+            // 没有有效句子，直接朗读整个文本
+            speakText(text)
+        }
     }
     
     /**
@@ -188,7 +233,20 @@ class TtsManager private constructor(private val context: Context) {
         
         if (_ttsState.value.status == STATUS_PAUSED) {
             _ttsState.value = _ttsState.value.copy(status = STATUS_PLAYING)
-            speakText(currentText)
+            
+            // 如果当前有高亮的句子，继续朗读该句
+            val currentIndex = _highlightState.value.currentSentenceIndex
+            if (currentIndex >= 0 && currentIndex < sentencesList.size) {
+                speakSentence(sentencesList[currentIndex], currentIndex)
+            } else {
+                // 否则从头开始朗读
+                if (sentencesList.isNotEmpty()) {
+                    currentSentenceIndex = 0
+                    speakSentence(sentencesList[0], 0)
+                } else {
+                    speakText(currentText)
+                }
+            }
         }
     }
     
@@ -208,6 +266,14 @@ class TtsManager private constructor(private val context: Context) {
         currentPageIndex = 0
         currentText = ""
         currentSentenceIndex = 0
+        sentencesList = emptyList()
+        
+        // 清除高亮状态
+        _highlightState.value = _highlightState.value.copy(
+            isHighlighting = false,
+            currentSentenceIndex = -1,
+            currentSentence = ""
+        )
     }
     
     /**
@@ -247,6 +313,30 @@ class TtsManager private constructor(private val context: Context) {
     }
     
     /**
+     * 分割文本为句子
+     */
+    private fun splitTextIntoSentences(text: String): List<String> {
+        if (text.isEmpty()) return emptyList()
+        
+        // 使用更精确的句子分隔正则表达式
+        return text.split(
+            Regex(
+                "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
+                "([.!?;:]$)|" +     // 英文标点在行尾
+                "[。！？；：]|" +    // 中文标点
+                "\\.{3,}|…{1,}"     // 英文省略号和中文省略号
+            )
+        ).filter { it.isNotBlank() }  // 过滤空白句子
+    }
+    
+    /**
+     * 获取当前页面的所有句子
+     */
+    fun getSentences(): List<String> {
+        return sentencesList
+    }
+    
+    /**
      * 重置页面完成标志
      */
     fun resetPageCompletedFlag() {
@@ -262,6 +352,13 @@ class TtsManager private constructor(private val context: Context) {
         tts = null
         isInitialized = false
         INSTANCE = null
+        
+        // 清除高亮状态
+        _highlightState.value = _highlightState.value.copy(
+            isHighlighting = false,
+            currentSentenceIndex = -1,
+            currentSentence = ""
+        )
     }
     
     /**
@@ -272,5 +369,14 @@ class TtsManager private constructor(private val context: Context) {
         val bookId: String? = null,        // 当前朗读的书籍ID
         val currentPage: Int = 0,          // 当前朗读的页面
         val pageCompleted: Boolean = false // 当前页朗读是否完成
+    )
+    
+    /**
+     * 句子高亮状态数据类
+     */
+    data class SentenceHighlightState(
+        val isHighlighting: Boolean = false,  // 是否正在高亮
+        val currentSentenceIndex: Int = -1,   // 当前高亮的句子索引
+        val currentSentence: String = ""      // 当前高亮的句子内容
     )
 } 

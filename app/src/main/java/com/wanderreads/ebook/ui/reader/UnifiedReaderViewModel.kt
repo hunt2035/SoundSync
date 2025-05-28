@@ -91,6 +91,9 @@ class UnifiedReaderViewModel(
     // TTS状态
     val ttsState = ttsManager.ttsState
     
+    // TTS高亮状态
+    val highlightState = ttsManager.highlightState
+    
     // 静音检测相关
     private var silenceDetectionJob: kotlinx.coroutines.Job? = null
     private var lastAudioActivity = 0L
@@ -1124,6 +1127,26 @@ class UnifiedReaderViewModel(
                 _uiState.update { it.copy(error = "删除失败: ${e.message}") }
             }
         }
+    }
+
+    /**
+     * 获取指定段落的句子列表
+     * 
+     * @param paragraph 段落文本
+     * @return 句子列表
+     */
+    fun getSentencesForParagraph(paragraph: String): List<String> {
+        // 使用与TtsManager相同的句子分割逻辑
+        if (paragraph.isEmpty()) return emptyList()
+        
+        return paragraph.split(
+            Regex(
+                "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
+                "([.!?;:]$)|" +     // 英文标点在行尾
+                "[。！？；：]|" +    // 中文标点
+                "\\.{3,}|…{1,}"     // 英文省略号和中文省略号
+            )
+        ).filter { it.isNotBlank() }  // 过滤空白句子
     }
 }
 
