@@ -19,6 +19,7 @@ import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
 import android.speech.tts.TextToSpeech
+import android.speech.tts.TextToSpeech.OnInitListener
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -155,6 +156,10 @@ class UnifiedReaderViewModel(
     private val playbackUpdateInterval = 1000L // 1秒更新一次播放进度
     private var currentPlaybackPosition = 0
     private var totalAudioDuration = 0
+    
+    // 新增方法：获取整个页面的句子列表
+    private var pageSentences: List<String> = emptyList()
+    private var pageSentencesMap: Map<String, Int> = emptyMap()
     
     init {
         loadBook()
@@ -1130,23 +1135,44 @@ class UnifiedReaderViewModel(
     }
 
     /**
-     * 获取指定段落的句子列表
+     * 设置当前页面的所有句子
+     * 在加载页面内容时调用此方法
+     * 
+     * @param pageText 整个页面的文本
+     */
+    fun setPageSentences(pageText: String) {
+        if (pageText.isEmpty()) {
+            pageSentences = emptyList()
+            pageSentencesMap = emptyMap()
+            return
+        }
+        
+        // 使用AppTextUtils分割整个页面的句子
+        pageSentences = com.wanderreads.ebook.util.AppTextUtils.splitTextIntoSentences(pageText)
+        
+        // 创建句子到索引的映射，用于快速查找
+        val map = mutableMapOf<String, Int>()
+        pageSentences.forEachIndexed { index, sentence ->
+            map[sentence] = index
+        }
+        pageSentencesMap = map
+    }
+    
+    /**
+     * 获取指定段落在整个页面句子序列中对应的句子列表
      * 
      * @param paragraph 段落文本
-     * @return 句子列表
+     * @return 句子列表，保持与整个页面句子序列相同的顺序
      */
     fun getSentencesForParagraph(paragraph: String): List<String> {
-        // 使用与TtsManager相同的句子分割逻辑
+        // 如果段落为空，返回空列表
         if (paragraph.isEmpty()) return emptyList()
         
-        return paragraph.split(
-            Regex(
-                "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
-                "([.!?;:]$)|" +     // 英文标点在行尾
-                "[。！？；：]|" +    // 中文标点
-                "\\.{3,}|…{1,}"     // 英文省略号和中文省略号
-            )
-        ).filter { it.isNotBlank() }  // 过滤空白句子
+        // 分割段落中的句子
+        val paragraphSentences = com.wanderreads.ebook.util.AppTextUtils.splitTextIntoSentences(paragraph)
+        
+        // 返回段落中的句子列表
+        return paragraphSentences
     }
 }
 

@@ -11,6 +11,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
+import com.wanderreads.ebook.util.TtsManager
 
 /**
  * 带有高亮的文本组件
@@ -19,7 +20,7 @@ import androidx.compose.ui.unit.sp
  * @param sentences 分割后的句子列表
  * @param highlightIndex 当前高亮的句子索引
  * @param isHighlighting 是否处于高亮状态
- * @param highlightColor 高亮颜色
+ * @param ttsStatus TTS当前状态，决定高亮颜色
  * @param textStyle 文本样式
  * @param modifier 修饰符
  */
@@ -29,7 +30,7 @@ fun HighlightedText(
     sentences: List<String>,
     highlightIndex: Int,
     isHighlighting: Boolean,
-    highlightColor: Color = Color(0xFF4CAF50), // 绿色
+    ttsStatus: Int = TtsManager.STATUS_PLAYING,
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge.copy(
         fontSize = 18.sp,
         lineHeight = 28.sp,
@@ -37,8 +38,14 @@ fun HighlightedText(
     ),
     modifier: Modifier = Modifier
 ) {
+    // 根据TTS状态决定高亮颜色
+    val highlightColor = when (ttsStatus) {
+        TtsManager.STATUS_PAUSED -> Color(0xFFFFA500) // 橙色
+        else -> Color(0xFF4CAF50) // 绿色
+    }
+    
     // 如果没有句子或不处于高亮状态，直接显示普通文本
-    if (sentences.isEmpty() || !isHighlighting || highlightIndex < 0 || highlightIndex >= sentences.size) {
+    if (sentences.isEmpty() || !isHighlighting || highlightIndex < 0) {
         Text(
             text = text,
             style = textStyle,
@@ -52,7 +59,7 @@ fun HighlightedText(
     val annotatedString = buildAnnotatedString {
         var currentPosition = 0
         
-        // 遍历所有句子
+        // 遍历段落中的所有句子
         for (i in sentences.indices) {
             val sentence = sentences[i]
             

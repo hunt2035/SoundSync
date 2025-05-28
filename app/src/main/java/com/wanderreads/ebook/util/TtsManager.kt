@@ -194,8 +194,8 @@ class TtsManager private constructor(private val context: Context) {
         currentText = text
         currentSentenceIndex = 0
         
-        // 分割句子
-        sentencesList = splitTextIntoSentences(text)
+        // 分割句子 - 使用整个页面的文本
+        sentencesList = com.wanderreads.ebook.util.AppTextUtils.splitTextIntoSentences(text)
         
         // 更新状态
         _ttsState.value = _ttsState.value.copy(
@@ -222,6 +222,7 @@ class TtsManager private constructor(private val context: Context) {
         if (tts?.isSpeaking == true) {
             tts?.stop()
             _ttsState.value = _ttsState.value.copy(status = STATUS_PAUSED)
+            // 在暂停状态下保持高亮状态，不做任何清除操作
         }
     }
     
@@ -310,23 +311,6 @@ class TtsManager private constructor(private val context: Context) {
         )
         
         Log.d(TAG, "TTS.speakSentence调用结果: $result, 句子: $sentence")
-    }
-    
-    /**
-     * 分割文本为句子
-     */
-    private fun splitTextIntoSentences(text: String): List<String> {
-        if (text.isEmpty()) return emptyList()
-        
-        // 使用更精确的句子分隔正则表达式
-        return text.split(
-            Regex(
-                "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
-                "([.!?;:]$)|" +     // 英文标点在行尾
-                "[。！？；：]|" +    // 中文标点
-                "\\.{3,}|…{1,}"     // 英文省略号和中文省略号
-            )
-        ).filter { it.isNotBlank() }  // 过滤空白句子
     }
     
     /**

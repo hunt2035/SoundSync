@@ -39,6 +39,7 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import com.wanderreads.ebook.util.FileNamingUtil
+import com.wanderreads.ebook.util.AppTextUtils
 
 /**
  * TTS语音合成服务
@@ -523,72 +524,8 @@ class TtsSynthesisService : Service() {
      */
     private fun processLargeText(text: String, task: SynthesisTask, outputFile: File) {
         try {
-            // 将文本分成自然段落
-            val paragraphs = text.split("\n", "\r\n")
-            val chunks = mutableListOf<String>()
-            val currentChunk = StringBuilder()
-            
-            // 按段落组织块，确保每个块不超过最大大小
-            for (paragraph in paragraphs) {
-                // 如果当前段落加上当前块会超过大小限制，则开始新块
-                if (currentChunk.length + paragraph.length > TEXT_CHUNK_SIZE) {
-                    // 如果当前块不为空，添加到块列表
-                    if (currentChunk.isNotEmpty()) {
-                        chunks.add(currentChunk.toString())
-                        currentChunk.clear()
-                    }
-                    
-                    // 如果单个段落就超过了块大小限制，需要进一步分割
-                    if (paragraph.length > TEXT_CHUNK_SIZE) {
-                        // 按句子分割大段落，使用更精确的句子分隔方式
-                        val sentences = paragraph.split(
-                            Regex(
-                                "([.][\\s\\n])|" +  // 英文标点后跟空白或换行
-                                "([.!?;:]$)|" +         // 英文标点在行尾
-                                "[。！？；：]|" +        // 中文标点
-                                "\\.{3,}|…{1,}"         // 英文省略号和中文省略号
-                            )
-                        ).filter { it.isNotBlank() }    // 过滤空白句子
-                        
-                        for (sentence in sentences) {
-                            if (currentChunk.length + sentence.length > TEXT_CHUNK_SIZE) {
-                                if (currentChunk.isNotEmpty()) {
-                                    chunks.add(currentChunk.toString())
-                                    currentChunk.clear()
-                                }
-                                
-                                // 如果单个句子还是太长，按字符数直接分割
-                                if (sentence.length > TEXT_CHUNK_SIZE) {
-                                    var start = 0
-                                    while (start < sentence.length) {
-                                        val end = minOf(start + TEXT_CHUNK_SIZE, sentence.length)
-                                        chunks.add(sentence.substring(start, end))
-                                        start = end
-                                    }
-                                } else {
-                                    currentChunk.append(sentence)
-                                }
-                            } else {
-                                currentChunk.append(sentence)
-                            }
-                        }
-                    } else {
-                        // 段落可以作为一个新块
-                        currentChunk.append(paragraph)
-                    }
-                } else {
-                    // 添加段落到当前块
-                    if (currentChunk.isNotEmpty()) {
-                        currentChunk.append("\n")
-                    }
-                    currentChunk.append(paragraph)
-                }
-            }
-            
-            // 添加最后一个块
-            if (currentChunk.isNotEmpty()) {
-                chunks.add(currentChunk.toString())
-            }
+            // 使用TextUtils分割大文本为适合TTS处理的块
+            val chunks = AppTextUtils.splitLargeTextIntoChunks(text, TEXT_CHUNK_SIZE)
             
             Log.d(TAG, "文本已分为 ${chunks.size} 个块进行处理")
             
@@ -621,7 +558,7 @@ class TtsSynthesisService : Service() {
                     
                     override fun onDone(utteranceId: String) {
                         currentChunkIndex++
-                        val progress = (currentChunkIndex.toFloat() / totalChunks * 100).toInt()
+                        val progress = ((currentChunkIndex.toFloat() / totalChunks.toFloat()) * 100).toInt()
                         
                         // 更新进度
                         progressTracker.updateActualProgress(

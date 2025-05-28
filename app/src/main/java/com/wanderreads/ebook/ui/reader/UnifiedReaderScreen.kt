@@ -119,6 +119,7 @@ import androidx.compose.foundation.layout.offset
 import com.wanderreads.ebook.ui.components.AudioPlayerControl
 import com.wanderreads.ebook.util.TtsManager
 import com.wanderreads.ebook.ui.components.HighlightedText
+import com.wanderreads.ebook.util.AppTextUtils
 
 /**
  * 统一阅读器屏幕
@@ -914,6 +915,11 @@ fun UnifiedReaderScreen(
                                 formatTextContent(textContent)
                             }
                             
+                            // 设置整个页面的句子序列
+                            LaunchedEffect(textContent) {
+                                viewModel.setPageSentences(textContent)
+                            }
+                            
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -927,7 +933,8 @@ fun UnifiedReaderScreen(
                                             sentences = viewModel.getSentencesForParagraph(paragraph),
                                             highlightIndex = highlightState.currentSentenceIndex,
                                             isHighlighting = highlightState.isHighlighting && 
-                                                ttsState.status == TtsManager.STATUS_PLAYING,
+                                                (ttsState.status == TtsManager.STATUS_PLAYING || ttsState.status == TtsManager.STATUS_PAUSED),
+                                            ttsStatus = ttsState.status,
                                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                                 fontSize = currentConfig.fontSize.sp,
                                                 lineHeight = (currentConfig.fontSize * 1.5).sp,
@@ -1263,17 +1270,8 @@ private fun textClickableModifier(onClick: () -> Unit): Modifier {
  * 格式化文本内容，将单个文本字符串分割成段落列表
  */
 private fun formatTextContent(text: String): List<String> {
-    // 首先按段落分割（空行分隔）
-    val paragraphs = text.split("\n\n", "\r\n\r\n")
-    
-    // 如果只有一个段落，可能没有空行分隔，尝试按单个换行符分割
-    if (paragraphs.size <= 1 && text.contains("\n")) {
-        return text.split("\n", "\r\n")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-    }
-    
-    return paragraphs.map { it.trim() }
+    // 使用AppTextUtils中的段落分割方法
+    return AppTextUtils.splitTextIntoParagraphs(text)
 }
 
 // 将IntOffset转换为Offset的扩展函数

@@ -2,6 +2,7 @@ package com.wanderreads.ebook.ui.reader
 
 import android.Manifest
 import android.app.Application
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.ContextWrapper
@@ -15,9 +16,11 @@ import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
-import android.speech.tts.TextToSpeech.OnUtteranceProgressListener
-import android.speech.tts.TextToSpeech.OnUtteranceProgressListener
+import android.speech.tts.TextToSpeech.OnInitListener
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
@@ -241,7 +244,7 @@ class UnifiedReaderViewModel(
                     tts?.language = Locale.CHINESE
                     
                     // 设置TTS进度监听器
-                    tts?.setOnUtteranceProgressListener(object : OnUtteranceProgressListener() {
+                    tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(utteranceId: String) {
                             Log.d(TAG, "开始朗读: $utteranceId")
                             
