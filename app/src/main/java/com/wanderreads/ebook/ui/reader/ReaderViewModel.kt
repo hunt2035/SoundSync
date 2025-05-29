@@ -3,6 +3,7 @@ package com.wanderreads.ebook.ui.reader
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.wanderreads.ebook.MainActivity
 import com.wanderreads.ebook.data.repository.BookRepository
 import com.wanderreads.ebook.domain.model.Book
 import com.wanderreads.ebook.domain.model.BookType
@@ -338,6 +339,7 @@ class ReaderViewModel(
             if (currentState.currentPage < currentState.totalPages - 1) {
                 val newPage = currentState.currentPage + 1
                 saveReaderProgress(newPage)
+                updateGlobalReadingPosition(currentState.book?.id, newPage, currentState.totalPages)
                 currentState.copy(currentPage = newPage)
             } else {
                 currentState
@@ -351,6 +353,7 @@ class ReaderViewModel(
             if (currentState.currentPage > 0) {
                 val newPage = currentState.currentPage - 1
                 saveReaderProgress(newPage)
+                updateGlobalReadingPosition(currentState.book?.id, newPage, currentState.totalPages)
                 currentState.copy(currentPage = newPage)
             } else {
                 currentState
@@ -363,11 +366,18 @@ class ReaderViewModel(
         _uiState.update { currentState ->
             if (page >= 0 && page < currentState.totalPages) {
                 saveReaderProgress(page)
+                updateGlobalReadingPosition(currentState.book?.id, page, currentState.totalPages)
                 currentState.copy(currentPage = page)
             } else {
                 currentState
             }
         }
+    }
+    
+    // 更新全局阅读位置
+    private fun updateGlobalReadingPosition(bookId: String?, currentPage: Int, totalPages: Int) {
+        val mainActivity = MainActivity.getInstance()
+        mainActivity?.updateReadingPosition(bookId, currentPage, totalPages)
     }
 
     // 保存阅读进度

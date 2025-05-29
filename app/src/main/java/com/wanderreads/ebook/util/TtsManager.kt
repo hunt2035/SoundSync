@@ -47,13 +47,16 @@ class TtsManager private constructor(private val context: Context) {
     private val _highlightState = MutableStateFlow(SentenceHighlightState())
     val highlightState: StateFlow<SentenceHighlightState> = _highlightState.asStateFlow()
     
-    // 当前朗读的页面信息
+    // 当前朗读的页面信息（内部使用）
     private var currentBookId: String? = null
     private var currentPageIndex: Int = 0
     private var currentText: String = ""
-    
-    // 当前朗读的句子位置
     private var currentSentenceIndex: Int = 0
+    
+    // 当前朗读的页面信息（公共访问）
+    val bookId: String? get() = currentBookId
+    val currentPage: Int get() = currentPageIndex
+    val pageCompleted: Boolean get() = _ttsState.value.pageCompleted
     
     // 当前页面的句子列表
     private var sentencesList: List<String> = emptyList()

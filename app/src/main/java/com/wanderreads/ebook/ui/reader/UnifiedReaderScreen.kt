@@ -966,8 +966,13 @@ fun UnifiedReaderScreen(
                                 ) 
                             }
                     ) {
+                        // 获取MainActivity实例以检查阅读位置是否与TTS朗读位置同步
+                        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                        val isPositionSynced = mainActivity?.isReadingPositionSyncWithTts() ?: false
+                        
                         AudioPlayerControl(
                             ttsStatus = ttsState.status,
+                            isPositionSynced = isPositionSynced,
                             onPlayPause = {
                                 if (ttsState.status == TtsManager.STATUS_PLAYING) {
                                     viewModel.pauseTts()
@@ -977,6 +982,20 @@ fun UnifiedReaderScreen(
                             },
                             onStop = {
                                 viewModel.stopTts()
+                            },
+                            onSyncPosition = {
+                                // 同步到TTS朗读位置
+                                val ttsManager = TtsManager.getInstance(context)
+                                val ttsBookId = ttsManager.bookId
+                                val ttsPage = ttsManager.currentPage
+                                
+                                if (ttsBookId != null) {
+                                    // 跳转到TTS朗读的页面
+                                    viewModel.goToPage(ttsPage)
+                                    
+                                    // 更新全局阅读位置
+                                    mainActivity?.updateReadingPosition(ttsBookId, ttsPage, uiState.totalPages)
+                                }
                             },
                             onOffsetChange = { offset ->
                                 audioControlPosition = audioControlPosition.copy(

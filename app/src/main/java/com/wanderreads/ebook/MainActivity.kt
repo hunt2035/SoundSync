@@ -48,6 +48,11 @@ class MainActivity : ComponentActivity() {
         fun getInstance(): MainActivity? {
             return instance?.get()
         }
+        
+        // 全局阅读位置变量
+        var readBookId: String? = null
+        var readCurrentPage: Int = 0
+        var readTotalPages: Int = 0
     }
     
     // 多权限请求
@@ -143,6 +148,25 @@ class MainActivity : ComponentActivity() {
                 // showStoragePermissionDialogState.value = true
             }
         }
+    }
+    
+    /**
+     * 更新当前阅读位置
+     */
+    fun updateReadingPosition(bookId: String?, currentPage: Int, totalPages: Int) {
+        readBookId = bookId
+        readCurrentPage = currentPage
+        readTotalPages = totalPages
+        Log.d(TAG, "更新阅读位置: bookId=$bookId, page=$currentPage/$totalPages")
+    }
+    
+    /**
+     * 获取当前阅读位置与TTS朗读位置是否同步
+     * 用于判断是否显示"同步朗读中"或"边听边看"
+     */
+    fun isReadingPositionSyncWithTts(): Boolean {
+        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(this)
+        return readBookId == ttsManager.bookId && readCurrentPage == ttsManager.currentPage
     }
     
     /**

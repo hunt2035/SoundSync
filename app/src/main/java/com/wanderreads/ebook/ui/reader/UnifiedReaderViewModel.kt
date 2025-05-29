@@ -1176,18 +1176,24 @@ class UnifiedReaderViewModel(
         
         // 由于整个页面就是一个段落，直接返回所有句子
         if (trimmedParagraph == pageSentences.joinToString("")) {
+            Log.d(TAG, "整个页面作为一个段落处理，返回所有句子: ${pageSentences.size}个")
             return pageSentences
         }
         
+        // 记录一些调试信息
+        Log.d(TAG, "段落文本: ${trimmedParagraph.take(50)}${if (trimmedParagraph.length > 50) "..." else ""}")
+        Log.d(TAG, "页面句子总数: ${pageSentences.size}")
+        if (pageSentences.isNotEmpty()) {
+            Log.d(TAG, "第一个句子示例: ${pageSentences[0]}")
+        }
+        
         // 遍历整个页面的句子序列
-        var currentPosition = 0
         for (sentence in pageSentences) {
-            // 在段落中查找当前句子
-            val sentenceStart = trimmedParagraph.indexOf(sentence, currentPosition)
-            
-            if (sentenceStart >= 0) {
+            // 使用包含检查而不是精确位置匹配
+            // 这样可以处理段落中可能存在的格式差异
+            if (trimmedParagraph.contains(sentence)) {
                 result.add(sentence)
-                currentPosition = sentenceStart + sentence.length
+                Log.d(TAG, "找到匹配句子: $sentence")
             }
         }
         
@@ -1196,9 +1202,28 @@ class UnifiedReaderViewModel(
         if (result.isEmpty() && trimmedParagraph.isNotEmpty()) {
             // 记录日志以便调试
             Log.d(TAG, "段落未找到匹配句子，使用整个段落: ${trimmedParagraph.take(50)}...")
-            result.add(trimmedParagraph)
+            
+            // 尝试更宽松的匹配方式 - 检查句子的核心内容是否在段落中
+            // 移除句子末尾的标点符号后再次尝试匹配
+            var foundAnyMatch = false
+            for (sentence in pageSentences) {
+                // 提取句子的核心内容（去除末尾标点）
+                val sentenceCore = sentence.trim().replace(Regex("[.!?;:。！？；：]$"), "")
+                if (sentenceCore.isNotEmpty() && trimmedParagraph.contains(sentenceCore)) {
+                    result.add(sentence)
+                    foundAnyMatch = true
+                    Log.d(TAG, "使用核心内容匹配到句子: $sentence")
+                }
+            }
+            
+            // 如果仍然没有找到匹配，才使用整个段落
+            if (!foundAnyMatch) {
+                result.add(trimmedParagraph)
+                Log.d(TAG, "最终使用整个段落作为单个句子")
+            }
         }
         
+        Log.d(TAG, "返回句子数量: ${result.size}")
         return result
     }
 }

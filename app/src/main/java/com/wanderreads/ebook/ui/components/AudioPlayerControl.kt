@@ -39,8 +39,10 @@ import kotlin.math.roundToInt
 @Composable
 fun AudioPlayerControl(
     ttsStatus: Int, // TTS状态
+    isPositionSynced: Boolean, // 当前阅读位置是否与TTS朗读位置同步
     onPlayPause: () -> Unit, // 播放/暂停回调
     onStop: () -> Unit, // 停止回调
+    onSyncPosition: () -> Unit, // 同步位置回调（点击"边听边看"时）
     onOffsetChange: (IntOffset) -> Unit, // 位置变化回调
     modifier: Modifier = Modifier
 ) {
@@ -92,18 +94,30 @@ fun AudioPlayerControl(
                 )
             }
             
-            // "边听边看"文字按钮
+            // "边听边看"或"同步朗读中"文字按钮
             Button(
-                onClick = { /* 目前不需要操作 */ },
+                onClick = { 
+                    // 只有在位置不同步时才能点击
+                    if (!isPositionSynced) {
+                        onSyncPosition()
+                    }
+                },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF0D47A1) // 更深的不透明蓝色
+                    // 根据同步状态使用不同的背景色
+                    containerColor = if (isPositionSynced) 
+                                      Color(0xFF2196F3) // 浅蓝色（同步朗读中）
+                                    else 
+                                      Color(0xFF0D47A1) // 深蓝色（边听边看）
                 ),
                 shape = RoundedCornerShape(16.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                modifier = Modifier.height(36.dp)
+                modifier = Modifier.height(36.dp),
+                // 在同步状态下禁用按钮
+                enabled = !isPositionSynced
             ) {
                 Text(
-                    text = "边听边看",
+                    // 根据同步状态显示不同的文本
+                    text = if (isPositionSynced) "同步朗读中" else "边听边看",
                     color = Color.White
                 )
             }
@@ -156,17 +170,31 @@ fun AudioPlayerControl(
 @Composable
 fun AudioPlayerControlPreview() {
     MaterialTheme {
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp)
                 .background(Color.Gray),
-            contentAlignment = Alignment.Center
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // 预览"同步朗读中"状态
             AudioPlayerControl(
                 ttsStatus = TtsManager.STATUS_PLAYING,
+                isPositionSynced = true,
                 onPlayPause = { },
                 onStop = { },
+                onSyncPosition = { },
+                onOffsetChange = { }
+            )
+            
+            // 预览"边听边看"状态
+            AudioPlayerControl(
+                ttsStatus = TtsManager.STATUS_PLAYING,
+                isPositionSynced = false,
+                onPlayPause = { },
+                onStop = { },
+                onSyncPosition = { },
                 onOffsetChange = { }
             )
         }
