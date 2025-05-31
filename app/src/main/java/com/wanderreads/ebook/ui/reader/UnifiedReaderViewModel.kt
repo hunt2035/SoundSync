@@ -157,10 +157,6 @@ class UnifiedReaderViewModel(
     private var currentPlaybackPosition = 0
     private var totalAudioDuration = 0
     
-    // 新增方法：获取整个页面的句子列表
-    private var pageSentences: List<String> = emptyList()
-    private var pageSentencesMap: Map<String, Int> = emptyMap()
-    
     init {
         loadBook()
         bindSynthesisService()
@@ -353,6 +349,7 @@ class UnifiedReaderViewModel(
         if (textToSpeak.isBlank()) return
         
         val currentPage = _uiState.value.currentPage
+        val currentBookId = bookId
         
         // 如果未绑定TTS服务，先启动并绑定服务
         if (!ttsServiceBound) {
@@ -362,8 +359,8 @@ class UnifiedReaderViewModel(
         // 重置页面完成标志
         ttsManager.resetPageCompletedFlag()
         
-        // 开始朗读
-        ttsManager.startReading(bookId, currentPage, textToSpeak)
+        // 开始朗读，使用当前页面的文本和书籍ID
+        ttsManager.startReading(currentBookId, currentPage, textToSpeak)
     }
     
     /**
@@ -1132,99 +1129,6 @@ class UnifiedReaderViewModel(
                 _uiState.update { it.copy(error = "删除失败: ${e.message}") }
             }
         }
-    }
-
-    /**
-     * 设置当前页面的所有句子
-     * 在加载页面内容时调用此方法
-     * 
-     * @param pageText 整个页面的文本
-     */
-    fun setPageSentences(pageText: String) {
-        if (pageText.isEmpty()) {
-            pageSentences = emptyList()
-            pageSentencesMap = emptyMap()
-            return
-        }
-        
-        // 使用AppTextUtils分割整个页面的句子
-        pageSentences = com.wanderreads.ebook.util.AppTextUtils.splitTextIntoSentences(pageText)
-        
-        // 创建句子到索引的映射，用于快速查找
-        val map = mutableMapOf<String, Int>()
-        pageSentences.forEachIndexed { index, sentence ->
-            map[sentence] = index
-        }
-        pageSentencesMap = map
-    }
-    
-    /**
-     * 获取指定段落在整个页面句子序列中对应的句子列表
-     * 
-     * @param paragraph 段落文本
-     * @return 句子列表，保持与整个页面句子序列相同的顺序
-     */
-    fun getSentencesForParagraph(paragraph: String): List<String> {
-        // 如果段落为空，返回空列表
-        if (paragraph.isEmpty()) return emptyList()
-        
-        // 从整个页面的句子序列中找出属于这个段落的句子
-        val result = mutableListOf<String>()
-        
-        // 首先对段落进行预处理，去除前后空白
-        val trimmedParagraph = paragraph.trim()
-        
-        // 由于整个页面就是一个段落，直接返回所有句子
-        if (trimmedParagraph == pageSentences.joinToString("")) {
-            Log.d(TAG, "整个页面作为一个段落处理，返回所有句子: ${pageSentences.size}个")
-            return pageSentences
-        }
-        
-        // 记录一些调试信息
-        Log.d(TAG, "段落文本: ${trimmedParagraph.take(50)}${if (trimmedParagraph.length > 50) "..." else ""}")
-        Log.d(TAG, "页面句子总数: ${pageSentences.size}")
-        if (pageSentences.isNotEmpty()) {
-            Log.d(TAG, "第一个句子示例: ${pageSentences[0]}")
-        }
-        
-        // 遍历整个页面的句子序列
-        for (sentence in pageSentences) {
-            // 使用包含检查而不是精确位置匹配
-            // 这样可以处理段落中可能存在的格式差异
-            if (trimmedParagraph.contains(sentence)) {
-                result.add(sentence)
-                Log.d(TAG, "找到匹配句子: $sentence")
-            }
-        }
-        
-        // 如果没有找到任何句子，可能是因为段落包含特殊格式
-        // 在这种情况下，我们直接使用整个段落作为一个句子
-        if (result.isEmpty() && trimmedParagraph.isNotEmpty()) {
-            // 记录日志以便调试
-            Log.d(TAG, "段落未找到匹配句子，使用整个段落: ${trimmedParagraph.take(50)}...")
-            
-            // 尝试更宽松的匹配方式 - 检查句子的核心内容是否在段落中
-            // 移除句子末尾的标点符号后再次尝试匹配
-            var foundAnyMatch = false
-            for (sentence in pageSentences) {
-                // 提取句子的核心内容（去除末尾标点）
-                val sentenceCore = sentence.trim().replace(Regex("[.!?;:。！？；：]$"), "")
-                if (sentenceCore.isNotEmpty() && trimmedParagraph.contains(sentenceCore)) {
-                    result.add(sentence)
-                    foundAnyMatch = true
-                    Log.d(TAG, "使用核心内容匹配到句子: $sentence")
-                }
-            }
-            
-            // 如果仍然没有找到匹配，才使用整个段落
-            if (!foundAnyMatch) {
-                result.add(trimmedParagraph)
-                Log.d(TAG, "最终使用整个段落作为单个句子")
-            }
-        }
-        
-        Log.d(TAG, "返回句子数量: ${result.size}")
-        return result
     }
 }
 

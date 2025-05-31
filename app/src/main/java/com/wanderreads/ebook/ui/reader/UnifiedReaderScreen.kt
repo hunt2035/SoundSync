@@ -915,11 +915,6 @@ fun UnifiedReaderScreen(
                                 formatTextContent(textContent)
                             }
                             
-                            // 设置整个页面的句子序列
-                            LaunchedEffect(textContent) {
-                                viewModel.setPageSentences(textContent)
-                            }
-                            
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -929,11 +924,13 @@ fun UnifiedReaderScreen(
                                 if (formattedText.isNotEmpty()) {
                                     val paragraph = formattedText[0]
                                     if (paragraph.isNotBlank()) {
-                                        // 从整个页面句子序列中获取该段落对应的句子
-                                        val pageSentences = viewModel.getSentencesForParagraph(paragraph)
+                                        // 直接使用TtsManager中的句子列表
+                                        val ttsManager = TtsManager.getInstance(context)
+                                        val sentences = ttsManager.getSentences()
+                                        
                                         HighlightedText(
                                             text = paragraph,
-                                            sentences = pageSentences,
+                                            sentences = sentences,
                                             highlightIndex = highlightState.currentSentenceIndex,
                                             isHighlighting = highlightState.isHighlighting && 
                                                 (ttsState.status == TtsManager.STATUS_PLAYING || ttsState.status == TtsManager.STATUS_PAUSED),
