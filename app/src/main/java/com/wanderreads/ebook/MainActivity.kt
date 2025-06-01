@@ -154,10 +154,18 @@ class MainActivity : ComponentActivity() {
      * 更新当前阅读位置
      */
     fun updateReadingPosition(bookId: String?, currentPage: Int, totalPages: Int) {
+        val oldBookId = readBookId
+        val oldPage = readCurrentPage
+        
         readBookId = bookId
         readCurrentPage = currentPage
         readTotalPages = totalPages
-        Log.d(TAG, "更新阅读位置: bookId=$bookId, page=$currentPage/$totalPages")
+        
+        Log.d(TAG, "更新阅读位置: 从(bookId=$oldBookId, page=$oldPage) 到 (bookId=$bookId, page=$currentPage/$totalPages)")
+        
+        // 更新TTS同步状态
+        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(this)
+        ttsManager?.updateSyncPageState()
     }
     
     /**

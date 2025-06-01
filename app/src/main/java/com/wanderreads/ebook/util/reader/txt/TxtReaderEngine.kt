@@ -308,6 +308,13 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
     }
     
     /**
+     * 获取总页数
+     */
+    override fun getTotalPages(): Int {
+        return pages.size
+    }
+    
+    /**
      * 更新阅读配置
      */
     override fun updateConfig(config: ReaderConfig) {

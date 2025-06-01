@@ -8,9 +8,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.gestures.forEachGesture
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,19 +35,13 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -83,7 +75,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Popup
 import android.content.Intent
 import android.speech.tts.TextToSpeech
 import android.webkit.WebView
@@ -99,11 +90,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
-import kotlinx.coroutines.delay
-import com.wanderreads.ebook.domain.model.SynthesisParams
-import com.wanderreads.ebook.domain.model.SynthesisRange
+
 import com.wanderreads.ebook.ui.components.SynthesisDialog
 import com.wanderreads.ebook.ui.components.SynthesisProgressDialog
 import com.wanderreads.ebook.service.TtsSynthesisService
@@ -243,6 +230,15 @@ fun UnifiedReaderScreen(
                 Toast.LENGTH_SHORT
             ).show()
         }
+        
+        // 更新TTS同步状态
+        val ttsManager = TtsManager.getInstance(context)
+        ttsManager.updateSyncPageState()
+        
+        // 当TTS状态变为停止时，记录日志
+        if (ttsState.status == TtsManager.STATUS_STOPPED) {
+            Log.d("UnifiedReaderScreen", "TTS状态变为停止，IsSyncPageState=${ttsManager.isSyncPageState.value}")
+        }
     }
     
     // 监听TTS活动状态变化
@@ -250,6 +246,13 @@ fun UnifiedReaderScreen(
         if (isTtsActive && showControls) {
             showAudioControl = true
         }
+    }
+    
+    // 监听页面变化，更新同步状态
+    LaunchedEffect(uiState.currentPage) {
+        // 当页面变化时，更新TTS同步状态
+        val ttsManager = TtsManager.getInstance(context)
+        ttsManager.updateSyncPageState()
     }
     
     // HTML样式（添加CSS样式，设置文字为白色，背景为墨蓝色）
@@ -341,8 +344,8 @@ fun UnifiedReaderScreen(
         topBar = {
             AnimatedVisibility(
                 visible = showControls,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { -it }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { -it })
+                enter = fadeIn() + slideInVertically { -it },
+                exit = fadeOut() + slideOutVertically { -it }
             ) {
                 TopAppBar(
                     title = { 
@@ -510,8 +513,8 @@ fun UnifiedReaderScreen(
         bottomBar = {
             AnimatedVisibility(
                 visible = showControls,
-                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
-                exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
             ) {
                 Column(
                     modifier = Modifier
@@ -928,12 +931,36 @@ fun UnifiedReaderScreen(
                                         val ttsManager = TtsManager.getInstance(context)
                                         val sentences = ttsManager.getSentences()
                                         
+                                        // 获取同步状态
+                                        val isSyncPageState by ttsManager.isSyncPageState.collectAsState()
+                                        val isPositionSynced = isSyncPageState == 1
+                                        
+                                        // 添加日志，记录高亮条件
+                                        Log.d("UnifiedReaderScreen", "高亮条件: isHighlighting=${highlightState.isHighlighting}, " +
+                                            "ttsStatus=${ttsState.status}, isSyncPageState=${isSyncPageState} (${
+                                                when(isSyncPageState) {
+                                                    -1 -> "TTS停止"
+                                                    0 -> "TTS活动但位置不同步"
+                                                    1 -> "TTS朗读位置与阅读位置同步"
+                                                    else -> "未知状态"
+                                                }
+                                            }), " +
+                                            "currentSentenceIndex=${highlightState.currentSentenceIndex}, " +
+                                            "sentencesSize=${sentences.size}")
+                                        
+                                        // 强制设置高亮条件
+                                        val shouldHighlight = ttsState.status == TtsManager.STATUS_PLAYING && isPositionSynced
+                                        if (shouldHighlight) {
+                                            Log.d("UnifiedReaderScreen", "强制启用高亮: isHighlighting=${highlightState.isHighlighting}, shouldHighlight=$shouldHighlight")
+                                        }
+                                        
                                         HighlightedText(
                                             text = paragraph,
                                             sentences = sentences,
                                             highlightIndex = highlightState.currentSentenceIndex,
-                                            isHighlighting = highlightState.isHighlighting && 
-                                                (ttsState.status == TtsManager.STATUS_PLAYING || ttsState.status == TtsManager.STATUS_PAUSED),
+                                            isHighlighting = (highlightState.isHighlighting || shouldHighlight) && 
+                                                (ttsState.status == TtsManager.STATUS_PLAYING || ttsState.status == TtsManager.STATUS_PAUSED) &&
+                                                isPositionSynced, // 只有在同步状态下才启用高亮
                                             ttsStatus = ttsState.status,
                                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                                 fontSize = currentConfig.fontSize.sp,
@@ -963,9 +990,10 @@ fun UnifiedReaderScreen(
                                 ) 
                             }
                     ) {
-                        // 获取MainActivity实例以检查阅读位置是否与TTS朗读位置同步
-                        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
-                        val isPositionSynced = mainActivity?.isReadingPositionSyncWithTts() ?: false
+                        // 使用TtsManager的isSyncPageState状态流来判断同步状态
+                        val ttsManager = TtsManager.getInstance(context)
+                        val isSyncPageState by ttsManager.isSyncPageState.collectAsState()
+                        val isPositionSynced = isSyncPageState == 1
                         
                         AudioPlayerControl(
                             ttsStatus = ttsState.status,
@@ -982,7 +1010,6 @@ fun UnifiedReaderScreen(
                             },
                             onSyncPosition = {
                                 // 同步到TTS朗读位置
-                                val ttsManager = TtsManager.getInstance(context)
                                 val ttsBookId = ttsManager.bookId
                                 val ttsPage = ttsManager.currentPage
                                 
@@ -991,7 +1018,11 @@ fun UnifiedReaderScreen(
                                     viewModel.goToPage(ttsPage)
                                     
                                     // 更新全局阅读位置
+                                    val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
                                     mainActivity?.updateReadingPosition(ttsBookId, ttsPage, uiState.totalPages)
+                                    
+                                    // 同步后更新同步状态
+                                    ttsManager.updateSyncPageState()
                                 }
                             },
                             onOffsetChange = { offset ->

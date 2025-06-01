@@ -170,19 +170,57 @@ class UnifiedReaderViewModel(
                 if (state.status == TtsManager.STATUS_PLAYING && state.pageCompleted) {
                     // 当前页朗读完成，检查是否有下一页
                     readerEngine?.let { engine ->
-                        if (engine.hasNextPage()) {
-                            // 有下一页，自动翻页并继续朗读
-                            navigatePage(PageDirection.NEXT)
-                            // 重置pageCompleted状态
-                            ttsManager.resetPageCompletedFlag()
-                            // 朗读新页面
-                            val nextPageText = engine.getCurrentPageText()
-                            if (!nextPageText.isNullOrBlank()) {
-                                ttsManager.startReading(bookId, _uiState.value.currentPage, nextPageText)
+                        // 获取TTS当前朗读的书籍ID和页码
+                        val ttsBookId = ttsManager.bookId
+                        val ttsCurrentPage = ttsManager.currentPage
+                        
+                        // 检查TTS朗读的书籍是否与当前打开的书籍相同
+                        if (ttsBookId == bookId) {
+                            // 检查是否有下一页
+                            if (ttsCurrentPage < engine.getTotalPages() - 1) {
+                                // 有下一页，自动翻到TTS当前朗读页的下一页
+                                val nextPage = ttsCurrentPage + 1
+                                Log.d(TAG, "TTS自动翻页: 从${ttsCurrentPage}翻到${nextPage}")
+                                
+                                // 如果用户当前阅读的页面与TTS朗读的页面同步，则同时更新用户界面
+                                val isSyncPageState = ttsManager.isSyncPageState.value
+                                if (isSyncPageState == 1) {
+                                    // 用户界面也跟着翻页
+                                    goToPage(nextPage)
+                                }
+                                
+                                // 重置pageCompleted状态
+                                ttsManager.resetPageCompletedFlag()
+                                
+                                // 获取下一页文本并朗读
+                                engine.goToPage(nextPage)
+                                val nextPageText = engine.getCurrentPageText()
+                                
+                                // 朗读完后恢复到用户当前阅读的页面
+                                if (isSyncPageState == 0) {
+                                    engine.goToPage(_uiState.value.currentPage)
+                                }
+                                
+                                if (!nextPageText.isNullOrBlank()) {
+                                    ttsManager.startReading(bookId, nextPage, nextPageText)
+                                    // 更新同步状态
+                                    ttsManager.updateSyncPageState()
+                                    Log.d(TAG, "TTS自动翻页后开始朗读: page=${nextPage}, TTS同步状态=${ttsManager.isSyncPageState.value}")
+                                }
+                                else {
+                                    // 下一页文本为空，停止朗读
+                                    ttsManager.stopReading()
+                                    Log.d(TAG, "下一页文本为空，停止朗读")
+                                }
+                            } else {
+                                // 已到最后一页，停止朗读
+                                ttsManager.stopReading()
+                                Log.d(TAG, "TTS已到最后一页，停止朗读")
                             }
                         } else {
-                            // 已到最后一页，停止朗读
+                            // TTS朗读的书籍与当前打开的不同，停止朗读
                             ttsManager.stopReading()
+                            Log.d(TAG, "TTS朗读的书籍(${ttsBookId})与当前打开的书籍(${bookId})不同，停止朗读")
                         }
                     }
                 }
@@ -226,6 +264,14 @@ class UnifiedReaderViewModel(
                     
                     // 更新书籍的最后打开时间
                     bookRepository.updateLastOpenedDate(book.id, System.currentTimeMillis())
+                    
+                    // 更新全局阅读位置
+                    val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                    mainActivity?.updateReadingPosition(book.id, book.lastReadPage, readerEngine?.getTotalPages() ?: 0)
+                    
+                    // 更新TTS同步状态
+                    ttsManager.updateSyncPageState()
+                    Log.d(TAG, "书籍加载完成后更新TTS同步状态: bookId=${book.id}, page=${book.lastReadPage}, IsSyncPageState=${ttsManager.isSyncPageState.value}")
                 } else {
                     _uiState.update { it.copy(error = "找不到图书") }
                 }
@@ -256,6 +302,14 @@ class UnifiedReaderViewModel(
                             chapterTitle = engine.getCurrentChapterTitle()
                         )
                     }
+                    
+                    // 每次状态更新时，更新全局阅读位置
+                    val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                    mainActivity?.updateReadingPosition(bookId, state.currentPage, state.totalPages)
+                    
+                    // 更新TTS同步状态
+                    ttsManager.updateSyncPageState()
+                    Log.d(TAG, "引擎状态更新后更新TTS同步状态: bookId=$bookId, page=${state.currentPage}, IsSyncPageState=${ttsManager.isSyncPageState.value}")
                 }
             }
         }
@@ -351,6 +405,11 @@ class UnifiedReaderViewModel(
         val currentPage = _uiState.value.currentPage
         val currentBookId = bookId
         
+        // 确保在开始朗读前，先更新MainActivity的全局阅读位置
+        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+        mainActivity?.updateReadingPosition(currentBookId, currentPage, _uiState.value.totalPages)
+        Log.d(TAG, "开始朗读前更新全局阅读位置: bookId=$currentBookId, page=$currentPage")
+        
         // 如果未绑定TTS服务，先启动并绑定服务
         if (!ttsServiceBound) {
             startAndBindTtsService()
@@ -361,6 +420,10 @@ class UnifiedReaderViewModel(
         
         // 开始朗读，使用当前页面的文本和书籍ID
         ttsManager.startReading(currentBookId, currentPage, textToSpeak)
+        
+        // 确保在开始朗读后，再次更新同步状态
+        ttsManager.updateSyncPageState()
+        Log.d(TAG, "开始朗读后再次更新同步状态，IsSyncPageState=${ttsManager.isSyncPageState.value}")
     }
     
     /**
@@ -443,6 +506,13 @@ class UnifiedReaderViewModel(
                     )
                 }
             }
+            
+            // 更新全局阅读位置与TTS同步状态
+            val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+            mainActivity?.updateReadingPosition(bookId, _uiState.value.currentPage, _uiState.value.totalPages)
+            ttsManager.updateSyncPageState()
+            
+            Log.d("UnifiedReaderViewModel", "用户翻页: direction=$direction, 当前页=${_uiState.value.currentPage}, TTS同步状态=${ttsManager.isSyncPageState.value}")
         }
     }
     
@@ -464,6 +534,13 @@ class UnifiedReaderViewModel(
                     )
                 }
             }
+            
+            // 更新全局阅读位置与TTS同步状态
+            val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+            mainActivity?.updateReadingPosition(bookId, _uiState.value.currentPage, _uiState.value.totalPages)
+            ttsManager.updateSyncPageState()
+            
+            Log.d("UnifiedReaderViewModel", "用户跳转页面: page=$page, 当前页=${_uiState.value.currentPage}, TTS同步状态=${ttsManager.isSyncPageState.value}")
         }
     }
     
@@ -484,6 +561,14 @@ class UnifiedReaderViewModel(
                         chapterTitle = engine.getCurrentChapterTitle()
                     )
                 }
+                
+                // 更新全局阅读位置
+                val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                mainActivity?.updateReadingPosition(bookId, _uiState.value.currentPage, _uiState.value.totalPages)
+                
+                // 更新TTS同步状态
+                ttsManager.updateSyncPageState()
+                Log.d(TAG, "跳转章节后更新TTS同步状态: bookId=$bookId, chapter=$chapterIndex, page=${_uiState.value.currentPage}, IsSyncPageState=${ttsManager.isSyncPageState.value}")
             }
         }
     }

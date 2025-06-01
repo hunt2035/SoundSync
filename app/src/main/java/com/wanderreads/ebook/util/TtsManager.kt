@@ -64,6 +64,52 @@ class TtsManager private constructor(private val context: Context) {
     // 初始化标志
     private var isInitialized = false
     
+    // 同步状态标志：-1表示TTS停止，1表示TTS朗读位置与用户当前阅读位置同步，0表示TTS活动但位置不同步
+    private val _isSyncPageState = MutableStateFlow(-1)
+    val isSyncPageState: StateFlow<Int> = _isSyncPageState.asStateFlow()
+    
+    /**
+     * 更新同步状态
+     * 检查TTS朗读位置是否与用户当前阅读位置同步
+     * 
+     * 规则：
+     * - 如果TTS状态为停止，则IsSyncPageState=-1
+     * - 如果TTS状态为朗读或暂停，且TTS朗读位置与用户当前阅读位置同步，则IsSyncPageState=1
+     * - 如果TTS状态为朗读或暂停，但TTS朗读位置与用户当前阅读位置不同步，则IsSyncPageState=0
+     */
+    fun updateSyncPageState() {
+        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+        val readBookId = com.wanderreads.ebook.MainActivity.readBookId
+        val readCurrentPage = com.wanderreads.ebook.MainActivity.readCurrentPage
+        
+        // 添加详细日志，记录比较的值
+        Log.d(TAG, "同步状态比较: TTS状态=${_ttsState.value.status}, TTS位置(bookId=$currentBookId, page=$currentPageIndex), " +
+              "阅读位置(bookId=$readBookId, page=$readCurrentPage)")
+        
+        val newState = when (_ttsState.value.status) {
+            STATUS_STOPPED -> -1
+            STATUS_PLAYING, STATUS_PAUSED -> {
+                val isSynced = readBookId == currentBookId && readCurrentPage == currentPageIndex
+                if (isSynced) 1 else 0
+            }
+            else -> -1 // 默认情况，不应该发生
+        }
+        
+        if (_isSyncPageState.value != newState) {
+            _isSyncPageState.value = newState
+            Log.d(TAG, "同步状态已更新: IsSyncPageState=$newState " +
+                    "(${when(newState) {
+                        -1 -> "TTS停止"
+                        1 -> "TTS朗读位置与阅读位置同步"
+                        0 -> "TTS朗读位置与阅读位置不同步"
+                        else -> "未知状态"
+                    }}), " +
+                    "TTS状态=${_ttsState.value.status}, " +
+                    "TTS位置: bookId=$currentBookId, page=$currentPageIndex, " +
+                    "阅读位置: bookId=$readBookId, page=$readCurrentPage")
+        }
+    }
+
     /**
      * 初始化TTS引擎
      */
@@ -93,6 +139,7 @@ class TtsManager private constructor(private val context: Context) {
                                 
                                 // 更新高亮状态
                                 if (sentenceIndex < sentencesList.size) {
+                                    // 确保设置isHighlighting为true
                                     _highlightState.value = _highlightState.value.copy(
                                         isHighlighting = true,
                                         currentSentenceIndex = sentenceIndex,
@@ -100,12 +147,24 @@ class TtsManager private constructor(private val context: Context) {
                                     )
                                     
                                     // 记录日志，便于调试
-                                    Log.d(TAG, "高亮句子: ${sentencesList[sentenceIndex]}")
+                                    Log.d(TAG, "高亮句子: ${sentencesList[sentenceIndex]}, isHighlighting=true, sentenceIndex=$sentenceIndex")
+                                } else {
+                                    Log.e(TAG, "句子索引越界: $sentenceIndex >= ${sentencesList.size}")
                                 }
                             } catch (e: Exception) {
                                 Log.e(TAG, "解析utteranceId失败", e)
                             }
+                        } else {
+                            // 即使不是句子朗读，也设置高亮状态为true
+                            _highlightState.value = _highlightState.value.copy(
+                                isHighlighting = true,
+                                currentSentenceIndex = 0
+                            )
+                            Log.d(TAG, "非句子朗读，但设置isHighlighting=true")
                         }
+                        
+                        // 更新同步状态
+                        updateSyncPageState()
                     }
                     
                     override fun onDone(utteranceId: String) {
@@ -130,6 +189,9 @@ class TtsManager private constructor(private val context: Context) {
                                     currentSentenceIndex = -1,
                                     currentSentence = ""
                                 )
+                                
+                                // 页面朗读完成时，记录日志
+                                Log.d(TAG, "页面朗读完成: bookId=$currentBookId, page=$currentPageIndex")
                             }
                         } else if (utteranceId.startsWith("TTS_FULL_")) {
                             // 全文朗读完成，但不改变状态，让ViewModel决定是否继续
@@ -143,6 +205,9 @@ class TtsManager private constructor(private val context: Context) {
                                 currentSentenceIndex = -1,
                                 currentSentence = ""
                             )
+                            
+                            // 页面朗读完成时，记录日志
+                            Log.d(TAG, "页面朗读完成: bookId=$currentBookId, page=$currentPageIndex")
                         }
                     }
                     
@@ -210,6 +275,10 @@ class TtsManager private constructor(private val context: Context) {
             currentPage = pageIndex
         )
         
+        // 更新同步状态 - 确保在设置完currentBookId和currentPageIndex之后调用
+        updateSyncPageState()
+        Log.d(TAG, "startReading后更新同步状态: bookId=$bookId, page=$pageIndex, IsSyncPageState=${_isSyncPageState.value}")
+        
         // 如果有句子，开始逐句朗读
         if (sentencesList.isNotEmpty()) {
             speakSentence(sentencesList[0], 0)
@@ -217,6 +286,8 @@ class TtsManager private constructor(private val context: Context) {
             // 没有有效句子，直接朗读整个文本
             speakText(text)
         }
+        
+        Log.d(TAG, "开始朗读: bookId=$bookId, page=$pageIndex, IsSyncPageState=${_isSyncPageState.value}")
     }
     
     /**
@@ -229,6 +300,8 @@ class TtsManager private constructor(private val context: Context) {
             tts?.stop()
             _ttsState.value = _ttsState.value.copy(status = STATUS_PAUSED)
             // 在暂停状态下保持高亮状态，不做任何清除操作
+            
+            Log.d(TAG, "暂停朗读: bookId=$currentBookId, page=$currentPageIndex, IsSyncPageState=${_isSyncPageState.value}")
         }
     }
     
@@ -254,6 +327,11 @@ class TtsManager private constructor(private val context: Context) {
                     speakText(currentText)
                 }
             }
+            
+            // 更新同步状态
+            updateSyncPageState()
+            
+            Log.d(TAG, "继续朗读: bookId=$currentBookId, page=$currentPageIndex, IsSyncPageState=${_isSyncPageState.value}")
         }
     }
     
@@ -281,6 +359,11 @@ class TtsManager private constructor(private val context: Context) {
             currentSentenceIndex = -1,
             currentSentence = ""
         )
+        
+        // 更新同步状态
+        _isSyncPageState.value = -1
+        
+        Log.d(TAG, "停止朗读: IsSyncPageState=-1")
     }
     
     /**
@@ -331,6 +414,11 @@ class TtsManager private constructor(private val context: Context) {
      */
     fun resetPageCompletedFlag() {
         _ttsState.value = _ttsState.value.copy(pageCompleted = false)
+        
+        // 页面翻页后，更新同步状态
+        updateSyncPageState()
+        
+        Log.d(TAG, "重置页面完成标志: bookId=$currentBookId, page=$currentPageIndex, IsSyncPageState=${_isSyncPageState.value}")
     }
     
     /**
@@ -349,6 +437,9 @@ class TtsManager private constructor(private val context: Context) {
             currentSentenceIndex = -1,
             currentSentence = ""
         )
+        
+        // 重置同步状态
+        _isSyncPageState.value = -1
     }
     
     /**

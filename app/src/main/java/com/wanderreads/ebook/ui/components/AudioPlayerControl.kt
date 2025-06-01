@@ -51,6 +51,10 @@ fun AudioPlayerControl(
     val density = LocalDensity.current
     val isPlaying = ttsStatus == TtsManager.STATUS_PLAYING
 
+    // 定义颜色
+    val lightBlue = Color(0xFF2196F3) // 浅蓝色（同步朗读中）
+    val darkBlue = Color(0xFF0D47A1) // 深蓝色（边听边看）
+
     Surface(
         modifier = modifier
             .shadow(4.dp, shape = RoundedCornerShape(32.dp))
@@ -104,10 +108,7 @@ fun AudioPlayerControl(
                 },
                 colors = ButtonDefaults.buttonColors(
                     // 根据同步状态使用不同的背景色
-                    containerColor = if (isPositionSynced) 
-                                      Color(0xFF2196F3) // 浅蓝色（同步朗读中）
-                                    else 
-                                      Color(0xFF0D47A1) // 深蓝色（边听边看）
+                    containerColor = if (isPositionSynced) lightBlue else darkBlue
                 ),
                 shape = RoundedCornerShape(16.dp),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),

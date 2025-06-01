@@ -676,6 +676,13 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
     }
     
     /**
+     * 获取总页数
+     */
+    override fun getTotalPages(): Int {
+        return totalPages
+    }
+    
+    /**
      * 翻页
      */
     override suspend fun navigatePage(direction: PageDirection): Int {

@@ -91,6 +91,12 @@ interface BookReaderEngine {
     fun hasNextPage(): Boolean
     
     /**
+     * 获取总页数
+     * @return 总页数
+     */
+    fun getTotalPages(): Int
+    
+    /**
      * 更新阅读配置
      * @param config 新的阅读配置
      */
