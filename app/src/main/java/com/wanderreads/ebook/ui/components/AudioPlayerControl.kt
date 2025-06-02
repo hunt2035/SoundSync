@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -118,7 +117,7 @@ fun AudioPlayerControl(
             ) {
                 Text(
                     // 根据同步状态显示不同的文本
-                    text = if (isPositionSynced) "同步朗读中" else "边听边看",
+                    text = if (isPositionSynced) "同步中..." else "边听边看",
                     color = Color.White
                 )
             }
@@ -179,7 +178,7 @@ fun AudioPlayerControlPreview() {
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // 预览"同步朗读中"状态
+            // 预览"同步中..."状态
             AudioPlayerControl(
                 ttsStatus = TtsManager.STATUS_PLAYING,
                 isPositionSynced = true,

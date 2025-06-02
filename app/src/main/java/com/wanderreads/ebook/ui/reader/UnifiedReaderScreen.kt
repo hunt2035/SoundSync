@@ -215,8 +215,10 @@ fun UnifiedReaderScreen(
         // 更新isTtsActive变量，保持与全局TTS状态一致
         isTtsActive = ttsIsActive
         
-        // 只有当控制栏显示且TTS活跃时才显示音频控件
-        showAudioControl = showControls && ttsIsActive
+        // 在带工具栏的阅读界面中，根据TTS状态显示或隐藏音频播放控件
+        // 如果TTS状态为停止(STATUS_STOPPED)，则音频播放控件隐藏
+        // 如果TTS状态为朗读(STATUS_PLAYING)或暂停(STATUS_PAUSED)，则音频播放控件可见
+        showAudioControl = showControls && (ttsState.status == TtsManager.STATUS_PLAYING || ttsState.status == TtsManager.STATUS_PAUSED)
         
         // 如果正在某页朗读，但当前页面不是朗读页，可以添加提示或自动跳转
         if (ttsIsActive && ttsState.currentPage > 0 && ttsState.currentPage != uiState.currentPage) {
@@ -244,6 +246,7 @@ fun UnifiedReaderScreen(
     // 监听TTS活动状态变化
     LaunchedEffect(isTtsActive) {
         if (isTtsActive && showControls) {
+            // 确保在TTS活动且控制栏显示时，音频控件也显示
             showAudioControl = true
         }
     }
@@ -693,11 +696,11 @@ fun UnifiedReaderScreen(
                                     // 点击中间区域，同时显示控制栏和朗读控制悬浮窗
                                     else {
                                         showControls = true
-                                        // 如果TTS处于朗读状态或暂停状态，显示音频控制悬浮窗
-                                        if (ttsState.status == TtsManager.STATUS_PLAYING || 
-                                            ttsState.status == TtsManager.STATUS_PAUSED) {
-                                            showAudioControl = true
-                                        }
+                                        // 根据TTS状态决定是否显示音频控件
+                                        // 如果TTS状态为停止(STATUS_STOPPED)，则音频播放控件隐藏
+                                        // 如果TTS状态为朗读(STATUS_PLAYING)或暂停(STATUS_PAUSED)，则音频播放控件可见
+                                        showAudioControl = (ttsState.status == TtsManager.STATUS_PLAYING || 
+                                                           ttsState.status == TtsManager.STATUS_PAUSED)
                                     }
                                 }
                             }
@@ -777,11 +780,11 @@ fun UnifiedReaderScreen(
                                                     // 点击中间区域，同时显示控制栏和朗读控制悬浮窗
                                                     else {
                                                         showControls = true
-                                                        // 如果TTS处于朗读状态或暂停状态，显示音频控制悬浮窗
-                                                        if (ttsState.status == TtsManager.STATUS_PLAYING || 
-                                                            ttsState.status == TtsManager.STATUS_PAUSED) {
-                                                            showAudioControl = true
-                                                        }
+                                                        // 根据TTS状态决定是否显示音频控件
+                                                        // 如果TTS状态为停止(STATUS_STOPPED)，则音频播放控件隐藏
+                                                        // 如果TTS状态为朗读(STATUS_PLAYING)或暂停(STATUS_PAUSED)，则音频播放控件可见
+                                                        showAudioControl = (ttsState.status == TtsManager.STATUS_PLAYING || 
+                                                                           ttsState.status == TtsManager.STATUS_PAUSED)
                                                     }
                                                 }
                                             }
