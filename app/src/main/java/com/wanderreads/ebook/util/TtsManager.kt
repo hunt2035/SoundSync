@@ -68,6 +68,9 @@ class TtsManager private constructor(private val context: Context) {
     private val _isSyncPageState = MutableStateFlow(-1)
     val isSyncPageState: StateFlow<Int> = _isSyncPageState.asStateFlow()
     
+    // TTS设置
+    private val ttsSettings by lazy { TtsSettings.getInstance(context) }
+    
     /**
      * 更新同步状态
      * 检查TTS朗读位置是否与用户当前阅读位置同步
@@ -78,35 +81,62 @@ class TtsManager private constructor(private val context: Context) {
      * - 如果TTS状态为朗读或暂停，但TTS朗读位置与用户当前阅读位置不同步，则IsSyncPageState=0
      */
     fun updateSyncPageState() {
-        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
-        val readBookId = com.wanderreads.ebook.MainActivity.readBookId
-        val readCurrentPage = com.wanderreads.ebook.MainActivity.readCurrentPage
-        
-        // 添加详细日志，记录比较的值
-        Log.d(TAG, "同步状态比较: TTS状态=${_ttsState.value.status}, TTS位置(bookId=$currentBookId, page=$currentPageIndex), " +
-              "阅读位置(bookId=$readBookId, page=$readCurrentPage)")
-        
-        val newState = when (_ttsState.value.status) {
-            STATUS_STOPPED -> -1
-            STATUS_PLAYING, STATUS_PAUSED -> {
-                val isSynced = readBookId == currentBookId && readCurrentPage == currentPageIndex
-                if (isSynced) 1 else 0
+        try {
+            val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+            val readBookId = com.wanderreads.ebook.MainActivity.readBookId
+            val readCurrentPage = com.wanderreads.ebook.MainActivity.readCurrentPage
+            
+            // 添加详细日志，记录比较的值
+            Log.d(TAG, "同步状态比较: TTS状态=${_ttsState.value.status}, TTS位置(bookId=$currentBookId, page=$currentPageIndex), " +
+                  "阅读位置(bookId=$readBookId, page=$readCurrentPage)")
+            
+            val newState = when (_ttsState.value.status) {
+                STATUS_STOPPED -> -1
+                STATUS_PLAYING, STATUS_PAUSED -> {
+                    // 确保bookId非空并且页码有效
+                    if (currentBookId != null && currentPageIndex >= 0 && readBookId != null && readCurrentPage >= 0) {
+                        val isSynced = readBookId == currentBookId && readCurrentPage == currentPageIndex
+                        if (isSynced) 1 else 0
+                    } else {
+                        // 如果有任何必要的值为空或无效，则设置为非同步状态
+                        0
+                    }
+                }
+                else -> -1 // 默认情况，不应该发生
             }
-            else -> -1 // 默认情况，不应该发生
-        }
-        
-        if (_isSyncPageState.value != newState) {
-            _isSyncPageState.value = newState
-            Log.d(TAG, "同步状态已更新: IsSyncPageState=$newState " +
-                    "(${when(newState) {
-                        -1 -> "TTS停止"
-                        1 -> "TTS朗读位置与阅读位置同步"
-                        0 -> "TTS朗读位置与阅读位置不同步"
-                        else -> "未知状态"
-                    }}), " +
-                    "TTS状态=${_ttsState.value.status}, " +
-                    "TTS位置: bookId=$currentBookId, page=$currentPageIndex, " +
-                    "阅读位置: bookId=$readBookId, page=$readCurrentPage")
+            
+            // 记录状态变化
+            val oldState = _isSyncPageState.value
+            if (oldState != newState) {
+                _isSyncPageState.value = newState
+                Log.d(TAG, "同步状态已更新: 从${oldState}变为${newState} " +
+                        "(${when(newState) {
+                            -1 -> "TTS停止"
+                            1 -> "TTS朗读位置与阅读位置同步"
+                            0 -> "TTS朗读位置与阅读位置不同步"
+                            else -> "未知状态"
+                        }}), " +
+                        "TTS状态=${_ttsState.value.status}, " +
+                        "TTS位置: bookId=$currentBookId, page=$currentPageIndex, " +
+                        "阅读位置: bookId=$readBookId, page=$readCurrentPage")
+                
+                // 如果状态从1变为0，记录更详细的信息，帮助调试
+                if (oldState == 1 && newState == 0) {
+                    Log.w(TAG, "同步状态从同步(1)变为不同步(0)! " +
+                            "TTS位置: bookId=$currentBookId, page=$currentPageIndex, " +
+                            "阅读位置: bookId=$readBookId, page=$readCurrentPage")
+                }
+                // 如果状态从0变为1，也记录详细信息
+                else if (oldState == 0 && newState == 1) {
+                    Log.d(TAG, "同步状态从不同步(0)变为同步(1)! " +
+                            "TTS位置: bookId=$currentBookId, page=$currentPageIndex, " +
+                            "阅读位置: bookId=$readBookId, page=$readCurrentPage")
+                }
+            }
+        } catch (e: Exception) {
+            // 捕获可能出现的异常，避免影响TTS功能
+            Log.e(TAG, "更新同步状态时出错: ${e.message}", e)
+            // 保持当前状态不变
         }
     }
 
@@ -122,7 +152,17 @@ class TtsManager private constructor(private val context: Context) {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 Log.d(TAG, "TTS引擎初始化成功")
-                tts?.language = Locale.CHINESE
+                
+                // 设置语言
+                val result = tts?.setLanguage(Locale.CHINESE)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e(TAG, "不支持中文语言")
+                    continuation.resume(false)
+                    return@TextToSpeech
+                }
+                
+                // 应用TTS设置
+                ttsSettings.applyToTts(tts!!)
                 
                 // 设置TTS进度监听器
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -252,6 +292,10 @@ class TtsManager private constructor(private val context: Context) {
     
     /**
      * 开始从指定页面朗读
+     * 
+     * @param bookId 书籍ID
+     * @param pageIndex 页码
+     * @param text 页面文本
      */
     fun startReading(bookId: String, pageIndex: Int, text: String) {
         if (!isInitialized) {
@@ -259,35 +303,70 @@ class TtsManager private constructor(private val context: Context) {
             return
         }
         
-        // 保存当前朗读信息
-        currentBookId = bookId
-        currentPageIndex = pageIndex
-        currentText = text
-        currentSentenceIndex = 0
-        
-        // 分割句子 - 使用整个页面的文本
-        sentencesList = com.wanderreads.ebook.util.AppTextUtils.splitTextIntoSentences(text)
-        
-        // 更新状态
-        _ttsState.value = _ttsState.value.copy(
-            status = STATUS_PLAYING,
-            bookId = bookId,
-            currentPage = pageIndex
-        )
-        
-        // 更新同步状态 - 确保在设置完currentBookId和currentPageIndex之后调用
-        updateSyncPageState()
-        Log.d(TAG, "startReading后更新同步状态: bookId=$bookId, page=$pageIndex, IsSyncPageState=${_isSyncPageState.value}")
-        
-        // 如果有句子，开始逐句朗读
-        if (sentencesList.isNotEmpty()) {
-            speakSentence(sentencesList[0], 0)
-        } else {
-            // 没有有效句子，直接朗读整个文本
-            speakText(text)
+        try {
+            // 记录调用前的同步状态
+            val oldSyncState = _isSyncPageState.value
+            
+            // 保存当前朗读信息
+            currentBookId = bookId
+            currentPageIndex = pageIndex
+            currentText = text
+            currentSentenceIndex = 0
+            
+            // 分割句子 - 使用整个页面的文本
+            sentencesList = com.wanderreads.ebook.util.AppTextUtils.splitTextIntoSentences(text)
+            
+            // 更新状态
+            _ttsState.value = _ttsState.value.copy(
+                status = STATUS_PLAYING,
+                bookId = bookId,
+                currentPage = pageIndex
+            )
+            
+            // 更新同步状态 - 确保在设置完currentBookId和currentPageIndex之后调用
+            updateSyncPageState()
+            
+            // 记录调用后的同步状态
+            val newSyncState = _isSyncPageState.value
+            Log.d(TAG, "startReading后更新同步状态: bookId=$bookId, page=$pageIndex, 同步状态从${oldSyncState}变为${newSyncState}")
+            
+            // 如果有句子，开始逐句朗读
+            if (sentencesList.isNotEmpty()) {
+                try {
+                    speakSentence(sentencesList[0], 0)
+                } catch (e: Exception) {
+                    Log.e(TAG, "朗读第一句失败: ${e.message}", e)
+                    // 如果逐句朗读失败，尝试朗读整个文本
+                    speakText(text)
+                }
+            } else {
+                // 没有有效句子，直接朗读整个文本
+                speakText(text)
+            }
+            
+            // 如果同步状态从1变为0，这可能是自动翻页导致的，尝试再次更新全局阅读位置
+            if (oldSyncState == 1 && newSyncState == 0) {
+                try {
+                    Log.d(TAG, "检测到同步状态从1变为0，尝试恢复同步状态")
+                    val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                    mainActivity?.updateReadingPosition(bookId, pageIndex, 0) // 总页数暂时设为0，稍后会更新
+                    
+                    // 再次更新同步状态
+                    updateSyncPageState()
+                    Log.d(TAG, "尝试恢复同步状态后: IsSyncPageState=${_isSyncPageState.value}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "尝试恢复同步状态失败: ${e.message}", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "startReading执行失败: ${e.message}", e)
+            // 确保即使出错，TTS状态也会被正确设置
+            _ttsState.value = _ttsState.value.copy(
+                status = STATUS_PLAYING,
+                bookId = bookId,
+                currentPage = pageIndex
+            )
         }
-        
-        Log.d(TAG, "开始朗读: bookId=$bookId, page=$pageIndex, IsSyncPageState=${_isSyncPageState.value}")
     }
     
     /**
@@ -372,7 +451,13 @@ class TtsManager private constructor(private val context: Context) {
     private fun speakText(text: String) {
         if (text.isEmpty()) return
         
+        // 应用TTS设置到TTS实例
+        ttsSettings.applyToTts(tts!!)
+        
         val params = Bundle()
+        // 应用TTS设置到参数
+        ttsSettings.applyToParams(params)
+        
         val utteranceId = "TTS_FULL_${UUID.randomUUID()}"
         val result = tts?.speak(
             text,
@@ -390,7 +475,13 @@ class TtsManager private constructor(private val context: Context) {
     private fun speakSentence(sentence: String, index: Int) {
         if (sentence.isEmpty()) return
         
+        // 应用TTS设置到TTS实例
+        ttsSettings.applyToTts(tts!!)
+        
         val params = Bundle()
+        // 应用TTS设置到参数
+        ttsSettings.applyToParams(params)
+        
         val utteranceId = "TTS_SENTENCE_${index}_${UUID.randomUUID()}"
         val result = tts?.speak(
             sentence,

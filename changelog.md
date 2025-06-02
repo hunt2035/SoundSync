@@ -1,5 +1,17 @@
 # 更新日志
 
+## 2025-06-15：TTS自动翻页同步状态修复
+- **问题修复**：修复TTS朗读完一页自动翻页后同步状态(IsSyncPageState)错误变为0的问题
+- **实现内容**：
+  1. 优化TtsService中的handlePageCompleted方法，在同步状态下(IsSyncPageState=1)：
+     - 先发送广播通知前端UI更新
+     - 等待300毫秒确保UI已更新
+     - 更新全局阅读位置
+     - 然后再开始朗读新页面
+  2. 增强TtsManager中的updateSyncPageState方法，添加更详细的日志记录
+  3. 改进TtsManager中的startReading方法，检测并修复同步状态从1变为0的情况
+- **改进目的**：确保在TTS自动翻页后，如果之前是同步状态(IsSyncPageState=1)，则保持同步状态，使前端UI与TTS朗读位置始终保持一致
+
 ## 2025-06-12：TTS自动翻页规则优化
 - **功能增强**：优化TTS自动翻页规则，根据同步状态智能决定UI行为
 - **实现内容**：

@@ -108,52 +108,107 @@ class TtsService : Service() {
         if (bookId == null) return
         
         try {
-            // 确保有阅读引擎
-            ensureReaderEngine(bookId)
-            
-            currentReaderEngine?.let { engine ->
-                // 检查是否有下一页
-                if (currentPage < engine.getTotalPages() - 1) {
-                    // 有下一页，自动翻到下一页
-                    val nextPage = currentPage + 1
-                    Log.d(TAG, "TTS服务自动翻页: 从${currentPage}翻到${nextPage}")
-                    
-                    // 重置pageCompleted状态
-                    ttsManager.resetPageCompletedFlag()
-                    
-                    // 获取下一页文本并朗读
-                    engine.goToPage(nextPage)
-                    val nextPageText = engine.getCurrentPageText()
-                    
-                    if (!nextPageText.isNullOrBlank()) {
-                        ttsManager.startReading(bookId, nextPage, nextPageText)
+            // 使用withContext(Dispatchers.Default)代替supervisorScope
+            // 这样可以避免子协程的取消影响整个操作
+            withContext(Dispatchers.Default) {
+                // 确保有阅读引擎
+                ensureReaderEngine(bookId)
+                
+                currentReaderEngine?.let { engine ->
+                    // 检查是否有下一页
+                    if (currentPage < engine.getTotalPages() - 1) {
+                        // 有下一页，自动翻到下一页
+                        val nextPage = currentPage + 1
+                        Log.d(TAG, "TTS服务自动翻页: 从${currentPage}翻到${nextPage}")
                         
-                        // 获取当前同步状态
-                        val syncState = ttsManager.isSyncPageState.value
-                        Log.d(TAG, "TTS服务自动翻页后开始朗读: page=${nextPage}, 同步状态=${syncState}")
+                        // 重置pageCompleted状态
+                        ttsManager.resetPageCompletedFlag()
                         
-                        // 如果是同步状态(IsSyncPageState=1)，则需要通知前端UI更新
-                        if (syncState == 1) {
-                            // 发送广播通知前端UI需要更新
-                            val intent = Intent("com.wanderreads.ebook.TTS_PAGE_CHANGED")
-                            intent.putExtra("bookId", bookId)
-                            intent.putExtra("pageIndex", nextPage)
-                            applicationContext.sendBroadcast(intent)
-                            Log.d(TAG, "发送UI更新广播: 同步状态=${syncState}, 页面=${nextPage}")
+                        // 获取下一页文本
+                        engine.goToPage(nextPage)
+                        val nextPageText = engine.getCurrentPageText()
+                        
+                        if (!nextPageText.isNullOrBlank()) {
+                            // 获取当前同步状态
+                            val syncState = ttsManager.isSyncPageState.value
+                            Log.d(TAG, "TTS服务自动翻页前的同步状态: ${syncState}")
+                            
+                            if (syncState == 1) {
+                                // 如果是同步状态(IsSyncPageState=1)，先发送广播通知前端UI更新
+                                val intent = Intent("com.wanderreads.ebook.TTS_PAGE_CHANGED")
+                                intent.putExtra("bookId", bookId)
+                                intent.putExtra("pageIndex", nextPage)
+                                applicationContext.sendBroadcast(intent)
+                                Log.d(TAG, "发送UI更新广播: 同步状态=${syncState}, 页面=${nextPage}")
+                                
+                                // 等待一小段时间，确保UI已更新
+                                try {
+                                    kotlinx.coroutines.delay(200) // 增加延迟时间，确保UI有足够时间更新
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "等待UI更新时发生异常: ${e.message}")
+                                    // 继续执行，不要因为延迟失败而中断整个流程
+                                }
+                                
+                                // 更新全局阅读位置，确保与TTS保持同步
+                                val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                                mainActivity?.updateReadingPosition(bookId, nextPage, engine.getTotalPages())
+                                
+                                try {
+                                    // 开始朗读新页面
+                                    ttsManager.startReading(bookId, nextPage, nextPageText)
+                                    Log.d(TAG, "同步状态下开始朗读新页面: page=${nextPage}")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "开始朗读新页面失败: ${e.message}", e)
+                                    // 即使开始朗读失败，也不影响整个翻页流程
+                                }
+                            } else {
+                                // 非同步状态(IsSyncPageState=0)，不需要更新前端UI，直接开始朗读
+                                try {
+                                    ttsManager.startReading(bookId, nextPage, nextPageText)
+                                    Log.d(TAG, "非同步状态下开始朗读新页面: page=${nextPage}, 同步状态=${syncState}")
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "开始朗读新页面失败: ${e.message}", e)
+                                }
+                            }
+                            
+                            // 再次检查同步状态
+                            val newSyncState = ttsManager.isSyncPageState.value
+                            Log.d(TAG, "开始朗读新页面后的同步状态: ${newSyncState}")
                         } else {
-                            // 非同步状态(IsSyncPageState=0)，不需要更新前端UI
-                            Log.d(TAG, "后台自动翻页，不更新UI: 同步状态=${syncState}, 页面=${nextPage}")
+                            // 下一页文本为空，停止朗读
+                            ttsManager.stopReading()
+                            Log.d(TAG, "下一页文本为空，停止朗读")
                         }
                     } else {
-                        // 下一页文本为空，停止朗读
+                        // 已到最后一页，停止朗读
                         ttsManager.stopReading()
-                        Log.d(TAG, "下一页文本为空，停止朗读")
+                        Log.d(TAG, "TTS已到最后一页，停止朗读")
                     }
-                } else {
-                    // 已到最后一页，停止朗读
-                    ttsManager.stopReading()
-                    Log.d(TAG, "TTS已到最后一页，停止朗读")
                 }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            Log.e(TAG, "自动翻页失败(协程被取消): ${e.message}", e)
+            // 尝试恢复TTS朗读
+            try {
+                // 重置pageCompleted状态
+                ttsManager.resetPageCompletedFlag()
+                
+                // 获取下一页
+                val nextPage = currentPage + 1
+                
+                // 再次尝试更新全局阅读位置
+                val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                mainActivity?.updateReadingPosition(bookId, nextPage, currentReaderEngine?.getTotalPages() ?: 0)
+                
+                // 发送UI更新广播
+                val intent = Intent("com.wanderreads.ebook.TTS_PAGE_CHANGED")
+                intent.putExtra("bookId", bookId)
+                intent.putExtra("pageIndex", nextPage)
+                applicationContext.sendBroadcast(intent)
+                Log.d(TAG, "在异常恢复中发送UI更新广播: 页面=${nextPage}")
+            } catch (ex: Exception) {
+                Log.e(TAG, "尝试恢复TTS朗读失败: ${ex.message}", ex)
+                // 不停止TTS，让用户可以手动继续
             }
         } catch (e: Exception) {
             Log.e(TAG, "自动翻页失败: ${e.message}", e)

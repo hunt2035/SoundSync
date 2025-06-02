@@ -328,7 +328,7 @@ class UnifiedReaderViewModel(
         context.bindService(serviceIntent, ttsServiceConnection, Context.BIND_AUTO_CREATE)
         
         Log.d(TAG, "开始绑定TTS服务")
-    } 
+    }
     
     /**
      * 解绑TTS服务
@@ -497,26 +497,36 @@ class UnifiedReaderViewModel(
      */
     fun goToPage(page: Int) {
         viewModelScope.launch {
-            // 跳转页面不应该影响TTS朗读状态
-            
-            readerEngine?.goToPage(page)
-            
-            // 更新当前页内容和章节标题
-            readerEngine?.let { engine ->
-                _uiState.update { state ->
-                    state.copy(
-                        currentContent = engine.getCurrentPageContent(),
-                        chapterTitle = engine.getCurrentChapterTitle()
-                    )
+            try {
+                Log.d(TAG, "开始跳转到页面: $page")
+                
+                // 跳转页面不应该影响TTS朗读状态
+                readerEngine?.goToPage(page)
+                
+                // 更新当前页内容和章节标题
+                readerEngine?.let { engine ->
+                    _uiState.update { state ->
+                        state.copy(
+                            currentContent = engine.getCurrentPageContent(),
+                            chapterTitle = engine.getCurrentChapterTitle()
+                        )
+                    }
                 }
+                
+                // 更新全局阅读位置与TTS同步状态
+                try {
+                    val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                    mainActivity?.updateReadingPosition(bookId, _uiState.value.currentPage, _uiState.value.totalPages)
+                    ttsManager.updateSyncPageState()
+                    
+                    Log.d(TAG, "页面跳转完成: page=$page, 当前页=${_uiState.value.currentPage}, TTS同步状态=${ttsManager.isSyncPageState.value}")
+                } catch (e: Exception) {
+                    Log.e(TAG, "更新全局阅读位置或TTS同步状态失败: ${e.message}", e)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "跳转到页面 $page 失败: ${e.message}", e)
+                _uiState.update { it.copy(error = "跳转页面失败: ${e.message}") }
             }
-            
-            // 更新全局阅读位置与TTS同步状态
-            val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
-            mainActivity?.updateReadingPosition(bookId, _uiState.value.currentPage, _uiState.value.totalPages)
-            ttsManager.updateSyncPageState()
-            
-            Log.d("UnifiedReaderViewModel", "用户跳转页面: page=$page, 当前页=${_uiState.value.currentPage}, TTS同步状态=${ttsManager.isSyncPageState.value}")
         }
     }
     
@@ -1202,9 +1212,9 @@ class UnifiedReaderViewModel(
         try {
             val filter = IntentFilter("com.wanderreads.ebook.TTS_PAGE_CHANGED")
             getApplication<Application>().registerReceiver(ttsPageChangedReceiver, filter)
-            Log.d(TAG, "注册TTS翻页广播接收器")
+            Log.d(TAG, "TTS翻页广播接收器注册成功")
         } catch (e: Exception) {
-            Log.e(TAG, "注册TTS翻页广播接收器失败", e)
+            Log.e(TAG, "注册TTS翻页广播接收器失败: ${e.message}", e)
         }
     }
     
@@ -1214,9 +1224,9 @@ class UnifiedReaderViewModel(
     private fun unregisterTtsPageChangedReceiver() {
         try {
             getApplication<Application>().unregisterReceiver(ttsPageChangedReceiver)
-            Log.d(TAG, "解除注册TTS翻页广播接收器")
+            Log.d(TAG, "TTS翻页广播接收器解除注册成功")
         } catch (e: Exception) {
-            Log.e(TAG, "解除注册TTS翻页广播接收器失败", e)
+            Log.e(TAG, "解除注册TTS翻页广播接收器失败: ${e.message}", e)
         }
     }
 }

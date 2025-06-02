@@ -163,18 +163,31 @@ class MainActivity : ComponentActivity() {
      * 更新当前阅读位置
      */
     fun updateReadingPosition(bookId: String?, currentPage: Int, totalPages: Int) {
-        val oldBookId = readBookId
-        val oldPage = readCurrentPage
-        
-        readBookId = bookId
-        readCurrentPage = currentPage
-        readTotalPages = totalPages
-        
-        Log.d(TAG, "更新阅读位置: 从(bookId=$oldBookId, page=$oldPage) 到 (bookId=$bookId, page=$currentPage/$totalPages)")
-        
-        // 更新TTS同步状态
-        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(this)
-        ttsManager?.updateSyncPageState()
+        try {
+            val oldBookId = readBookId
+            val oldPage = readCurrentPage
+            
+            readBookId = bookId
+            readCurrentPage = currentPage
+            readTotalPages = totalPages
+            
+            Log.d(TAG, "更新阅读位置: 从(bookId=$oldBookId, page=$oldPage) 到 (bookId=$bookId, page=$currentPage/$totalPages)")
+            
+            // 更新TTS同步状态
+            try {
+                val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(this)
+                ttsManager?.updateSyncPageState()
+            } catch (e: Exception) {
+                Log.e(TAG, "更新TTS同步状态失败: ${e.message}", e)
+                // 即使更新同步状态失败，也不影响阅读位置的更新
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "更新阅读位置失败: ${e.message}", e)
+            // 确保即使出错，全局变量也会被更新
+            readBookId = bookId
+            readCurrentPage = currentPage
+            readTotalPages = totalPages
+        }
     }
     
     /**

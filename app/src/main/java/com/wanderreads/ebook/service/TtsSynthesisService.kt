@@ -498,7 +498,7 @@ class TtsSynthesisService : Service() {
     private fun processSingleText(text: String, task: SynthesisTask, outputFile: File) {
         // 使用API 21+的文件合成方法
         val params = Bundle()
-        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, task.params.volume)
+        params.putFloat("volume", task.params.volume)
         
         val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             // 使用最新的API合成到文件
@@ -570,7 +570,7 @@ class TtsSynthesisService : Service() {
                             // 继续处理下一个块
                             val nextChunk = remainingChunks[currentChunkIndex - 1]
                             val params = Bundle()
-                            params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, task.params.volume)
+                            params.putFloat("volume", task.params.volume)
                             
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                 @Suppress("DEPRECATION")
@@ -678,7 +678,7 @@ class TtsSynthesisService : Service() {
                 
                 // 开始处理第一个块
                 val params = Bundle()
-                params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, task.params.volume)
+                params.putFloat("volume", task.params.volume)
                 
                 val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     @Suppress("DEPRECATION")

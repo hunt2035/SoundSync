@@ -951,19 +951,21 @@ fun UnifiedReaderScreen(
                                             "currentSentenceIndex=${highlightState.currentSentenceIndex}, " +
                                             "sentencesSize=${sentences.size}")
                                         
-                                        // 强制设置高亮条件
+                                        // 强制设置高亮条件，确保在同步状态下始终启用高亮
                                         val shouldHighlight = ttsState.status == TtsManager.STATUS_PLAYING && isPositionSynced
-                                        if (shouldHighlight) {
-                                            Log.d("UnifiedReaderScreen", "强制启用高亮: isHighlighting=${highlightState.isHighlighting}, shouldHighlight=$shouldHighlight")
-                                        }
+                                        
+                                        // 记录最终高亮决定
+                                        val finalHighlightState = (highlightState.isHighlighting || shouldHighlight) && 
+                                            (ttsState.status == TtsManager.STATUS_PLAYING || ttsState.status == TtsManager.STATUS_PAUSED) &&
+                                            isPositionSynced
+                                            
+                                        Log.d("UnifiedReaderScreen", "强制启用高亮: isHighlighting=${highlightState.isHighlighting}, shouldHighlight=$shouldHighlight")
                                         
                                         HighlightedText(
                                             text = paragraph,
                                             sentences = sentences,
-                                            highlightIndex = highlightState.currentSentenceIndex,
-                                            isHighlighting = (highlightState.isHighlighting || shouldHighlight) && 
-                                                (ttsState.status == TtsManager.STATUS_PLAYING || ttsState.status == TtsManager.STATUS_PAUSED) &&
-                                                isPositionSynced, // 只有在同步状态下才启用高亮
+                                            highlightIndex = if (finalHighlightState) highlightState.currentSentenceIndex else -1,
+                                            isHighlighting = finalHighlightState,
                                             ttsStatus = ttsState.status,
                                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                                 fontSize = currentConfig.fontSize.sp,
