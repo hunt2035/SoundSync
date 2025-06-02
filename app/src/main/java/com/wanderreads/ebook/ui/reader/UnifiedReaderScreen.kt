@@ -1014,15 +1014,28 @@ fun UnifiedReaderScreen(
                                 val ttsPage = ttsManager.currentPage
                                 
                                 if (ttsBookId != null) {
-                                    // 跳转到TTS朗读的页面
-                                    viewModel.goToPage(ttsPage)
+                                    // 检查当前显示的书籍ID与TTS朗读的书籍ID是否相同
+                                    val currentBookId = uiState.book?.id
                                     
-                                    // 更新全局阅读位置
-                                    val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
-                                    mainActivity?.updateReadingPosition(ttsBookId, ttsPage, uiState.totalPages)
-                                    
-                                    // 同步后更新同步状态
-                                    ttsManager.updateSyncPageState()
+                                    if (ttsBookId != currentBookId) {
+                                        // 如果不同，需要先切换到TTS朗读的书籍
+                                        Log.d("UnifiedReaderScreen", "跳转到不同书籍: 从 $currentBookId 到 $ttsBookId")
+                                        
+                                        // 通过MainActivity切换到正在朗读的书籍
+                                        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                                        mainActivity?.navigateToBook(ttsBookId, ttsPage)
+                                    } else {
+                                        // 如果是同一本书，只需跳转到正确的页面
+                                        // 跳转到TTS朗读的页面
+                                        viewModel.goToPage(ttsPage)
+                                        
+                                        // 更新全局阅读位置
+                                        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                                        mainActivity?.updateReadingPosition(ttsBookId, ttsPage, uiState.totalPages)
+                                        
+                                        // 同步后更新同步状态
+                                        ttsManager.updateSyncPageState()
+                                    }
                                 }
                             },
                             onOffsetChange = { offset ->

@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -193,10 +194,17 @@ val bottomNavItems = listOf(
  * 应用导航组件
  */
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    onNavControllerReady: (NavController) -> Unit = {}
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    
+    // 提供NavController的引用
+    LaunchedEffect(navController) {
+        onNavControllerReady(navController)
+    }
     
     // 确定当前路由是否需要显示底部栏
     val currentRoute = navBackStackEntry?.destination?.route

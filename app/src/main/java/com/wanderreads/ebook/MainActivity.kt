@@ -22,9 +22,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.navigation.NavController
 import java.lang.ref.WeakReference
 import com.wanderreads.ebook.ui.theme.EbookTheme
 import com.wanderreads.ebook.ui.navigation.AppNavigation
+import com.wanderreads.ebook.ui.navigation.Screen
 import com.wanderreads.ebook.util.FileUtil
 import java.io.File
 
@@ -35,6 +37,9 @@ class MainActivity : ComponentActivity() {
     
     // 是否显示存储权限对话框（仅用于Android 11+的MANAGE_EXTERNAL_STORAGE权限）
     private val showStoragePermissionDialogState = mutableStateOf(false)
+    
+    // 保存NavController的引用
+    private var navController: NavController? = null
     
     companion object {
         private const val TAG = "MainActivity"
@@ -103,7 +108,11 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        AppNavigation()
+                        // 使用自定义版本的AppNavigation，它会提供NavController的引用
+                        AppNavigation(onNavControllerReady = { controller: NavController ->
+                            navController = controller
+                            Log.d(TAG, "NavController已设置")
+                        })
                         
                         // 仅为Android 11+设备显示MANAGE_EXTERNAL_STORAGE权限对话框
                         if (showStoragePermissionDialogState.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -175,6 +184,34 @@ class MainActivity : ComponentActivity() {
     fun isReadingPositionSyncWithTts(): Boolean {
         val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(this)
         return readBookId == ttsManager.bookId && readCurrentPage == ttsManager.currentPage
+    }
+    
+    /**
+     * 导航到指定的书籍
+     * 用于在点击"边听边看"按钮时切换到正在朗读的书籍
+     */
+    fun navigateToBook(bookId: String, pageIndex: Int) {
+        // 首先更新全局阅读位置
+        updateReadingPosition(bookId, pageIndex, 0) // 总页数暂时设为0，稍后会更新
+        
+        // 使用NavController导航到UnifiedReader屏幕
+        navController?.let { controller ->
+            // 导航到统一阅读器
+            val route = Screen.UnifiedReader.createRoute(bookId)
+            controller.navigate(route) {
+                // 避免创建多个相同目标的副本
+                launchSingleTop = true
+                
+                // 如果已经在阅读器屏幕上，则弹出当前阅读器
+                popUpTo(Screen.UnifiedReader.route) {
+                    inclusive = true
+                }
+            }
+            
+            Log.d(TAG, "导航到书籍: bookId=$bookId, page=$pageIndex")
+        } ?: run {
+            Log.e(TAG, "NavController为空，无法导航")
+        }
     }
     
     /**
