@@ -331,6 +331,18 @@ Documents/WanderReads/
 
 ## TTS朗读功能
 
+### TTS设置界面
+
+WanderReads提供了完整的TTS设置界面，用户可以根据个人喜好调整TTS朗读参数：
+
+1. **访问方式**：在设置页面中点击"TTS朗读设置"选项
+2. **可调整参数**：
+   - 语速：调整朗读速度（0.5-2.0倍速），默认值：1.0f，在TtsSettings.kt中的getSpeechRate()方法中定义；
+   - 音量：调整朗读音量（0.0-1.0），默认值：1.0f，在TtsSettings.kt中的getSpeechVolume()方法中定义；
+   - 句子间停顿时间：调整句子之间的停顿时长（0-100），默认值：10，在TtsSettings.kt中的getSilenceDuration()方法中定义。
+3. **测试功能**：提供"测试朗读效果"按钮，可以立即听到当前设置的效果
+4. **设置保存**：所有设置会自动保存，在下次朗读时自动应用
+
 ### 自动翻页机制
 
 WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面返回到书架页面，TTS朗读完当前页后也能自动翻到下一页并继续朗读。这是通过将自动翻页逻辑从ViewModel移到TtsService中实现的：

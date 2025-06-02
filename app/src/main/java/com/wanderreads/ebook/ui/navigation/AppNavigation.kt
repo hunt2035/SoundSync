@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Settings
@@ -76,6 +77,7 @@ import com.wanderreads.ebook.ui.reader.EpubReaderViewModel
 import com.wanderreads.ebook.ui.reader.EpubReaderViewModelFactory
 import com.wanderreads.ebook.ui.settings.SettingsViewModelFactory
 import com.wanderreads.ebook.ui.settings.SettingsViewModel
+import com.wanderreads.ebook.ui.settings.TtsSettingsScreen
 import com.wanderreads.ebook.ui.reader.UnifiedReaderScreen
 import com.wanderreads.ebook.ui.reader.UnifiedReaderViewModel
 import com.wanderreads.ebook.ui.reader.UnifiedReaderViewModelFactory
@@ -178,6 +180,14 @@ sealed class Screen(
     ) {
         fun createRoute(url: String) = "webview?url=${url}"
     }
+    
+    data object TtsSettings : Screen(
+        route = "tts_settings",
+        title = "TTS设置",
+        selectedIcon = Icons.Filled.VolumeUp,
+        unselectedIcon = Icons.Filled.VolumeUp,
+        hasBottomBar = false
+    )
 }
 
 /**
@@ -390,7 +400,20 @@ fun AppNavigation(
                 val viewModel = androidx.lifecycle.viewmodel.compose.viewModel<SettingsViewModel>(
                     factory = viewModelFactory
                 )
-                SettingsScreen()
+                SettingsScreen(
+                    onNavigateToTtsSettings = {
+                        navController.navigate(Screen.TtsSettings.route)
+                    }
+                )
+            }
+            
+            // TTS设置屏幕
+            composable(Screen.TtsSettings.route) {
+                TtsSettingsScreen(
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
             }
             
             // 标准阅读器屏幕 (用于TXT和其他格式)
