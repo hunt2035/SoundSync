@@ -141,8 +141,8 @@
 - 能够改变TTS的3种状态的操作，包括：1）用户点击底部工具栏的"朗读本页"；2）用户点击音频播放控件的暂停/播放或停止按钮；3）完成播放；4）播放异常中断。 TTS的3种状态，也需同步更新UI的按钮状态。
 
 #### 全局TTS状态与UI的关系
-- 朗读时，当前朗读的句子需高亮显示，且朗读的句子与高亮的句子需要保持同步。
-- **音频播放控件**：两边是半圆形，从左到右分别是圆形的封面，文字按钮("边听边看"或“同步中...”)，播放按钮（▶）/暂停按钮（⏸）、关闭按钮（❌）。
+- TTS朗读时，若全局变量IsSyncPageState=1，则当前朗读的句子需高亮显示，且朗读的句子与高亮的句子需要保持同步。
+- **音频播放控件**：两边是半圆形，从左到右分别是圆形的封面，文字按钮("边听边看"或"同步中...")，播放按钮（▶）/暂停按钮（⏸）、关闭按钮（❌）。
 - 在**全屏阅读界面**（即无顶部工具栏和底部工具栏时），音频播放控件隐藏。
 - 在**带工具栏的阅读界面**，app判断TTS的状态：如果是停止状态，则音频播放控件隐藏；如果TTS是朗读状态，则音频播放控件可见，且显示暂停按钮（⏸）；如果TTS是暂停状态，则音频播放控件可见，且显示播放按钮（▶）。
 
@@ -176,8 +176,9 @@
 #### 当前阅读的位置和当前朗读的位置之间的关系
 1. 当前阅读的位置完全由用户的操作决定，即用户当前翻阅的书籍的页面在哪里，决定了当前阅读的位置；当前朗读的位置，不受用户翻页操作的影响，TTS朗读到书籍的哪一页，朗读的位置就在哪里，它可以是在后台进行的。
 2. 当前阅读的位置 与 当前朗读的位置 可能相同，也可能不同。
-3. 如果当前用户阅读的页面与当前朗读的页面同步（即全局变量IsSyncPageState=true），则**音频播放控件**（如果可见）里的文字按钮显示“同步中...”，文字的背景改为浅蓝色，文字按钮不可点击。同时，TTS朗读或暂停时的文字高亮功能起作用。
-4. 如果当前用户阅读的页面与当前朗读的页面不同步（即全局变量IsSyncPageState=false），则**音频播放控件**（如果可见）里的文字按钮显示“边听边看”，文字的背景改为深蓝色，点击“边听边看”文字按钮则页面立即切换到当前朗读的书籍的对应页面(currentBookId和 currentPageIndex对应的页面)。
+3. 如果当前用户阅读的页面与当前朗读的页面同步（即全局变量IsSyncPageState=1），则**音频播放控件**（如果可见）里的文字按钮显示"同步中..."，文字的背景改为浅蓝色，文字按钮不可点击。同时，TTS朗读或暂停时的文字高亮功能起作用。
+4. 如果当前用户阅读的页面与当前朗读的页面不同步（即全局变量IsSyncPageState=0），则**音频播放控件**（如果可见）里的文字按钮显示"边听边看"，文字的背景改为深蓝色，点击"边听边看"文字按钮则页面立即切换到当前朗读的书籍的对应页面(currentBookId和 currentPageIndex对应的页面)。
+5. TTS朗读完一页，自动翻页，需要遵循的规则：若IsSyncPageState=1（即朗读页面与用户查看的页面一致），则TTS在前台自动翻页，需继续保持朗读的页面与用户当前查看的页面一致（即IsSyncPageState=1）；若IsSyncPageState=0（即朗读页面与用户查看的页面不一致），则TTS在后台自动翻页，不影响前端UI。
 
 
 ### TTS语音合成：
@@ -326,4 +327,88 @@ Documents/WanderReads/
 
 ## 最近更新与修复
     记录到changelog.md文件中。
+
+
+## TTS朗读功能
+
+### 自动翻页机制
+
+WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面返回到书架页面，TTS朗读完当前页后也能自动翻到下一页并继续朗读。这是通过将自动翻页逻辑从ViewModel移到TtsService中实现的：
+
+1. **TtsService**：作为前台服务运行，生命周期独立于UI界面，负责：
+   - 监听TTS状态变化
+   - 在页面朗读完成时自动翻页
+   - 加载和管理BookReaderEngine
+   - 更新通知显示当前朗读状态
+
+2. **TtsManager**：全局单例，负责：
+   - 管理TTS引擎
+   - 提供TTS状态流
+   - 提供重置pageCompleted标志的方法
+
+3. **UnifiedReaderViewModel**：不再处理自动翻页逻辑，只负责：
+   - 启动和绑定TtsService
+   - 监听TTS状态变化，但不处理自动翻页
+
+4. **MainActivity**：维护全局阅读位置，供TtsService使用：
+   - readBookId：当前阅读的书籍ID
+   - readCurrentPage：当前阅读的页码
+   - updateReadingPosition：更新阅读位置的方法
+
+### 使用方法
+
+1. 在阅读界面点击"朗读"按钮开始TTS朗读
+2. TTS会自动朗读当前页面内容
+3. 朗读完成后自动翻页并继续朗读
+4. 即使退出阅读界面，TTS也会继续在后台朗读并自动翻页
+5. 通知栏会显示当前朗读状态和书籍信息
+6. 点击通知可返回到应用
+
+### 自动翻页流程
+
+1. TtsService监听TtsManager的ttsState流
+2. 当检测到pageCompleted=true时，调用handlePageCompleted方法
+3. handlePageCompleted方法:
+   - 确保有可用的BookReaderEngine
+   - 检查是否有下一页
+   - 如果有下一页，重置pageCompleted标志，翻到下一页并开始朗读
+   - 如果已到最后一页，停止朗读
+
+### 关键代码
+
+```kotlin
+// 在TtsService中监听TTS状态
+serviceScope.launch {
+    ttsManager.ttsState.collectLatest { state ->
+        // 处理页面朗读完成事件
+        if (state.status == TtsManager.STATUS_PLAYING && state.pageCompleted) {
+            handlePageCompleted(state.bookId, state.currentPage)
+        }
+    }
+}
+
+// 处理页面朗读完成事件
+private suspend fun handlePageCompleted(bookId: String?, currentPage: Int) {
+    // 确保有阅读引擎
+    ensureReaderEngine(bookId)
+    
+    // 检查是否有下一页
+    if (currentPage < engine.getTotalPages() - 1) {
+        // 有下一页，自动翻到下一页
+        val nextPage = currentPage + 1
+        
+        // 重置pageCompleted状态
+        ttsManager.resetPageCompletedFlag()
+        
+        // 获取下一页文本并朗读
+        engine.goToPage(nextPage)
+        val nextPageText = engine.getCurrentPageText()
+        
+        ttsManager.startReading(bookId, nextPage, nextPageText)
+    } else {
+        // 已到最后一页，停止朗读
+        ttsManager.stopReading()
+    }
+}
+```
 

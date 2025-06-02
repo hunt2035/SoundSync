@@ -414,11 +414,7 @@ class TtsManager private constructor(private val context: Context) {
      */
     fun resetPageCompletedFlag() {
         _ttsState.value = _ttsState.value.copy(pageCompleted = false)
-        
-        // 页面翻页后，更新同步状态
-        updateSyncPageState()
-        
-        Log.d(TAG, "重置页面完成标志: bookId=$currentBookId, page=$currentPageIndex, IsSyncPageState=${_isSyncPageState.value}")
+        Log.d(TAG, "重置pageCompleted标志")
     }
     
     /**

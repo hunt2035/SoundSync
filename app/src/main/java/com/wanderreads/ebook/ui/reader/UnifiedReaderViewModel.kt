@@ -63,6 +63,8 @@ import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 import android.os.Environment
 import com.wanderreads.ebook.util.TtsManager
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 
 /**
  * 统一的阅读器ViewModel
@@ -157,72 +159,43 @@ class UnifiedReaderViewModel(
     private var currentPlaybackPosition = 0
     private var totalAudioDuration = 0
     
+    // TTS翻页广播接收器
+    private val ttsPageChangedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "com.wanderreads.ebook.TTS_PAGE_CHANGED") {
+                val receivedBookId = intent.getStringExtra("bookId")
+                val pageIndex = intent.getIntExtra("pageIndex", -1)
+                
+                // 只有当广播中的bookId与当前ViewModel的bookId匹配时才处理
+                if (receivedBookId == bookId && pageIndex >= 0) {
+                    // 更新UI，跳转到指定页面
+                    viewModelScope.launch {
+                        goToPage(pageIndex)
+                        Log.d(TAG, "收到TTS翻页广播，更新UI到页面: $pageIndex")
+                    }
+                }
+            }
+        }
+    }
+    
     init {
         loadBook()
         bindSynthesisService()
         loadSynthesizedAudioList()
         
-        // 观察TTS状态
+        // 注册TTS翻页广播接收器
+        registerTtsPageChangedReceiver()
+        
+        // 观察TTS状态 - 不再处理自动翻页，这部分逻辑已移至TtsService
         viewModelScope.launch {
             ttsState.collect { state ->
-                // 当TTS状态更新时，可以在这里执行其他操作
-                // 例如，如果TTS读完了一页但状态是继续读，就自动翻页
-                if (state.status == TtsManager.STATUS_PLAYING && state.pageCompleted) {
-                    // 当前页朗读完成，检查是否有下一页
-                    readerEngine?.let { engine ->
-                        // 获取TTS当前朗读的书籍ID和页码
-                        val ttsBookId = ttsManager.bookId
-                        val ttsCurrentPage = ttsManager.currentPage
-                        
-                        // 检查TTS朗读的书籍是否与当前打开的书籍相同
-                        if (ttsBookId == bookId) {
-                            // 检查是否有下一页
-                            if (ttsCurrentPage < engine.getTotalPages() - 1) {
-                                // 有下一页，自动翻到TTS当前朗读页的下一页
-                                val nextPage = ttsCurrentPage + 1
-                                Log.d(TAG, "TTS自动翻页: 从${ttsCurrentPage}翻到${nextPage}")
-                                
-                                // 如果用户当前阅读的页面与TTS朗读的页面同步，则同时更新用户界面
-                                val isSyncPageState = ttsManager.isSyncPageState.value
-                                if (isSyncPageState == 1) {
-                                    // 用户界面也跟着翻页
-                                    goToPage(nextPage)
-                                }
-                                
-                                // 重置pageCompleted状态
-                                ttsManager.resetPageCompletedFlag()
-                                
-                                // 获取下一页文本并朗读
-                                engine.goToPage(nextPage)
-                                val nextPageText = engine.getCurrentPageText()
-                                
-                                // 朗读完后恢复到用户当前阅读的页面
-                                if (isSyncPageState == 0) {
-                                    engine.goToPage(_uiState.value.currentPage)
-                                }
-                                
-                                if (!nextPageText.isNullOrBlank()) {
-                                    ttsManager.startReading(bookId, nextPage, nextPageText)
-                                    // 更新同步状态
-                                    ttsManager.updateSyncPageState()
-                                    Log.d(TAG, "TTS自动翻页后开始朗读: page=${nextPage}, TTS同步状态=${ttsManager.isSyncPageState.value}")
-                                }
-                                else {
-                                    // 下一页文本为空，停止朗读
-                                    ttsManager.stopReading()
-                                    Log.d(TAG, "下一页文本为空，停止朗读")
-                                }
-                            } else {
-                                // 已到最后一页，停止朗读
-                                ttsManager.stopReading()
-                                Log.d(TAG, "TTS已到最后一页，停止朗读")
-                            }
-                        } else {
-                            // TTS朗读的书籍与当前打开的不同，停止朗读
-                            ttsManager.stopReading()
-                            Log.d(TAG, "TTS朗读的书籍(${ttsBookId})与当前打开的书籍(${bookId})不同，停止朗读")
-                        }
-                    }
+                // 仅记录状态变化，不处理自动翻页
+                if (state.status == TtsManager.STATUS_STOPPED) {
+                    Log.d(TAG, "TTS状态变为停止")
+                } else if (state.status == TtsManager.STATUS_PLAYING) {
+                    Log.d(TAG, "TTS状态变为朗读")
+                } else if (state.status == TtsManager.STATUS_PAUSED) {
+                    Log.d(TAG, "TTS状态变为暂停")
                 }
             }
         }
@@ -336,23 +309,26 @@ class UnifiedReaderViewModel(
      * 绑定TTS服务
      */
     private fun bindTtsService() {
-        try {
-            val intent = Intent(getApplication(), TtsService::class.java)
-            // 添加书籍标题信息
-            _uiState.value.book?.let { book ->
-                intent.putExtra("bookTitle", book.title)
-            }
-            getApplication<Application>().bindService(
-                intent,
-                ttsServiceConnection,
-                Context.BIND_AUTO_CREATE
-            )
-            ttsServiceBound = true
-            Log.d(TAG, "开始绑定TTS服务")
-        } catch (e: Exception) {
-            Log.e(TAG, "绑定TTS服务失败", e)
+        val context = getApplication<Application>().applicationContext
+        val serviceIntent = Intent(context, TtsService::class.java)
+        
+        // 传递书籍标题给服务
+        _uiState.value.book?.let { book ->
+            serviceIntent.putExtra("bookTitle", book.title)
         }
-    }
+        
+        // 启动服务
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(serviceIntent)
+        } else {
+            context.startService(serviceIntent)
+        }
+        
+        // 绑定服务 - 使用已有的ttsServiceConnection
+        context.bindService(serviceIntent, ttsServiceConnection, Context.BIND_AUTO_CREATE)
+        
+        Log.d(TAG, "开始绑定TTS服务")
+    } 
     
     /**
      * 解绑TTS服务
@@ -674,6 +650,9 @@ class UnifiedReaderViewModel(
             
             // 解绑TTS服务
             unbindTtsService()
+            
+            // 解除注册TTS翻页广播接收器
+            unregisterTtsPageChangedReceiver()
             
             // 如果使用了@Composable层面的remember，注意这里不会被调用
             // 仅在ViewModel实际被清除时才会被调用
@@ -1213,6 +1192,31 @@ class UnifiedReaderViewModel(
                 Log.e(TAG, "删除文件失败: ${e.message}")
                 _uiState.update { it.copy(error = "删除失败: ${e.message}") }
             }
+        }
+    }
+
+    /**
+     * 注册TTS翻页广播接收器
+     */
+    private fun registerTtsPageChangedReceiver() {
+        try {
+            val filter = IntentFilter("com.wanderreads.ebook.TTS_PAGE_CHANGED")
+            getApplication<Application>().registerReceiver(ttsPageChangedReceiver, filter)
+            Log.d(TAG, "注册TTS翻页广播接收器")
+        } catch (e: Exception) {
+            Log.e(TAG, "注册TTS翻页广播接收器失败", e)
+        }
+    }
+    
+    /**
+     * 解除注册TTS翻页广播接收器
+     */
+    private fun unregisterTtsPageChangedReceiver() {
+        try {
+            getApplication<Application>().unregisterReceiver(ttsPageChangedReceiver)
+            Log.d(TAG, "解除注册TTS翻页广播接收器")
+        } catch (e: Exception) {
+            Log.e(TAG, "解除注册TTS翻页广播接收器失败", e)
         }
     }
 }

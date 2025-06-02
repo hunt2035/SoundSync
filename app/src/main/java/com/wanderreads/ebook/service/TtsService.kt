@@ -16,13 +16,18 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.wanderreads.ebook.MainActivity
 import com.wanderreads.ebook.R
+import com.wanderreads.ebook.data.repository.BookRepository
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.util.PageDirection
 import com.wanderreads.ebook.util.TtsManager
+import com.wanderreads.ebook.util.reader.BookReaderEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * TTS朗读服务
@@ -53,6 +58,11 @@ class TtsService : Service() {
     // 当前朗读信息
     private var currentBookTitle: String = ""
     
+    // 阅读引擎相关
+    private var bookRepository: BookRepository? = null
+    private var currentReaderEngine: BookReaderEngine? = null
+    private var currentBook: Book? = null
+    
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "TtsService已创建")
@@ -63,11 +73,23 @@ class TtsService : Service() {
         // 初始化TTS管理器
         ttsManager = TtsManager.getInstance(applicationContext)
         
+        // 获取应用依赖
+        val ebookApplication = applicationContext as? com.wanderreads.ebook.EbookApplication
+        ebookApplication?.let {
+            val dependencies = it.provideDependencies()
+            bookRepository = dependencies.bookRepository
+        }
+        
         // 启动监听TTS状态的协程
         serviceScope.launch {
             ttsManager.ttsState.collectLatest { state ->
                 // 根据TTS状态更新通知
                 updateNotification(state)
+                
+                // 处理页面朗读完成事件
+                if (state.status == TtsManager.STATUS_PLAYING && state.pageCompleted) {
+                    handlePageCompleted(state.bookId, state.currentPage)
+                }
                 
                 // 如果TTS停止，考虑停止服务
                 if (state.status == TtsManager.STATUS_STOPPED) {
@@ -75,6 +97,101 @@ class TtsService : Service() {
                     stopSelf()
                 }
             }
+        }
+    }
+    
+    /**
+     * 处理页面朗读完成事件
+     * 自动翻页并继续朗读
+     */
+    private suspend fun handlePageCompleted(bookId: String?, currentPage: Int) {
+        if (bookId == null) return
+        
+        try {
+            // 确保有阅读引擎
+            ensureReaderEngine(bookId)
+            
+            currentReaderEngine?.let { engine ->
+                // 检查是否有下一页
+                if (currentPage < engine.getTotalPages() - 1) {
+                    // 有下一页，自动翻到下一页
+                    val nextPage = currentPage + 1
+                    Log.d(TAG, "TTS服务自动翻页: 从${currentPage}翻到${nextPage}")
+                    
+                    // 重置pageCompleted状态
+                    ttsManager.resetPageCompletedFlag()
+                    
+                    // 获取下一页文本并朗读
+                    engine.goToPage(nextPage)
+                    val nextPageText = engine.getCurrentPageText()
+                    
+                    if (!nextPageText.isNullOrBlank()) {
+                        ttsManager.startReading(bookId, nextPage, nextPageText)
+                        
+                        // 获取当前同步状态
+                        val syncState = ttsManager.isSyncPageState.value
+                        Log.d(TAG, "TTS服务自动翻页后开始朗读: page=${nextPage}, 同步状态=${syncState}")
+                        
+                        // 如果是同步状态(IsSyncPageState=1)，则需要通知前端UI更新
+                        if (syncState == 1) {
+                            // 发送广播通知前端UI需要更新
+                            val intent = Intent("com.wanderreads.ebook.TTS_PAGE_CHANGED")
+                            intent.putExtra("bookId", bookId)
+                            intent.putExtra("pageIndex", nextPage)
+                            applicationContext.sendBroadcast(intent)
+                            Log.d(TAG, "发送UI更新广播: 同步状态=${syncState}, 页面=${nextPage}")
+                        } else {
+                            // 非同步状态(IsSyncPageState=0)，不需要更新前端UI
+                            Log.d(TAG, "后台自动翻页，不更新UI: 同步状态=${syncState}, 页面=${nextPage}")
+                        }
+                    } else {
+                        // 下一页文本为空，停止朗读
+                        ttsManager.stopReading()
+                        Log.d(TAG, "下一页文本为空，停止朗读")
+                    }
+                } else {
+                    // 已到最后一页，停止朗读
+                    ttsManager.stopReading()
+                    Log.d(TAG, "TTS已到最后一页，停止朗读")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "自动翻页失败: ${e.message}", e)
+            ttsManager.stopReading()
+        }
+    }
+    
+    /**
+     * 确保有可用的阅读引擎
+     */
+    private suspend fun ensureReaderEngine(bookId: String) {
+        // 如果已有引擎且是同一本书，直接返回
+        if (currentReaderEngine != null && currentBook?.id == bookId) {
+            return
+        }
+        
+        // 清理旧引擎
+        currentReaderEngine?.close()
+        currentReaderEngine = null
+        
+        // 获取书籍信息
+        val book = withContext(Dispatchers.IO) {
+            bookRepository?.getBookById(bookId)
+        }
+        
+        if (book != null) {
+            currentBook = book
+            
+            // 创建新引擎
+            val engine = BookReaderEngine.create(applicationContext, book.type)
+            engine.initialize(book, book.lastReadPage)
+            engine.loadContent()
+            
+            currentReaderEngine = engine
+            Log.d(TAG, "为书籍创建阅读引擎: ${book.title}")
+        } else {
+            Log.e(TAG, "找不到书籍: $bookId")
+            throw IllegalStateException("找不到书籍: $bookId")
         }
     }
     
@@ -113,6 +230,11 @@ class TtsService : Service() {
     
     override fun onDestroy() {
         Log.d(TAG, "TtsService即将销毁")
+        
+        // 清理资源
+        currentReaderEngine?.close()
+        currentReaderEngine = null
+        
         serviceScope.cancel()
         super.onDestroy()
     }
