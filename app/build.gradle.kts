@@ -61,6 +61,12 @@ android {
     }
 }
 
+// 添加 kapt 配置
+kapt {
+    correctErrorTypes = true
+    useBuildCache = true
+}
+
 dependencies {
     // AndroidX 核心库
     implementation(libs.androidx.core.ktx)

@@ -162,6 +162,7 @@ class BookImportWorker(
                     BookFormat.EPUB -> BookType.EPUB
                     BookFormat.PDF -> BookType.PDF
                     BookFormat.TXT -> BookType.TXT
+                    BookFormat.MD -> BookType.MD
                     BookFormat.MOBI, BookFormat.UNKNOWN -> BookType.UNKNOWN
                 },
                 totalPages = metadata.pageCount,

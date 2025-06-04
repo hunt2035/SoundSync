@@ -3,10 +3,10 @@
 本项目是一个功能强大的电子书管理应用，帮助用户导入、组织和阅读电子书。基于Android平台开发，使用现代Jetpack Compose UI框架构建。
 
 ## 技术栈
- - 所有开发的代码需在符合以下技术栈的前提下，尽量采用主流的、先进的技术，且确保各软件包/软件库的版本是匹配的。不要使用不推荐的、过时的技术！
 - Android Studio Ladybug （Build AI-242，属于 2024 年 Q2 版本）
 - AGP (Android Gradle Plugin):8.8.2
 - Gradle:8.11
+- 所有开发的代码需在符合以上技术栈的前提下，尽量采用主流的、先进的技术，且确保各软件包/软件库的版本是匹配的。不要使用不推荐的、过时的技术！
 
 ### 开发语言选择
  **Kotlin**
@@ -53,7 +53,7 @@
 - 设置：软件设置功能，待完善。
 
 ###  电子书导入
-- **电子书导入**：支持导入EPUB、PDF、MOBI、TXT等主流电子书格式。
+- **电子书导入**：支持导入EPUB、PDF、MOBI、TXT、MD等主流电子书格式。
 
 ####  本地导入
 1. 点击应用主界面底部导航栏中的"书架"选项卡。
@@ -331,18 +331,6 @@ Documents/WanderReads/
 
 ## TTS朗读功能
 
-### TTS设置界面
-
-WanderReads提供了完整的TTS设置界面，用户可以根据个人喜好调整TTS朗读参数：
-
-1. **访问方式**：在设置页面中点击"TTS朗读设置"选项
-2. **可调整参数**：
-   - 语速：调整朗读速度（0.5-2.0倍速），默认值：1.0f，在TtsSettings.kt中的getSpeechRate()方法中定义；
-   - 音量：调整朗读音量（0.0-1.0），默认值：1.0f，在TtsSettings.kt中的getSpeechVolume()方法中定义；
-   - 句子间停顿时间：调整句子之间的停顿时长（0-100），默认值：10，在TtsSettings.kt中的getSilenceDuration()方法中定义。
-3. **测试功能**：提供"测试朗读效果"按钮，可以立即听到当前设置的效果
-4. **设置保存**：所有设置会自动保存，在下次朗读时自动应用
-
 ### 自动翻页机制
 
 WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面返回到书架页面，TTS朗读完当前页后也能自动翻到下一页并继续朗读。这是通过将自动翻页逻辑从ViewModel移到TtsService中实现的：
@@ -351,7 +339,8 @@ WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面
    - 监听TTS状态变化
    - 在页面朗读完成时自动翻页
    - 加载和管理BookReaderEngine
-   - 更新通知显示当前朗读状态
+   - 在通知栏显示当前朗读状态和书籍信息
+   - 提供通知栏控制按钮（播放/暂停、停止）
 
 2. **TtsManager**：全局单例，负责：
    - 管理TTS引擎
@@ -367,6 +356,15 @@ WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面
    - readCurrentPage：当前阅读的页码
    - updateReadingPosition：更新阅读位置的方法
 
+### 通知栏体验
+
+为了提供简洁的用户体验，应用只在通知栏显示TTS朗读相关的通知，语音合成等其他操作在后台静默进行，不会显示在通知栏中。TTS朗读通知提供以下功能：
+
+1. 显示当前朗读的书籍信息和状态
+2. 提供播放/暂停按钮，方便用户控制朗读
+3. 提供停止按钮，可随时停止朗读
+4. 点击通知可直接返回到正在朗读的书籍页面
+
 ### 使用方法
 
 1. 在阅读界面点击"朗读"按钮开始TTS朗读
@@ -374,7 +372,8 @@ WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面
 3. 朗读完成后自动翻页并继续朗读
 4. 即使退出阅读界面，TTS也会继续在后台朗读并自动翻页
 5. 通知栏会显示当前朗读状态和书籍信息
-6. 点击通知可返回到应用
+6. 点击通知可返回到正在朗读的书籍页面
+7. 通知栏提供播放/暂停和停止按钮，可直接控制TTS朗读
 
 ### 自动翻页流程
 
@@ -385,42 +384,3 @@ WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面
    - 检查是否有下一页
    - 如果有下一页，重置pageCompleted标志，翻到下一页并开始朗读
    - 如果已到最后一页，停止朗读
-
-### 关键代码
-
-```kotlin
-// 在TtsService中监听TTS状态
-serviceScope.launch {
-    ttsManager.ttsState.collectLatest { state ->
-        // 处理页面朗读完成事件
-        if (state.status == TtsManager.STATUS_PLAYING && state.pageCompleted) {
-            handlePageCompleted(state.bookId, state.currentPage)
-        }
-    }
-}
-
-// 处理页面朗读完成事件
-private suspend fun handlePageCompleted(bookId: String?, currentPage: Int) {
-    // 确保有阅读引擎
-    ensureReaderEngine(bookId)
-    
-    // 检查是否有下一页
-    if (currentPage < engine.getTotalPages() - 1) {
-        // 有下一页，自动翻到下一页
-        val nextPage = currentPage + 1
-        
-        // 重置pageCompleted状态
-        ttsManager.resetPageCompletedFlag()
-        
-        // 获取下一页文本并朗读
-        engine.goToPage(nextPage)
-        val nextPageText = engine.getCurrentPageText()
-        
-        ttsManager.startReading(bookId, nextPage, nextPageText)
-    } else {
-        // 已到最后一页，停止朗读
-        ttsManager.stopReading()
-    }
-}
-```
-

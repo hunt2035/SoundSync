@@ -207,9 +207,11 @@ class TtsSynthesisService : Service() {
     }
     
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 创建通知但不显示在通知栏
         val notification = createNotification("")
         
-        // 检查Android 13+的通知权限
+        // 仍然需要调用startForeground以保持服务在后台运行
+        // 但使用IMPORTANCE_MIN使通知不会显示在通知栏
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val permissionState = ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
             if (permissionState == PackageManager.PERMISSION_GRANTED) {
@@ -828,9 +830,10 @@ class TtsSynthesisService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_MIN  // 使用最低重要性，使通知不会显示在通知栏
             ).apply {
                 description = "用于显示语音合成进度的通知"
+                setShowBadge(false)  // 不显示通知徽章
             }
             
             val notificationManager = getSystemService(NotificationManager::class.java)
@@ -856,25 +859,19 @@ class TtsSynthesisService : Service() {
             .setContentIntent(pendingIntent)
             .setProgress(100, _synthesisState.value.progress, false)
             .setOngoing(true)
+            .setVisibility(NotificationCompat.VISIBILITY_SECRET)  // 在锁屏上隐藏通知
+            .setPriority(NotificationCompat.PRIORITY_MIN)  // 设置最低优先级
             .build()
     }
     
     /**
      * 更新通知
+     * 由于我们不希望在通知栏显示语音合成信息，此方法不再更新通知
      */
     private fun updateNotification(message: String) {
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        
-        // 检查Android 13+的通知权限
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val permissionState = ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
-            if (permissionState == PackageManager.PERMISSION_GRANTED) {
-                notificationManager.notify(NOTIFICATION_ID, createNotification(message))
-            }
-        } else {
-            // 低于Android 13的版本不需要POST_NOTIFICATIONS权限
-            notificationManager.notify(NOTIFICATION_ID, createNotification(message))
-        }
+        // 不再更新通知，保持静默运行
+        // 只在内部更新状态
+        _synthesisState.value = _synthesisState.value.copy(message = message)
     }
     
     /**

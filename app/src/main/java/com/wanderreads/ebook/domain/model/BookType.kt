@@ -7,5 +7,6 @@ enum class BookType {
     EPUB,
     PDF,
     TXT,
+    MD,
     UNKNOWN
 } 

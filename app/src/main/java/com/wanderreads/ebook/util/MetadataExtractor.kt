@@ -37,6 +37,7 @@ class MetadataExtractor(private val context: Context) {
                 BookFormat.PDF -> extractPdfMetadata(file)
                 BookFormat.MOBI -> extractMobiMetadata(file)
                 BookFormat.TXT -> extractTxtMetadata(file)
+                BookFormat.MD -> extractTxtMetadata(file) // MD格式使用与TXT相同的元数据提取方法
                 else -> BookMetadata(
                     title = file.nameWithoutExtension,
                     author = "",

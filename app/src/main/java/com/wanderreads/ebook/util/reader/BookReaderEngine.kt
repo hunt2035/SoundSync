@@ -139,6 +139,7 @@ interface BookReaderEngine {
                 BookType.EPUB -> BookFormat.EPUB
                 BookType.PDF -> BookFormat.PDF
                 BookType.TXT -> BookFormat.TXT
+                BookType.MD -> BookFormat.TXT // 将MD格式当作TXT处理
                 BookType.UNKNOWN -> BookFormat.UNKNOWN
             }
             return ReaderEngineFactory.createEngine(context, format)

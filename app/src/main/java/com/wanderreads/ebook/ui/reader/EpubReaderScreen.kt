@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -76,6 +77,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,6 +97,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.WindowInsets
 import com.wanderreads.ebook.util.PageDirection
+import com.wanderreads.ebook.util.TtsManager
+import com.wanderreads.ebook.util.TtsSettings
 import java.util.Locale
 import java.util.UUID
 
@@ -154,11 +158,11 @@ fun EpubReaderScreen(
         
         if (tts != null) {
             tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {
+                override fun onStart(utteranceId: String) {
                     // 朗读开始
                 }
                 
-                override fun onDone(utteranceId: String?) {
+                override fun onDone(utteranceId: String) {
                     // 朗读完成，翻到下一页
                     if (isTtsActive) {
                         viewModel.navigatePage(PageDirection.NEXT)
@@ -203,7 +207,7 @@ fun EpubReaderScreen(
                     }
                 }
                 
-                override fun onError(utteranceId: String?) {
+                override fun onError(utteranceId: String) {
                     // 朗读错误
                     isTtsActive = false
                 }
@@ -279,7 +283,6 @@ fun EpubReaderScreen(
     // 应用主题或字体修改
     LaunchedEffect(
         uiState.fontSize, 
-        uiState.isDarkMode, 
         uiState.lineHeight, 
         uiState.fontFamily
     ) {
@@ -348,21 +351,6 @@ fun EpubReaderScreen(
                                 Icon(
                                     imageVector = Icons.Default.List,
                                     contentDescription = "目录"
-                                )
-                            }
-                        }
-                        
-                        // 暗色/亮色模式快速切换
-                        Box(
-                            modifier = Modifier.fillMaxHeight(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconButton(onClick = { viewModel.toggleTheme(!uiState.isDarkMode) }) {
-                                Icon(
-                                    imageVector = if (uiState.isDarkMode) 
-                                        Icons.Filled.Brightness7 else Icons.Filled.Brightness4,
-                                    contentDescription = if (uiState.isDarkMode) 
-                                        "亮色模式" else "暗色模式"
                                 )
                             }
                         }
@@ -508,10 +496,7 @@ fun EpubReaderScreen(
                     // 内容显示 - 使用WebView
                     EnhancedEpubWebView(
                         html = uiState.currentChapterHtml!!,
-                        backgroundColor = if (uiState.isDarkMode) 
-                            Color(0xFF121212)
-                        else 
-                            Color(0xFFFAFAFA),
+                        backgroundColor = Color(0xFFFAFAFA),
                         onWebViewCreated = { 
                             webViewInstance = it 
                             // 设置JavaScript接口 - 确保传入的是有效的带有JavascriptInterface注解的接口
@@ -559,8 +544,6 @@ fun EpubReaderScreen(
                 onFontSizeChange = viewModel::changeFontSize,
                 lineHeight = uiState.lineHeight,
                 onLineHeightChange = viewModel::changeLineHeight,
-                isDarkMode = uiState.isDarkMode,
-                onDarkModeChange = viewModel::toggleTheme,
                 fontFamily = uiState.fontFamily,
                 onFontFamilyChange = viewModel::changeFont,
                 margin = uiState.margin,
@@ -996,8 +979,6 @@ fun EnhancedSettingsBottomSheet(
     onFontSizeChange: (Int) -> Unit,
     lineHeight: Float,
     onLineHeightChange: (Float) -> Unit,
-    isDarkMode: Boolean,
-    onDarkModeChange: (Boolean) -> Unit,
     fontFamily: String,
     onFontFamilyChange: (String) -> Unit,
     margin: Int,
@@ -1037,11 +1018,6 @@ fun EnhancedSettingsBottomSheet(
                     onClick = { onTabSelected(1) },
                     text = { Text("版式") }
                 )
-                Tab(
-                    selected = currentTab == 2,
-                    onClick = { onTabSelected(2) },
-                    text = { Text("主题") }
-                )
             }
             
             Spacer(modifier = Modifier.height(16.dp))
@@ -1059,10 +1035,6 @@ fun EnhancedSettingsBottomSheet(
                     onLineHeightChange = onLineHeightChange,
                     margin = margin,
                     onMarginChange = onMarginChange
-                )
-                2 -> ThemeSettings(
-                    isDarkMode = isDarkMode,
-                    onDarkModeChange = onDarkModeChange
                 )
                 else -> TextSettings( // 添加默认处理，以防currentTab是其他值
                     fontSize = fontSize,
@@ -1259,6 +1231,13 @@ fun LayoutSettings(
     margin: Int,
     onMarginChange: (Int) -> Unit
 ) {
+    val context = LocalContext.current
+    val ttsSettings = remember { TtsSettings.getInstance(context) }
+    val ttsManager = remember { TtsManager.getInstance(context) }
+    
+    // 语速设置
+    var speechRate by remember { mutableFloatStateOf(ttsSettings.getSpeechRate()) }
+    
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1298,6 +1277,75 @@ fun LayoutSettings(
             steps = 14,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // TTS朗读设置
+        Text(
+            text = "TTS朗读设置",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+        
+        // 语速设置
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.VolumeUp,
+                contentDescription = "语速",
+                modifier = Modifier.size(24.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            Text(
+                text = "语速",
+                style = MaterialTheme.typography.bodyLarge
+            )
+            
+            Spacer(modifier = Modifier.width(8.dp))
+            
+            Text(
+                text = "%.1f".format(speechRate),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+        }
+        
+        Slider(
+            value = speechRate,
+            onValueChange = { 
+                speechRate = it
+                ttsSettings.setSpeechRate(it)
+            },
+            valueRange = 0.5f..2.0f,
+            steps = 14,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        
+        Text(
+            text = "调整语速可以改变朗读的速度（0.5-2.0）",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+        
+        // 测试按钮
+        Button(
+            onClick = {
+                val testText = "这是一个TTS朗读测试。您可以调整语速，以获得最佳的朗读效果。"
+                ttsManager.startReading("test", 0, testText)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Text("测试朗读效果")
+        }
         
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -1359,103 +1407,6 @@ fun LayoutSettings(
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.align(Alignment.Center)
                 )
-            }
-        }
-    }
-}
-
-/**
- * 主题设置面板
- */
-@Composable
-fun ThemeSettings(
-    isDarkMode: Boolean,
-    onDarkModeChange: (Boolean) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // 暗色模式切换
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp)
-                .clickable { onDarkModeChange(!isDarkMode) }
-                .padding(vertical = 8.dp, horizontal = 16.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (isDarkMode) Icons.Filled.Brightness7 else Icons.Filled.Brightness4,
-                    contentDescription = if (isDarkMode) "亮色模式" else "暗色模式"
-                )
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                Text(
-                    text = if (isDarkMode) "亮色模式" else "暗色模式",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-            
-            Switch(
-                checked = isDarkMode,
-                onCheckedChange = onDarkModeChange
-            )
-        }
-        
-        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-        
-        // 主题预览
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            // 主题预览卡片
-            Surface(
-                color = if (isDarkMode) Color(0xFF121212) else Color(0xFFFAFAFA),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(8.dp)
-                    )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "主题预览",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = if (isDarkMode) Color(0xFFE0E0E0) else Color(0xFF333333)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Text(
-                        text = "这是一段示例文字，展示在${if (isDarkMode) "暗色" else "亮色"}主题下的效果。您可以通过这个预览来决定哪种主题更适合您的阅读习惯。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isDarkMode) Color(0xFFCCCCCC) else Color(0xFF666666)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // 示例链接
-                    Text(
-                        text = "示例链接",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isDarkMode) Color(0xFF90CAF9) else Color(0xFF1565C0)
-                    )
-                }
             }
         }
     }

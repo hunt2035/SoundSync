@@ -20,6 +20,7 @@ object ReaderEngineFactory {
         return when (format) {
             BookFormat.TXT -> TxtReaderEngine(context)
             BookFormat.EPUB -> EpubReaderEngine(context)
+            BookFormat.MD -> TxtReaderEngine(context) // MD格式使用TXT阅读引擎处理
             // 暂时其他格式也用TXT阅读引擎处理
             BookFormat.PDF -> TxtReaderEngine(context)
             BookFormat.MOBI -> TxtReaderEngine(context)

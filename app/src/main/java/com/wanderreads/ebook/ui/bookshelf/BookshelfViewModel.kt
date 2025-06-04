@@ -352,6 +352,7 @@ class BookshelfViewModel(
             fileName.endsWith(".pdf", ignoreCase = true) -> BookType.PDF
             fileName.endsWith(".epub", ignoreCase = true) -> BookType.EPUB
             fileName.endsWith(".txt", ignoreCase = true) -> BookType.TXT
+            fileName.endsWith(".md", ignoreCase = true) -> BookType.MD
             else -> BookType.UNKNOWN
         }
     }

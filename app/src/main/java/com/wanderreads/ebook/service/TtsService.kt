@@ -317,9 +317,13 @@ class TtsService : Service() {
      * 创建通知
      */
     private fun createNotification(title: String, content: String): Notification {
-        // 创建返回应用的PendingIntent
+        // 创建返回应用的PendingIntent，并传递当前朗读的书籍ID和页码
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            // 添加额外信息，指示这是从TTS通知点击而来，并传递当前朗读的书籍和页面信息
+            putExtra("FROM_TTS_NOTIFICATION", true)
+            putExtra("TTS_BOOK_ID", ttsManager.bookId)
+            putExtra("TTS_PAGE_INDEX", ttsManager.currentPage)
         }
         
         val pendingIntentFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -335,6 +339,42 @@ class TtsService : Service() {
             pendingIntentFlags
         )
         
+        // 创建播放/暂停按钮的PendingIntent
+        val playPauseIntent = Intent(this, TtsNotificationReceiver::class.java).apply {
+            action = if (ttsManager.ttsState.value.status == TtsManager.STATUS_PLAYING) {
+                "com.wanderreads.ebook.PAUSE_TTS"
+            } else {
+                "com.wanderreads.ebook.RESUME_TTS"
+            }
+        }
+        
+        val playPausePendingIntent = PendingIntent.getBroadcast(
+            this,
+            1,
+            playPauseIntent,
+            pendingIntentFlags
+        )
+        
+        // 创建停止按钮的PendingIntent
+        val stopIntent = Intent(this, TtsNotificationReceiver::class.java).apply {
+            action = "com.wanderreads.ebook.STOP_TTS"
+        }
+        
+        val stopPendingIntent = PendingIntent.getBroadcast(
+            this,
+            2,
+            stopIntent,
+            pendingIntentFlags
+        )
+        
+        // 根据当前TTS状态选择播放/暂停图标
+        val playPauseIcon = if (ttsManager.ttsState.value.status == TtsManager.STATUS_PLAYING) {
+            R.drawable.ic_pause // 需要添加暂停图标资源
+        } else {
+            R.drawable.ic_play // 需要添加播放图标资源
+        }
+        
+        // 构建带有操作按钮的通知
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(content)
@@ -342,6 +382,18 @@ class TtsService : Service() {
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
+            // 添加播放/暂停按钮
+            .addAction(
+                playPauseIcon,
+                if (ttsManager.ttsState.value.status == TtsManager.STATUS_PLAYING) "暂停" else "播放",
+                playPausePendingIntent
+            )
+            // 添加停止按钮
+            .addAction(
+                R.drawable.ic_stop, // 需要添加停止图标资源
+                "停止",
+                stopPendingIntent
+            )
             .build()
     }
     

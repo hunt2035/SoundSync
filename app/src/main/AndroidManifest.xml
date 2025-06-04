@@ -94,6 +94,17 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+        
+        <!-- TTS通知操作接收器 -->
+        <receiver
+            android:name=".service.TtsNotificationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.wanderreads.ebook.PAUSE_TTS" />
+                <action android:name="com.wanderreads.ebook.RESUME_TTS" />
+                <action android:name="com.wanderreads.ebook.STOP_TTS" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

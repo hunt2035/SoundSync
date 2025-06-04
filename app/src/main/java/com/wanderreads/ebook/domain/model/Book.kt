@@ -35,7 +35,7 @@ data class Book(
  * 电子书格式
  */
 enum class BookFormat {
-    PDF, EPUB, TXT, MOBI, UNKNOWN;
+    PDF, EPUB, TXT, MOBI, MD, UNKNOWN;
     
     companion object {
         fun fromFileName(fileName: String): BookFormat {
@@ -44,6 +44,7 @@ enum class BookFormat {
                 fileName.endsWith(".epub", ignoreCase = true) -> EPUB
                 fileName.endsWith(".txt", ignoreCase = true) -> TXT
                 fileName.endsWith(".mobi", ignoreCase = true) -> MOBI
+                fileName.endsWith(".md", ignoreCase = true) -> MD
                 else -> UNKNOWN
             }
         }

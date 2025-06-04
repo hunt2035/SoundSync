@@ -249,18 +249,6 @@ class EpubReaderViewModel(
     }
     
     /**
-     * 切换阅读主题
-     */
-    fun toggleTheme(isDarkMode: Boolean) {
-        _uiState.update { 
-            it.copy(
-                isDarkMode = isDarkMode,
-                themeJs = epubRenderer.getThemeJs(isDarkMode)
-            )
-        }
-    }
-    
-    /**
      * 切换字体
      */
     fun changeFont(fontFamily: String) {
@@ -305,7 +293,7 @@ class EpubReaderViewModel(
      * 获取设置主题的JavaScript
      */
     fun getThemeJs(): String {
-        return epubRenderer.getThemeJs(uiState.value.isDarkMode)
+        return epubRenderer.getThemeJs(false) // 始终使用亮色模式
     }
     
     /**
@@ -341,7 +329,6 @@ data class EpubReaderUiState(
     val inChapterProgress: Float = 0f,
     val fontSize: Int = 18,
     val lineHeight: Float = 1.6f,
-    val isDarkMode: Boolean = false,
     val fontFamily: String = "Default",
     val isRightToLeft: Boolean = false,
     val margin: Int = 20,

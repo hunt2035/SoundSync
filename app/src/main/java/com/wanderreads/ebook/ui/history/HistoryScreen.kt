@@ -248,6 +248,7 @@ fun HistoryListItem(
                         BookType.EPUB -> MaterialTheme.colorScheme.primaryContainer
                         BookType.PDF -> MaterialTheme.colorScheme.secondaryContainer
                         BookType.TXT -> MaterialTheme.colorScheme.surfaceVariant
+                        BookType.MD -> MaterialTheme.colorScheme.surfaceVariant
                         BookType.UNKNOWN -> MaterialTheme.colorScheme.tertiaryContainer
                     }
                     

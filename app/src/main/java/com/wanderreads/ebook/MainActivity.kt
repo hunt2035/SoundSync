@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -20,15 +22,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import java.lang.ref.WeakReference
+import java.io.File
 import com.wanderreads.ebook.ui.theme.EbookTheme
 import com.wanderreads.ebook.ui.navigation.AppNavigation
 import com.wanderreads.ebook.ui.navigation.Screen
 import com.wanderreads.ebook.util.FileUtil
-import java.io.File
 
 /**
  * 主Activity
@@ -83,64 +87,68 @@ class MainActivity : ComponentActivity() {
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 存储当前实例
-        instance = WeakReference(this)
-        Log.d(TAG, "MainActivity实例已创建和存储")
-        
-        // 设置全局未捕获异常处理器
-        setupExceptionHandler()
-        
         super.onCreate(savedInstanceState)
         
-        // 检查并请求必要权限
+        // 保存单例实例
+        instance = WeakReference(this)
+        
+        // 检查并请求权限
         checkAndRequestPermissions()
         
-        // 对于 Android 10，预创建目录结构
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
-            createDirectoryStructure()
-        }
+        // 处理从TTS通知点击过来的情况
+        handleTtsNotificationIntent(intent)
         
-        try {
-            enableEdgeToEdge()
-            setContent {
-                EbookTheme {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        // 使用自定义版本的AppNavigation，它会提供NavController的引用
-                        AppNavigation(onNavControllerReady = { controller: NavController ->
-                            navController = controller
-                            Log.d(TAG, "NavController已设置")
-                        })
-                        
-                        // 仅为Android 11+设备显示MANAGE_EXTERNAL_STORAGE权限对话框
-                        if (showStoragePermissionDialogState.value && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                            AlertDialog(
-                                onDismissRequest = { showStoragePermissionDialogState.value = false },
-                                title = { Text("需要额外存储权限") },
-                                text = { Text("WanderReads需要'所有文件访问权限'才能保存书籍到您的设备公共目录。请在接下来的系统页面中授予此权限。") },
-                                confirmButton = {
-                                    Button(onClick = {
-                                        showStoragePermissionDialogState.value = false
-                                        requestAllFilesAccessPermission()
-                                    }) {
-                                        Text("授予权限")
-                                    }
-                                },
-                                dismissButton = {
-                                    Button(onClick = { showStoragePermissionDialogState.value = false }) {
-                                        Text("取消")
-                                    }
-                                }
-                            )
+        setContent {
+            EbookTheme {
+                val navController = rememberNavController()
+                
+                // 保存NavController引用
+                this.navController = navController
+                
+                // 显示存储权限对话框
+                if (showStoragePermissionDialogState.value) {
+                    StoragePermissionDialog(
+                        onDismiss = { showStoragePermissionDialogState.value = false },
+                        onConfirm = {
+                            showStoragePermissionDialogState.value = false
+                            openAndroidSettings()
                         }
+                    )
+                }
+                
+                // 应用导航
+                AppNavigation(
+                    onNavControllerReady = { controller ->
+                        this.navController = controller
                     }
+                )
+            }
+        }
+    }
+    
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // 处理新的Intent，例如从通知点击过来的情况
+        handleTtsNotificationIntent(intent)
+    }
+    
+    /**
+     * 处理从TTS通知点击过来的Intent
+     */
+    private fun handleTtsNotificationIntent(intent: Intent?) {
+        intent?.let {
+            if (it.getBooleanExtra("FROM_TTS_NOTIFICATION", false)) {
+                val bookId = it.getStringExtra("TTS_BOOK_ID")
+                val pageIndex = it.getIntExtra("TTS_PAGE_INDEX", 0)
+                
+                if (bookId != null) {
+                    Log.d(TAG, "从TTS通知跳转到书籍: bookId=$bookId, page=$pageIndex")
+                    // 延迟执行导航，确保UI已经准备好
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        navigateToBook(bookId, pageIndex)
+                    }, 300)
                 }
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "应用初始化失败: ${e.message}", e)
-            Toast.makeText(this, "应用初始化失败，请重新启动应用", Toast.LENGTH_LONG).show()
         }
     }
     
@@ -418,4 +426,55 @@ class MainActivity : ComponentActivity() {
         
         super.onDestroy()
     }
+    
+    /**
+     * 打开Android系统设置
+     */
+    private fun MainActivity.openAndroidSettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Android 11+ 需要请求特殊权限
+                val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+                val uri = android.net.Uri.fromParts("package", packageName, null)
+                intent.data = uri
+                startActivity(intent)
+                Toast.makeText(this, "请授予应用访问所有文件的权限", Toast.LENGTH_LONG).show()
+            } else {
+                // 对于Android 10及以下版本，跳转到应用详情页
+                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                val uri = android.net.Uri.fromParts("package", packageName, null)
+                intent.data = uri
+                startActivity(intent)
+                Toast.makeText(this, "请在设置中允许应用访问存储", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "跳转到设置页面失败: ${e.message}", e)
+            Toast.makeText(this, "请在系统设置中手动授予本应用存储权限", Toast.LENGTH_LONG).show()
+        }
+    }
+}
+
+/**
+ * 显示存储权限请求对话框
+ */
+@Composable
+private fun StoragePermissionDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("需要存储权限") },
+        text = { Text("为了能够导入和管理电子书，应用需要访问您的文件存储。请在下一步中授予存储权限。") },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("前往设置")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
 }
