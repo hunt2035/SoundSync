@@ -799,10 +799,16 @@ class UnifiedReaderViewModel(
             }
             
             override fun onCompleted(outputPath: String) {
-                // 合成完成，记录到文件列表
+                // 格式化文件路径，使其更易读
+                val formattedPath = outputPath.replace("/storage/emulated/0/", "内部存储/")
+                
+                // 合成完成，更新状态和显示成功消息
                 _uiState.update { it.copy(
-                    message = "语音合成完成，文件已保存到: $outputPath"
+                    message = "语音合成完成，文件已保存到目录：\n$formattedPath"
                 ) }
+                
+                // 通知用户合成成功
+                showSnackbar("语音合成成功！")
             }
             
             override fun onError(message: String) {
@@ -918,6 +924,15 @@ class UnifiedReaderViewModel(
      */
     fun clearMessage() {
         _uiState.update { it.copy(message = null) }
+    }
+
+    /**
+     * 清除Snackbar消息
+     */
+    fun clearSnackbarMessage() {
+        _uiState.update { it.copy(
+            snackbarMessage = null
+        ) }
     }
 
     /**
@@ -1230,6 +1245,15 @@ class UnifiedReaderViewModel(
             Log.e(TAG, "解除注册TTS翻页广播接收器失败: ${e.message}", e)
         }
     }
+
+    /**
+     * 显示提示消息
+     */
+    private fun showSnackbar(message: String) {
+        _uiState.update { it.copy(
+            snackbarMessage = message
+        ) }
+    }
 }
 
 /**
@@ -1256,5 +1280,6 @@ data class UnifiedReaderUiState(
     val currentPlayingRecordId: String? = null,
     val isAudioPlaying: Boolean = false,
     val currentPlaybackPosition: Int = 0,
-    val totalAudioDuration: Int = 0
+    val totalAudioDuration: Int = 0,
+    val snackbarMessage: String? = null
 )

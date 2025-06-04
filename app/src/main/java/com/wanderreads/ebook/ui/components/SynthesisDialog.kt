@@ -205,6 +205,11 @@ fun SynthesisProgressDialog(
     // 判断是否合成完成
     val isCompleted = message.contains("完成") || progress >= 100
     
+    // 从message中提取文件路径
+    val filePath = if (isCompleted && message.contains("保存")) {
+        message.substringAfter("保存至：\n").trim()
+    } else null
+    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { 
@@ -221,15 +226,48 @@ fun SynthesisProgressDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(message)
-                Spacer(modifier = Modifier.height(16.dp))
-                if (!isErrorState && !isCompleted) {
+                // 错误状态直接显示错误信息
+                if (isErrorState) {
+                    Text(message)
+                } 
+                // 完成状态显示成功消息和文件位置
+                else if (isCompleted) {
+                    Text("语音合成成功！", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    if (filePath != null) {
+                        Text(
+                            text = "生成文件在目录：",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        Text(
+                            text = filePath,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else {
+                        Text(message)
+                    }
+                }
+                // 进行中状态显示进度条和百分比
+                else {
+                    Text("正在合成语音...")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
                     LinearProgressIndicator(
                         progress = progress / 100f,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("$progress%")
+                    
+                    Text(
+                        "$progress%",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         },

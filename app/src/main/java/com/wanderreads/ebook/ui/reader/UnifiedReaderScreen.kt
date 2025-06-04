@@ -107,6 +107,7 @@ import com.wanderreads.ebook.ui.components.AudioPlayerControl
 import com.wanderreads.ebook.util.TtsManager
 import com.wanderreads.ebook.ui.components.HighlightedText
 import com.wanderreads.ebook.util.AppTextUtils
+import androidx.compose.material3.SnackbarHostState
 
 /**
  * 统一阅读器屏幕
@@ -141,7 +142,7 @@ fun UnifiedReaderScreen(
     val audioControlWidth = (screenWidthDp * 0.65f).toInt()
     
     // 控制顶部和底部工具栏的显示
-    var showControls by remember { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(true) }
     
     // 控制目录显示
     var showToc by remember { mutableStateOf(false) }
@@ -312,20 +313,18 @@ fun UnifiedReaderScreen(
     
     // 监听合成状态变化
     LaunchedEffect(synthesisState) {
-        synthesisState?.let { state ->
-            // 如果出现错误，更新错误状态
-            if (state.status == TtsSynthesisService.STATUS_ERROR) {
-                // 显示错误信息
-                state.message?.let { errorMsg ->
-                    if (errorMsg.isNotBlank()) {
-                        viewModel.clearError() // 先清除旧的错误
-                        viewModel.handleSynthesisError("语音合成失败: $errorMsg")
-                    }
-                }
-            }
+        val state = synthesisState
+        if (state != null) {
+            // 显示进度对话框
+            showSynthesisProgressDialog = true
             
-            // 不再在这里控制对话框的显示与隐藏
-            // 只有在合成完成、出错或取消时，才允许用户手动关闭对话框
+            // 当合成完成或出错时，可以关闭进度对话框
+            if (state.status == TtsSynthesisService.STATUS_COMPLETED ||
+                state.status == TtsSynthesisService.STATUS_ERROR ||
+                state.status == TtsSynthesisService.STATUS_CANCELED) {
+                // 不要立即关闭，让用户看到完成消息
+                delay(500)
+            }
         }
     }
     
@@ -341,6 +340,18 @@ fun UnifiedReaderScreen(
                 }
             }
         )
+    }
+    
+    // 创建Snackbar主机状态
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    // 处理Snackbar消息
+    LaunchedEffect(uiState.snackbarMessage) {
+        uiState.snackbarMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            // 显示后清空消息，防止重复显示
+            viewModel.clearSnackbarMessage()
+        }
     }
     
     Scaffold(
@@ -660,7 +671,8 @@ fun UnifiedReaderScreen(
                     }
                 }
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { paddingValues ->
         // 使用Column替代Box作为主布局
         Column(

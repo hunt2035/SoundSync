@@ -76,27 +76,44 @@ class TtsSynthesisService : Service() {
         private var isActive = false
         private val handler = Handler(Looper.getMainLooper())
         private var totalLength = 1 // 防止除零错误
+        private var lastUpdateTime = 0L // 上次更新时间
         
         // 进度更新任务
         private val updateTask = object : Runnable {
             override fun run() {
                 if (!isActive) return
                 
-                val elapsedTime = System.currentTimeMillis() - startTime
+                val currentTime = System.currentTimeMillis()
+                val elapsedTime = currentTime - startTime
+                val timeSinceLastUpdate = currentTime - lastUpdateTime
+                
                 // 基于已经过去的时间和文本总长度估算进度
                 val timeBasedProgress = calculateTimeBasedProgress(elapsedTime)
                 
-                // 取估算进度和实际报告进度的较大值，避免进度后退
-                estimatedProgress = maxOf(timeBasedProgress, lastReportedProgress)
+                // 确保进度始终向前，不会后退
+                val previousProgress = estimatedProgress
+                estimatedProgress = maxOf(timeBasedProgress, lastReportedProgress, previousProgress)
+                
+                // 如果进度没有变化，添加小增量以显示活动状态
+                // 但确保在快接近100%时不会超过99%
+                if (estimatedProgress == previousProgress && estimatedProgress < 95) {
+                    // 每秒至少增加1%，以保持视觉上的进展感
+                    val minIncrement = (timeSinceLastUpdate / 1000.0).coerceAtLeast(0.1) 
+                    estimatedProgress = (previousProgress + minIncrement).toInt().coerceAtMost(99)
+                }
                 
                 // 限制最大进度为99%，留出空间给实际完成事件
                 if (estimatedProgress > 99) estimatedProgress = 99
                 
-                // 更新状态
-                updateProgress(estimatedProgress)
+                // 只有在进度有变化时才更新UI
+                if (estimatedProgress != previousProgress) {
+                    // 更新状态
+                    updateProgress(estimatedProgress)
+                    lastUpdateTime = currentTime
+                }
                 
-                // 每200ms更新一次
-                handler.postDelayed(this, 200)
+                // 每100ms更新一次，提供更平滑的视觉体验
+                handler.postDelayed(this, 100)
             }
         }
         
@@ -108,6 +125,7 @@ class TtsSynthesisService : Service() {
             lastReportedProgress = 0
             estimatedProgress = 0
             startTime = System.currentTimeMillis()
+            lastUpdateTime = startTime
             isActive = true
             handler.post(updateTask)
         }
@@ -117,7 +135,12 @@ class TtsSynthesisService : Service() {
          */
         fun updateActualProgress(current: Int, total: Int) {
             if (total > 0) {
-                lastReportedProgress = (current.toFloat() / total.toFloat() * 100).toInt()
+                // 计算实际百分比进度
+                val actualProgress = (current.toFloat() / total.toFloat() * 100).toInt()
+                
+                // 确保进度只增不减
+                lastReportedProgress = maxOf(lastReportedProgress, actualProgress)
+                
                 // 更新总长度，使后续估算更准确
                 totalLength = total
             }
@@ -140,7 +163,7 @@ class TtsSynthesisService : Service() {
          */
         private fun calculateTimeBasedProgress(elapsedTime: Long): Int {
             // 估算每字符处理时间（毫秒）
-            val estimatedTimePerChar = 50L // 可根据实际情况调整
+            val estimatedTimePerChar = 40L // 微调以更好地匹配实际语音合成速度
             val estimatedTotalTime = totalLength * estimatedTimePerChar
             
             // 计算基于时间的进度百分比
@@ -158,8 +181,8 @@ class TtsSynthesisService : Service() {
                 message = "正在合成语音（${progress}%）"
             )
             
-            // 每5%更新一次通知
-            if (progress % 5 == 0) {
+            // 降低通知更新频率，每10%更新一次通知，减少系统资源消耗
+            if (progress % 10 == 0 || progress == 99) {
                 updateNotification("正在合成语音...（${progress}%）")
             }
             
@@ -310,10 +333,17 @@ class TtsSynthesisService : Service() {
                             // 格式化文件路径，使其更易读
                             val formattedPath = task.outputPath.replace("/storage/emulated/0/", "内部存储/")
                             
+                            // 构建更加友好的成功消息
+                            val successMessage = buildString {
+                                append("语音合成完成\n")
+                                append("文件已保存至：\n")
+                                append(formattedPath)
+                            }
+                            
                             // 更新状态
                             _synthesisState.value = _synthesisState.value.copy(
                                 status = STATUS_COMPLETED,
-                                message = "语音合成完成\n文件已保存至：\n$formattedPath",
+                                message = successMessage,
                                 progress = 100,
                                 outputPath = task.outputPath
                             )
@@ -608,10 +638,17 @@ class TtsSynthesisService : Service() {
                             // 格式化文件路径，使其更易读
                             val formattedPath = task.outputPath.replace("/storage/emulated/0/", "内部存储/")
                             
+                            // 构建更加友好的成功消息
+                            val successMessage = buildString {
+                                append("语音合成完成\n")
+                                append("文件已保存至：\n")
+                                append(formattedPath)
+                            }
+                            
                             // 更新状态
                             _synthesisState.value = _synthesisState.value.copy(
                                 status = STATUS_COMPLETED,
-                                message = "语音合成完成\n文件已保存至：\n$formattedPath",
+                                message = successMessage,
                                 progress = 100,
                                 outputPath = task.outputPath
                             )
