@@ -74,7 +74,8 @@ class UnifiedReaderViewModel(
     application: Application,
     private val bookRepository: BookRepository,
     private val recordRepository: RecordRepository,
-    private val bookId: String
+    private val bookId: String,
+    private val initialPage: Int = 0
 ) : AndroidViewModel(application) {
 
     private companion object {
@@ -217,7 +218,7 @@ class UnifiedReaderViewModel(
                     readerEngine = BookReaderEngine.create(getApplication(), book.type)
                     
                     // 初始化引擎
-                    readerEngine?.initialize(book, book.lastReadPage)
+                    readerEngine?.initialize(book, initialPage)
                     
                     // 加载内容
                     readerEngine?.loadContent()
@@ -240,11 +241,11 @@ class UnifiedReaderViewModel(
                     
                     // 更新全局阅读位置
                     val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
-                    mainActivity?.updateReadingPosition(book.id, book.lastReadPage, readerEngine?.getTotalPages() ?: 0)
+                    mainActivity?.updateReadingPosition(book.id, initialPage, readerEngine?.getTotalPages() ?: 0)
                     
                     // 更新TTS同步状态
                     ttsManager.updateSyncPageState()
-                    Log.d(TAG, "书籍加载完成后更新TTS同步状态: bookId=${book.id}, page=${book.lastReadPage}, IsSyncPageState=${ttsManager.isSyncPageState.value}")
+                    Log.d(TAG, "书籍加载完成后更新TTS同步状态: bookId=${book.id}, page=${initialPage}, IsSyncPageState=${ttsManager.isSyncPageState.value}")
                 } else {
                     _uiState.update { it.copy(error = "找不到图书") }
                 }

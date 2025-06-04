@@ -14,13 +14,14 @@ class UnifiedReaderViewModelFactory(
     private val application: Application,
     private val bookRepository: BookRepository,
     private val recordRepository: RecordRepository,
-    private val bookId: String
+    private val bookId: String,
+    private val initialPage: Int = 0
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(UnifiedReaderViewModel::class.java)) {
-            return UnifiedReaderViewModel(application, bookRepository, recordRepository, bookId) as T
+            return UnifiedReaderViewModel(application, bookRepository, recordRepository, bookId, initialPage) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

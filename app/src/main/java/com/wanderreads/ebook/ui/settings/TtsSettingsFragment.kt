@@ -25,14 +25,6 @@ class TtsSettingsFragment : Fragment() {
     private lateinit var speechRateSeekBar: SeekBar
     private lateinit var speechRateValueText: TextView
     
-    // 音量相关控件
-    private lateinit var volumeSeekBar: SeekBar
-    private lateinit var volumeValueText: TextView
-    
-    // 句子间停顿时间相关控件
-    private lateinit var silenceDurationSeekBar: SeekBar
-    private lateinit var silenceDurationValueText: TextView
-    
     // 测试按钮
     private lateinit var testButton: Button
     
@@ -63,14 +55,6 @@ class TtsSettingsFragment : Fragment() {
         // 语速相关控件
         speechRateSeekBar = view.findViewById(R.id.speech_rate_seekbar)
         speechRateValueText = view.findViewById(R.id.speech_rate_value)
-        
-        // 音量相关控件
-        volumeSeekBar = view.findViewById(R.id.volume_seekbar)
-        volumeValueText = view.findViewById(R.id.volume_value)
-        
-        // 句子间停顿时间相关控件
-        silenceDurationSeekBar = view.findViewById(R.id.silence_duration_seekbar)
-        silenceDurationValueText = view.findViewById(R.id.silence_duration_value)
         
         // 测试按钮
         testButton = view.findViewById(R.id.test_tts_button)
@@ -104,40 +88,6 @@ class TtsSettingsFragment : Fragment() {
             
             override fun onStopTrackingTouch(seekBar: SeekBar) {}
         })
-        
-        // 音量SeekBar监听器
-        volumeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                // 将进度值转换为0.0-1.0范围的音量值
-                val volume = progress / 100f
-                volumeValueText.text = String.format("%.1f", volume)
-                
-                if (fromUser) {
-                    ttsSettings.setSpeechVolume(volume)
-                }
-            }
-            
-            override fun onStartTrackingTouch(seekBar: SeekBar) {}
-            
-            override fun onStopTrackingTouch(seekBar: SeekBar) {}
-        })
-        
-        // 句子间停顿时间SeekBar监听器
-        silenceDurationSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                // 将进度值转换为0-100范围的停顿时间
-                val silenceDuration = progress
-                silenceDurationValueText.text = silenceDuration.toString()
-                
-                if (fromUser) {
-                    ttsSettings.setSilenceDuration(silenceDuration)
-                }
-            }
-            
-            override fun onStartTrackingTouch(seekBar: SeekBar) {}
-            
-            override fun onStopTrackingTouch(seekBar: SeekBar) {}
-        })
     }
     
     /**
@@ -149,24 +99,13 @@ class TtsSettingsFragment : Fragment() {
         val speechRateProgress = ((speechRate - 0.5f) * 100 / 1.5f).toInt()
         speechRateSeekBar.progress = speechRateProgress
         speechRateValueText.text = String.format("%.1f", speechRate)
-        
-        // 加载音量设置
-        val volume = ttsSettings.getSpeechVolume()
-        val volumeProgress = (volume * 100).toInt()
-        volumeSeekBar.progress = volumeProgress
-        volumeValueText.text = String.format("%.1f", volume)
-        
-        // 加载句子间停顿时间设置
-        val silenceDuration = ttsSettings.getSilenceDuration()
-        silenceDurationSeekBar.progress = silenceDuration
-        silenceDurationValueText.text = silenceDuration.toString()
     }
     
     /**
      * 测试TTS朗读
      */
     private fun testTts() {
-        val testText = "这是一个TTS朗读测试。您可以调整语速、音量和句子间停顿时间，以获得最佳的朗读效果。"
+        val testText = "这是一个TTS朗读测试。您可以调整语速，以获得最佳的朗读效果。"
         ttsManager.startReading("test", 0, testText)
     }
 } 

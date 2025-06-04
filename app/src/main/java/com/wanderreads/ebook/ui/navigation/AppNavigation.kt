@@ -162,13 +162,14 @@ sealed class Screen(
     }
     
     data object UnifiedReader : Screen(
-        route = "unified_reader/{bookId}",
+        route = "unified_reader/{bookId}?pageIndex={pageIndex}",
         title = "阅读器",
         selectedIcon = Icons.AutoMirrored.Filled.List,
         unselectedIcon = Icons.AutoMirrored.Outlined.List,
         hasBottomBar = false
     ) {
         fun createRoute(bookId: String) = "unified_reader/$bookId"
+        fun createRoute(bookId: String, pageIndex: Int) = "unified_reader/$bookId?pageIndex=$pageIndex"
     }
     
     data object WebView : Screen(
@@ -510,9 +511,16 @@ fun AppNavigation(
             // 统一阅读器屏幕
             composable(
                 route = Screen.UnifiedReader.route,
-                arguments = listOf(navArgument("bookId") { type = NavType.StringType })
+                arguments = listOf(
+                    navArgument("bookId") { type = NavType.StringType },
+                    navArgument("pageIndex") { 
+                        type = NavType.IntType 
+                        defaultValue = 0
+                    }
+                )
             ) { backStackEntry ->
                 val bookId = backStackEntry.arguments?.getString("bookId") ?: return@composable
+                val pageIndex = backStackEntry.arguments?.getInt("pageIndex") ?: 0
                 val application = context.applicationContext as android.app.Application
                 val ebookApplication = context.applicationContext as com.wanderreads.ebook.EbookApplication
                 val dependencies = ebookApplication.provideDependencies()
@@ -523,7 +531,8 @@ fun AppNavigation(
                         application = application,
                         bookRepository = bookRepository,
                         recordRepository = recordRepository,
-                        bookId = bookId
+                        bookId = bookId,
+                        initialPage = pageIndex
                     )
                 }
                 

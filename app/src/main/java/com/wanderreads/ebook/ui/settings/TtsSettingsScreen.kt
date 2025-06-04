@@ -28,7 +28,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -72,12 +71,6 @@ fun TtsSettingsScreen(
     // 语速设置
     var speechRate by remember { mutableFloatStateOf(ttsSettings.getSpeechRate()) }
     
-    // 音量设置
-    var speechVolume by remember { mutableFloatStateOf(ttsSettings.getSpeechVolume()) }
-    
-    // 句子间停顿时间设置
-    var silenceDuration by remember { mutableIntStateOf(ttsSettings.getSilenceDuration()) }
-    
     Scaffold(
         topBar = {
             TopAppBar(
@@ -116,37 +109,12 @@ fun TtsSettingsScreen(
                 valueRange = 0.5f..2.0f
             )
             
-            // 音量设置
-            SettingSection(
-                title = "音量",
-                description = "调整朗读的音量大小（0.0-1.0）",
-                value = speechVolume.toString().take(3),
-                onValueChange = { newValue ->
-                    speechVolume = newValue
-                    ttsSettings.setSpeechVolume(newValue)
-                },
-                valueRange = 0.0f..1.0f
-            )
-            
-            // 句子间停顿时间设置
-            SettingSection(
-                title = "句子间停顿时间",
-                description = "句子之间的停顿时间，值越小，停顿越短（0-100）",
-                value = silenceDuration.toString(),
-                onValueChange = { newValue ->
-                    silenceDuration = newValue.toInt()
-                    ttsSettings.setSilenceDuration(newValue.toInt())
-                },
-                valueRange = 0f..100f,
-                steps = 100
-            )
-            
             Spacer(modifier = Modifier.height(16.dp))
             
             // 测试按钮
             Button(
                 onClick = {
-                    val testText = "这是一个TTS朗读测试。您可以调整语速、音量和句子间停顿时间，以获得最佳的朗读效果。"
+                    val testText = "这是一个TTS朗读测试。您可以调整语速，以获得最佳的朗读效果。"
                     ttsManager.startReading("test", 0, testText)
                 },
                 modifier = Modifier.fillMaxWidth()

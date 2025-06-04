@@ -455,8 +455,6 @@ class TtsManager private constructor(private val context: Context) {
         ttsSettings.applyToTts(tts!!)
         
         val params = Bundle()
-        // 应用TTS设置到参数
-        ttsSettings.applyToParams(params)
         
         val utteranceId = "TTS_FULL_${UUID.randomUUID()}"
         val result = tts?.speak(
@@ -479,8 +477,6 @@ class TtsManager private constructor(private val context: Context) {
         ttsSettings.applyToTts(tts!!)
         
         val params = Bundle()
-        // 应用TTS设置到参数
-        ttsSettings.applyToParams(params)
         
         val utteranceId = "TTS_SENTENCE_${index}_${UUID.randomUUID()}"
         val result = tts?.speak(

@@ -209,8 +209,8 @@ class MainActivity : ComponentActivity() {
         
         // 使用NavController导航到UnifiedReader屏幕
         navController?.let { controller ->
-            // 导航到统一阅读器
-            val route = Screen.UnifiedReader.createRoute(bookId)
+            // 导航到统一阅读器，并传递目标页码作为参数
+            val route = Screen.UnifiedReader.createRoute(bookId, pageIndex)
             controller.navigate(route) {
                 // 避免创建多个相同目标的副本
                 launchSingleTop = true
