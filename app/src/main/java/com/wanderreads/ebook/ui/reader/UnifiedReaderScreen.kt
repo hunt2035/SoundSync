@@ -83,6 +83,7 @@ import android.widget.Toast
 import com.wanderreads.ebook.util.PageDirection
 import com.wanderreads.ebook.util.reader.model.ReaderConfig
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import androidx.compose.animation.core.RepeatMode
@@ -108,6 +109,7 @@ import com.wanderreads.ebook.util.TtsManager
 import com.wanderreads.ebook.ui.components.HighlightedText
 import com.wanderreads.ebook.util.AppTextUtils
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarHost
 
 /**
  * 统一阅读器屏幕
