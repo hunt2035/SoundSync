@@ -138,6 +138,9 @@ class UnifiedReaderViewModel(
             serviceBound = true
             Log.d(TAG, "语音合成服务已连接")
             
+            // 开始观察服务的合成状态
+            startObservingSynthesisState()
+            
             // 如果有待处理的合成任务，可以在这里执行
             if (_uiState.value.message == "正在准备语音合成...") {
                 // 通知用户服务已连接
@@ -708,6 +711,52 @@ class UnifiedReaderViewModel(
     }
 
     /**
+     * 开始观察合成服务的状态
+     */
+    private fun startObservingSynthesisState() {
+        ttsSynthesisService?.let { service ->
+            viewModelScope.launch {
+                service.synthesisState.collect { state ->
+                    // 更新本地合成状态
+                    _synthesisState.value = state
+                    
+                    // 根据状态更新UI
+                    when(state.status) {
+                        TtsSynthesisService.STATUS_COMPLETED -> {
+                            // 合成完成，格式化文件路径
+                            val formattedPath = state.outputPath.replace("/storage/emulated/0/", "内部存储/")
+                            val directory = formattedPath.substringBeforeLast("/")
+                            
+                            // 更新UI状态
+                            _uiState.update { it.copy(
+                                message = "语音合成成功，生成文件位于目录${directory}下"
+                            ) }
+                            
+                            // 显示Snackbar
+                            showSnackbar("语音合成成功！")
+                            
+                            Log.d(TAG, "合成完成，显示成功消息")
+                        }
+                        TtsSynthesisService.STATUS_ERROR -> {
+                            // 合成失败
+                            _uiState.update { it.copy(
+                                error = "语音合成失败: ${state.message}"
+                            ) }
+                            Log.e(TAG, "合成失败: ${state.message}")
+                        }
+                        TtsSynthesisService.STATUS_SYNTHESIZING -> {
+                            // 合成进行中，更新进度
+                            _uiState.update { it.copy(
+                                message = "正在合成语音...（${state.progress}%）"
+                            ) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * 开始语音合成
      */
     fun startSynthesis(params: SynthesisParams) {
@@ -718,6 +767,9 @@ class UnifiedReaderViewModel(
             bindSynthesisService()
             return
         }
+        
+        // 确保开始观察合成状态
+        startObservingSynthesisState()
         
         // 确保书名和章节名不会过长，并移除非法字符
         val bookTitle = (_uiState.value.book?.title ?: "未知书籍")
@@ -802,9 +854,12 @@ class UnifiedReaderViewModel(
                 // 格式化文件路径，使其更易读
                 val formattedPath = outputPath.replace("/storage/emulated/0/", "内部存储/")
                 
+                // 提取目录路径（去掉文件名）
+                val directory = formattedPath.substringBeforeLast("/")
+                
                 // 合成完成，更新状态和显示成功消息
                 _uiState.update { it.copy(
-                    message = "语音合成完成，文件已保存到目录：\n$formattedPath"
+                    message = "语音合成成功，生成文件位于目录${directory}下"
                 ) }
                 
                 // 通知用户合成成功
@@ -1227,7 +1282,11 @@ class UnifiedReaderViewModel(
     private fun registerTtsPageChangedReceiver() {
         try {
             val filter = IntentFilter("com.wanderreads.ebook.TTS_PAGE_CHANGED")
-            getApplication<Application>().registerReceiver(ttsPageChangedReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getApplication<Application>().registerReceiver(ttsPageChangedReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                getApplication<Application>().registerReceiver(ttsPageChangedReceiver, filter)
+            }
             Log.d(TAG, "TTS翻页广播接收器注册成功")
         } catch (e: Exception) {
             Log.e(TAG, "注册TTS翻页广播接收器失败: ${e.message}", e)

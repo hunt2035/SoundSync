@@ -97,8 +97,13 @@ class TtsSynthesisService : Service() {
                 // 如果进度没有变化，添加小增量以显示活动状态
                 // 但确保在快接近100%时不会超过99%
                 if (estimatedProgress == previousProgress && estimatedProgress < 95) {
-                    // 每秒至少增加1%，以保持视觉上的进展感
-                    val minIncrement = (timeSinceLastUpdate / 1000.0).coerceAtLeast(0.1) 
+                    // 增加进度更新速度，确保用户体验更好
+                    // 合成初期（<30%）进度增长更快，给用户更好的反馈
+                    val minIncrement = if (estimatedProgress < 30) {
+                        (timeSinceLastUpdate / 500.0).coerceAtLeast(0.5) 
+                    } else {
+                        (timeSinceLastUpdate / 1000.0).coerceAtLeast(0.1)
+                    }
                     estimatedProgress = (previousProgress + minIncrement).toInt().coerceAtMost(99)
                 }
                 
@@ -112,8 +117,9 @@ class TtsSynthesisService : Service() {
                     lastUpdateTime = currentTime
                 }
                 
-                // 每100ms更新一次，提供更平滑的视觉体验
-                handler.postDelayed(this, 100)
+                // 更新频率：初期（<50%）更快，后期更慢，提供更平滑的视觉体验
+                val updateDelay = if (estimatedProgress < 50) 50L else 100L
+                handler.postDelayed(this, updateDelay)
             }
         }
         
@@ -127,6 +133,11 @@ class TtsSynthesisService : Service() {
             startTime = System.currentTimeMillis()
             lastUpdateTime = startTime
             isActive = true
+            
+            // 立即更新显示为1%的进度，确保用户看到进度条有变化
+            updateProgress(1)
+            
+            // 启动进度更新任务
             handler.post(updateTask)
         }
         
@@ -162,13 +173,34 @@ class TtsSynthesisService : Service() {
          * 基于时间计算估计进度
          */
         private fun calculateTimeBasedProgress(elapsedTime: Long): Int {
-            // 估算每字符处理时间（毫秒）
-            val estimatedTimePerChar = 40L // 微调以更好地匹配实际语音合成速度
-            val estimatedTotalTime = totalLength * estimatedTimePerChar
+            // 针对不同文本长度调整估计处理时间
+            val baseTimePerChar = 40L // 基础估算每字符处理时间（毫秒）
+            
+            // 总文本处理时间估算
+            // 对于较长文本，平均处理时间会更短（规模效应）
+            val effectiveTimePerChar = if (totalLength > 10000) {
+                baseTimePerChar * 0.7 // 长文本处理更快
+            } else if (totalLength > 5000) {
+                baseTimePerChar * 0.85 // 中等长度文本
+            } else {
+                baseTimePerChar.toDouble() // 短文本
+            }
+            
+            val estimatedTotalTime = (totalLength * effectiveTimePerChar).toLong()
+            
+            // 非线性进度：初期进度增长较快，后期放缓
+            // 使用简单的指数函数实现进度的非线性增长
+            val progressRatio = (elapsedTime.toDouble() / estimatedTotalTime.toDouble())
+            val adjustedRatio = if (progressRatio < 0.5) {
+                // 前半段进度增长稍快
+                progressRatio * 1.2
+            } else {
+                // 后半段进度增长稍慢
+                0.6 + (progressRatio - 0.5) * 0.8
+            }
             
             // 计算基于时间的进度百分比
-            return ((elapsedTime.toFloat() / estimatedTotalTime.toFloat()) * 100)
-                .coerceIn(0f, 99f).toInt()
+            return (adjustedRatio * 100).coerceIn(0.0, 99.0).toInt()
         }
         
         /**
@@ -306,9 +338,9 @@ class TtsSynthesisService : Service() {
                         _synthesisState.value = _synthesisState.value.copy(
                             status = STATUS_SYNTHESIZING,
                             message = "正在合成语音...",
-                            progress = 0
+                            progress = 1
                         )
-                        updateNotification("正在合成语音...（0%）")
+                        updateNotification("正在合成语音...（1%）")
                         
                         // 启动进度跟踪器
                         currentTask?.let { task ->
@@ -338,6 +370,18 @@ class TtsSynthesisService : Service() {
                                 append("语音合成完成\n")
                                 append("文件已保存至：\n")
                                 append(formattedPath)
+                                
+                                // 添加文件大小信息（如果可用）
+                                val file = File(task.outputPath)
+                                if (file.exists()) {
+                                    val fileSize = file.length()
+                                    val fileSizeText = when {
+                                        fileSize < 1024 -> "$fileSize B"
+                                        fileSize < 1024 * 1024 -> "${fileSize / 1024} KB"
+                                        else -> String.format("%.2f MB", fileSize / (1024 * 1024.0))
+                                    }
+                                    append("\n\n文件大小：$fileSizeText")
+                                }
                             }
                             
                             // 更新状态
@@ -579,9 +623,9 @@ class TtsSynthesisService : Service() {
                             _synthesisState.value = _synthesisState.value.copy(
                                 status = STATUS_SYNTHESIZING,
                                 message = "正在合成语音...",
-                                progress = 0
+                                progress = 1 // 从1%开始而不是0%
                             )
-                            updateNotification("正在合成语音...（0%）")
+                            updateNotification("正在合成语音...（1%）")
                             
                             // 启动进度跟踪器
                             progressTracker.start(text.length)
@@ -643,6 +687,18 @@ class TtsSynthesisService : Service() {
                                 append("语音合成完成\n")
                                 append("文件已保存至：\n")
                                 append(formattedPath)
+                                
+                                // 添加文件大小信息（如果可用）
+                                val file = File(task.outputPath)
+                                if (file.exists()) {
+                                    val fileSize = file.length()
+                                    val fileSizeText = when {
+                                        fileSize < 1024 -> "$fileSize B"
+                                        fileSize < 1024 * 1024 -> "${fileSize / 1024} KB"
+                                        else -> String.format("%.2f MB", fileSize / (1024 * 1024.0))
+                                    }
+                                    append("\n\n文件大小：$fileSizeText")
+                                }
                             }
                             
                             // 更新状态

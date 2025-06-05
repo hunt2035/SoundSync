@@ -7,7 +7,7 @@ data class SynthesisParams(
     val speechRate: Float = 1.0f,  // 语速
     val pitch: Float = 1.0f,       // 音调
     val volume: Float = 0.8f,      // 音量
-    val synthesisRange: SynthesisRange = SynthesisRange.CURRENT_CHAPTER  // 合成范围
+    val synthesisRange: SynthesisRange = SynthesisRange.CURRENT_PAGE  // 合成范围，默认为当前页
 )
 
 /**

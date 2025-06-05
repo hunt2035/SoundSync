@@ -200,6 +200,9 @@ fun UnifiedReaderScreen(
     // 收集高亮状态
     val highlightState by viewModel.highlightState.collectAsState()
     
+    // 当前合成状态
+    val synthesisState by viewModel.synthesisState.collectAsState(initial = null)
+    
     // 初始化TTS
     LaunchedEffect(Unit) {
         viewModel.initTts { status ->
@@ -310,23 +313,17 @@ fun UnifiedReaderScreen(
     // 语音合成进度对话框状态
     var showSynthesisProgressDialog by remember { mutableStateOf(false) }
     
-    // 收集合成状态
-    val synthesisState by viewModel.synthesisState.collectAsState()
-    
-    // 监听合成状态变化
+    // 添加状态观察处理
     LaunchedEffect(synthesisState) {
-        val state = synthesisState
-        if (state != null) {
-            // 显示进度对话框
-            showSynthesisProgressDialog = true
-            
-            // 当合成完成或出错时，可以关闭进度对话框
-            if (state.status == TtsSynthesisService.STATUS_COMPLETED ||
-                state.status == TtsSynthesisService.STATUS_ERROR ||
-                state.status == TtsSynthesisService.STATUS_CANCELED) {
-                // 不要立即关闭，让用户看到完成消息
-                delay(500)
+        synthesisState?.let { state ->
+            // 当合成开始时自动显示进度对话框
+            if (state.status == TtsSynthesisService.STATUS_PREPARING || 
+                state.status == TtsSynthesisService.STATUS_SYNTHESIZING) {
+                showSynthesisProgressDialog = true
             }
+            
+            // 在控制台输出状态信息，方便调试
+            Log.d("UnifiedReaderScreen", "合成状态更新: status=${state.status}, progress=${state.progress}, message=${state.message}")
         }
     }
     
@@ -1272,11 +1269,14 @@ fun UnifiedReaderScreen(
                 progress = 0
             )
             
+            // 添加日志输出，帮助调试
+            Log.d("UnifiedReaderScreen", "显示进度对话框: status=${state.status}, progress=${state.progress}, message=${state.message}")
+            
             SynthesisProgressDialog(
                 progress = state.progress,
                 message = state.message,
                 onDismiss = {
-                    // 允许在错误、完成或取消状态下点击外部关闭
+                    // 当处于错误、完成或取消状态时，点击对话框外部或关闭按钮会关闭对话框
                     if (state.status == TtsSynthesisService.STATUS_ERROR || 
                         state.status == TtsSynthesisService.STATUS_COMPLETED ||
                         state.status == TtsSynthesisService.STATUS_CANCELED) {
@@ -1285,8 +1285,13 @@ fun UnifiedReaderScreen(
                     // 在合成进行中，点击外部不关闭对话框
                 },
                 onCancel = {
-                    viewModel.cancelSynthesis()
-                    // 点击取消按钮时，直接关闭对话框
+                    // 点击取消按钮或完成/错误状态下的关闭按钮时，关闭对话框
+                    if (state.status == TtsSynthesisService.STATUS_SYNTHESIZING || 
+                        state.status == TtsSynthesisService.STATUS_PREPARING) {
+                        // 如果正在合成，则取消合成
+                        viewModel.cancelSynthesis()
+                    }
+                    // 关闭对话框
                     showSynthesisProgressDialog = false
                 }
             )
