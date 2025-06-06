@@ -360,9 +360,12 @@ object WebBookImporter {
         
         // 将所有HTML标签转换为普通文本
         val plainText = Jsoup.parse(htmlContent).text()
-            .replace(" . ", ".\n")  // 处理句号后的换行
-            .replace(" ? ", "?\n")  // 处理问号后的换行
-            .replace(" ! ", "!\n")  // 处理感叹号后的换行
+            .replace("。", "。\n")  // 中文句号
+            .replace("！", "！\n")  // 中文感叹号
+            .replace("？", "？\n")  // 中文问号
+            .replace(". ", ".\n")  // 英文句号(不要求前后都有空格)
+            .replace("! ", "!\n")  // 英文感叹号
+            .replace("? ", "?\n")  // 英文问号
             .replace("\\s{2,}".toRegex(), " ")  // 移除多余空格
         
         // 分割成行
@@ -405,16 +408,16 @@ object WebBookImporter {
      * 处理元素，将HTML元素转换为文本格式
      */
     private fun processElement(element: Element) {
-        // 详细处理段落和换行标签
+        // 更明确地处理块级元素
+        element.select("div, p, h1, h2, h3, h4, h5, h6").forEach { el ->
+            el.before("\n\n")
+            el.after("\n\n")
+        }
         element.select("br").before("\n")
-        element.select("p").before("\n").after("\n")
-        element.select("div").before("\n")
-        element.select("h1, h2, h3, h4, h5, h6").before("\n").after("\n")
         element.select("li").before("\n• ")
         
         // 保留一些格式
         element.select("b, strong").prepend("**").append("**")
-      //  element.select("i, em").prepend("*").append("*")
     }
     
     /**
