@@ -414,7 +414,7 @@ object WebBookImporter {
         
         // 保留一些格式
         element.select("b, strong").prepend("**").append("**")
-        element.select("i, em").prepend("*").append("*")
+      //  element.select("i, em").prepend("*").append("*")
     }
     
     /**

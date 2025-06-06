@@ -9,6 +9,7 @@ import android.speech.tts.TextToSpeech
 import android.util.DisplayMetrics
 import android.util.Log
 import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookType
 import com.wanderreads.ebook.util.PageDirection
 import com.wanderreads.ebook.util.reader.BookReaderEngine
 import com.wanderreads.ebook.util.reader.ReaderEngineState
@@ -161,8 +162,16 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
         
         val currentChapterIndex = findChapterIndexForPage(currentPage)
         
+        // 获取页面文本，并根据需要进行格式化
+        val pageText = pages[currentPage]
+        val formattedText = if (book?.type == BookType.MD) {
+            formatMarkdownText(pageText)
+        } else {
+            pageText
+        }
+        
         return ReaderContent(
-            text = pages[currentPage],
+            text = formattedText,
             pageIndex = currentPage,
             chapterIndex = currentChapterIndex,
             isFirstPage = currentPage == 0,
@@ -247,13 +256,64 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
     }
     
     /**
+     * 格式化Markdown文本，处理格式标记
+     */
+    private fun formatMarkdownText(text: String): String {
+        // 如果不是Markdown格式，直接返回原文本
+        if (book?.type != BookType.MD) {
+            return text
+        }
+        
+        // 对Markdown格式进行额外处理
+        return text
+            // 增强标题显示
+            .replace(Regex("^# (.+)$", RegexOption.MULTILINE), "【$1】")
+            .replace(Regex("^## (.+)$", RegexOption.MULTILINE), "【$1】")
+            .replace(Regex("^### (.+)$", RegexOption.MULTILINE), "【$1】")
+            
+            // 处理重点标记，可以在UI层进行样式处理
+            .replace(Regex("\\*\\*(.+?)\\*\\*"), "【$1】")  // 粗体
+            .replace(Regex("\\*(.+?)\\*"), "「$1」")  // 斜体
+            .replace(Regex("__(.+?)__"), "【$1】")  // 粗体
+            .replace(Regex("_(.+?)_"), "「$1」")  // 斜体
+            
+            // 处理引用，改善视觉效果
+            .replace(Regex("^> (.+)$", RegexOption.MULTILINE), "│ $1")
+            
+            // 处理行内代码
+            .replace(Regex("`([^`]+?)`"), "「$1」")
+            
+            // 处理代码块，添加适当间距
+            .replace(Regex("```(.+?)```", RegexOption.DOT_MATCHES_ALL), "\n「代码」\n$1\n「代码结束」\n")
+            
+            // 处理水平线
+            .replace(Regex("^-{3,}$", RegexOption.MULTILINE), "\n--------------------\n")
+            
+            // 处理链接，只保留链接文本
+            .replace(Regex("\\[(.+?)\\]\\(.+?\\)"), "$1")
+            
+            // 处理图片链接，替换为说明文字
+            .replace(Regex("!\\[(.+?)\\]\\(.+?\\)"), "[图片: $1]")
+    }
+    
+    /**
      * 获取当前页面的纯文本内容（用于TTS）
      */
     override fun getCurrentPageText(): String {
         if (pages.isEmpty() || currentPage >= pages.size) {
             return ""
         }
-        _currentPageTextContent = pages[currentPage]
+        
+        val pageText = pages[currentPage]
+        _currentPageTextContent = if (book?.type == BookType.MD) {
+            // 对Markdown文本进行额外处理，以便更好地被TTS引擎朗读
+            pageText
+                .replace(Regex("[*_`~]"), "") // 移除格式标记
+                .replace(Regex("#+ "), "") // 移除标题标记
+        } else {
+            pageText
+        }
+        
         return _currentPageTextContent ?: ""
     }
     
@@ -447,10 +507,43 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
     }
     
     /**
+     * 预处理Markdown文本，改进其显示效果
+     */
+    private fun preprocessMarkdown(text: String): String {
+        // 标记特殊格式，在显示时可以使用
+        var result = text
+            // 保留两个连续换行符（段落分隔）
+            .replace(Regex("\n{3,}"), "\n\n")
+            // 行尾两个空格视为强制换行
+            .replace(Regex("  $", RegexOption.MULTILINE), "\n")
+            // 处理标题格式，保留标题符号但添加换行
+            .replace(Regex("^(#+) (.+)$", RegexOption.MULTILINE), "$1 $2\n")
+            // 将连续换行符替换为特殊标记，以便后续处理
+            .replace("\n\n", "\u0000")
+            // 将单个换行符(不是段落分隔符)替换为空格
+            .replace("\n", " ")
+            // 还原段落分隔符
+            .replace("\u0000", "\n\n")
+            // 改进列表显示
+            .replace(Regex("^ *- (.+)$", RegexOption.MULTILINE), "• $1")
+            .replace(Regex("^ *\\* (.+)$", RegexOption.MULTILINE), "• $1")
+            .replace(Regex("^ *\\d+\\. (.+)$", RegexOption.MULTILINE), "• $1")
+
+        return result
+    }
+    
+    /**
      * 文本分页
      */
     private fun paginateText(text: String): List<String> {
         val result = mutableListOf<String>()
+        
+        // 处理输入文本 - 为Markdown文件添加特殊处理
+        val processedText = if (book?.type == BookType.MD) {
+            preprocessMarkdown(text)
+        } else {
+            text
+        }
         
         // 获取屏幕尺寸
         val displayMetrics = context.resources.displayMetrics
@@ -484,7 +577,7 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
         val charsPerPage = charsPerLine * linesPerPage
         
         // 分割段落
-        val paragraphs = text.split("\n")
+        val paragraphs = processedText.split("\n")
         
         val currentPageContent = StringBuilder()
         var currentPageChars = 0
