@@ -342,28 +342,33 @@ object WebBookImporter {
         // 移除不需要的元素
         document.select("script, style, iframe, nav, footer, header, aside, .ad, .advertisement, .banner, .cookie-notice").remove()
         
+        // 提取标题作为第一行
+        val title = document.select("h1").first()?.text() ?: document.title()
+        
         // 提取正文内容
         val contentElements = document.select("article, .content, .post, .entry, .article, main, #content, .post-content, .entry-content")
         
-        // 如果找到内容元素，使用它们，否则使用body
+        // 如果找到内容元素，使用它们，否则使用body，但先移除h1标题元素
         val bodyElement = if (contentElements.isNotEmpty()) {
             contentElements.first()
         } else {
             document.body()
         }
+        bodyElement.select("h1").remove() // 移除标题，避免重复
         
         // 处理段落和换行
         processElement(bodyElement)
         
-        // 获取处理后的HTML文本内容
-        val htmlContent = bodyElement.html()
+        // 直接构建结果，确保标题独立成行
+        val sb = StringBuilder()
+        sb.append(title).append("\n\n") // 添加标题作为第一行
         
-        // 将所有HTML标签转换为普通文本
-        val plainText = Jsoup.parse(htmlContent).text()
+        // 获取处理后的HTML文本内容并转换为纯文本
+        val plainText = Jsoup.parse(bodyElement.html()).text()
             .replace("。", "。\n")  // 中文句号
             .replace("！", "！\n")  // 中文感叹号
             .replace("？", "？\n")  // 中文问号
-            .replace(". ", ".\n")  // 英文句号(不要求前后都有空格)
+            .replace(". ", ".\n")  // 英文句号
             .replace("! ", "!\n")  // 英文感叹号
             .replace("? ", "?\n")  // 英文问号
             .replace("\\s{2,}".toRegex(), " ")  // 移除多余空格
@@ -376,25 +381,7 @@ object WebBookImporter {
             lines.removeAt(0)
         }
         
-        // 构建格式化文本
-        val sb = StringBuilder()
-        
-        // 获取标题
-        val title: String
-        
-        // 如果没有内容行，使用document.title()作为标题
-        if (lines.isEmpty()) {
-            title = document.title().ifEmpty { "未命名文档" }
-            lines.add(title)
-        } else {
-            // 第一行作为标题
-            title = lines.removeAt(0).trim()
-        }
-        
-        // 添加标题作为第一行
-        sb.append(title).append("\n\n")
-        
-        // 其余行前面空出2个字符，表示段落开始
+        // 添加正文内容，每行前面空出2个字符
         for (line in lines) {
             if (line.trim().isNotEmpty()) {
                 sb.append("  ").append(line.trim()).append("\n\n")

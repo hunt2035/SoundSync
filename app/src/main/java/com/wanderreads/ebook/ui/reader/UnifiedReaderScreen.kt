@@ -822,11 +822,13 @@ fun UnifiedReaderScreen(
                                                     line-height: 1.5;
                                                     padding: 16px;
                                                     margin: 0;
+                                                    text-align: justify;
                                                 }
                                                 p {
                                                     margin-bottom: 1em;
                                                     text-indent: 2em;
                                                     line-height: 1.5;
+                                                    text-align: justify;
                                                 }
                                                 h1, h2, h3, h4, h5, h6 {
                                                     margin-top: 1.5em;
@@ -878,11 +880,13 @@ fun UnifiedReaderScreen(
                                                     line-height: 1.5;
                                                     padding: 16px;
                                                     margin: 0;
+                                                    text-align: justify;
                                                 }
                                                 p {
                                                     margin-bottom: 1em;
                                                     text-indent: 2em;
                                                     line-height: 1.5;
+                                                    text-align: justify;
                                                 }
                                                 h1, h2, h3, h4, h5, h6 {
                                                     margin-top: 1.5em;
@@ -985,7 +989,8 @@ fun UnifiedReaderScreen(
                                             textStyle = MaterialTheme.typography.bodyLarge.copy(
                                                 fontSize = currentConfig.fontSize.sp,
                                                 lineHeight = (currentConfig.fontSize * 1.5).sp,
-                                                fontFamily = FontFamily.Serif
+                                                fontFamily = FontFamily.Serif,
+                                                textAlign = TextAlign.Justify
                                             ),
                                             modifier = Modifier
                                                 .fillMaxWidth()
