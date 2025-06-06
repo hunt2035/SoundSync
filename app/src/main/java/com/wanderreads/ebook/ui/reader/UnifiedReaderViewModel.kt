@@ -732,9 +732,6 @@ class UnifiedReaderViewModel(
                                 message = "语音合成成功，生成文件位于目录${directory}下"
                             ) }
                             
-                            // 显示Snackbar
-                            showSnackbar("语音合成成功！")
-                            
                             Log.d(TAG, "合成完成，显示成功消息")
                         }
                         TtsSynthesisService.STATUS_ERROR -> {
@@ -861,9 +858,6 @@ class UnifiedReaderViewModel(
                 _uiState.update { it.copy(
                     message = "语音合成成功，生成文件位于目录${directory}下"
                 ) }
-                
-                // 通知用户合成成功
-                showSnackbar("语音合成成功！")
             }
             
             override fun onError(message: String) {
@@ -1304,7 +1298,7 @@ class UnifiedReaderViewModel(
             Log.e(TAG, "解除注册TTS翻页广播接收器失败: ${e.message}", e)
         }
     }
-
+    
     /**
      * 显示提示消息
      */
@@ -1312,6 +1306,17 @@ class UnifiedReaderViewModel(
         _uiState.update { it.copy(
             snackbarMessage = message
         ) }
+    }
+
+    /**
+     * 测试TTS语速效果
+     */
+    fun testTtsSpeechRate(testText: String) {
+        // 停止当前可能正在进行的朗读
+        ttsManager.stopReading()
+        
+        // 使用测试文本进行朗读
+        ttsManager.startReading("test", 0, testText)
     }
 }
 

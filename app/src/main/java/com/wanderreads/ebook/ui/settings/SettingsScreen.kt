@@ -79,9 +79,7 @@ import com.wanderreads.ebook.ui.theme.Primary
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    onNavigateToTtsSettings: () -> Unit = {}
-) {
+fun SettingsScreen() {
     // 创建ViewModel
     val context = LocalContext.current
     val settingsViewModel: SettingsViewModel = viewModel { SettingsViewModel(context) }
@@ -179,17 +177,6 @@ fun SettingsScreen(
                                 .background(Color(android.graphics.Color.parseColor(settingsState.backgroundColor)))
                         )
                     }
-                )
-            }
-            
-            // TTS设置
-            item {
-                SettingsCategoryTitle(title = "文本朗读设置")
-                SettingsItem(
-                    icon = Icons.Default.VolumeUp,
-                    title = "TTS朗读设置",
-                    subtitle = "设置语速、音量和句子间停顿时间",
-                    onClick = onNavigateToTtsSettings
                 )
             }
             

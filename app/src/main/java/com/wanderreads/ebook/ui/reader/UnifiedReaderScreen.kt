@@ -57,6 +57,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -110,6 +111,9 @@ import com.wanderreads.ebook.ui.components.HighlightedText
 import com.wanderreads.ebook.util.AppTextUtils
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarHost
+import com.wanderreads.ebook.util.TtsSettings
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 
 /**
  * 统一阅读器屏幕
@@ -1239,6 +1243,58 @@ fun UnifiedReaderScreen(
                             viewModel.updateConfig(currentConfig)
                         }
                     )
+                }
+                
+                // 添加TTS语速设置
+                val ttsSettings = remember { TtsSettings.getInstance(context) }
+                var speechRate by remember { mutableFloatStateOf(ttsSettings.getSpeechRate()) }
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "TTS语速",
+                        modifier = Modifier.width(80.dp),
+                        color = whiteText
+                    )
+                    
+                    Slider(
+                        value = speechRate,
+                        onValueChange = { 
+                            speechRate = it
+                            ttsSettings.setSpeechRate(it)
+                        },
+                        valueRange = 0.5f..2.0f,
+                        steps = 6,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    Text(
+                        text = "%.1f".format(speechRate),
+                        modifier = Modifier.width(30.dp),
+                        textAlign = TextAlign.End,
+                        color = whiteText
+                    )
+                }
+                
+                // 添加测试按钮
+                Button(
+                    onClick = {
+                        val testText = "这是一个TTS朗读测试。您可以调整语速，以获得最佳的朗读效果。"
+                        viewModel.testTtsSpeechRate(testText)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = whiteText
+                    )
+                ) {
+                    Text("测试朗读效果")
                 }
                 
                 Spacer(modifier = Modifier.height(32.dp))

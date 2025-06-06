@@ -401,11 +401,7 @@ fun AppNavigation(
                 val viewModel = androidx.lifecycle.viewmodel.compose.viewModel<SettingsViewModel>(
                     factory = viewModelFactory
                 )
-                SettingsScreen(
-                    onNavigateToTtsSettings = {
-                        navController.navigate(Screen.TtsSettings.route)
-                    }
-                )
+                SettingsScreen()
             }
             
             // TTS设置屏幕

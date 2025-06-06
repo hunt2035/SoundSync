@@ -285,15 +285,35 @@ fun SynthesisProgressDialog(
                             .padding(bottom = 16.dp)
                     )
                     
-                    Text(
-                        text = "语音合成成功",
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
-                    )
+                    // 优先显示完整的成功消息，而不是硬编码的文本
+                    if (message.contains("生成文件位于目录")) {
+                        Text(
+                            text = "语音合成成功",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        // 提取并显示文件路径信息
+                        val pathInfo = message.substringAfter("语音合成成功，")
+                        Text(
+                            text = pathInfo,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        // 如果消息格式不符合预期，显示完整的原始消息
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                     
                     Spacer(modifier = Modifier.height(8.dp))
                     
-                    // 显示目录路径（如果有）
+                    // 显示目录路径（如果有）- 保留原有逻辑作为备选
                     if (directory != null) {
                         Text(
                             text = "生成文件位于目录：",
@@ -325,8 +345,8 @@ fun SynthesisProgressDialog(
                                 textAlign = TextAlign.Start
                             )
                         }
-                    } else if (message.contains("成功")) {
-                        // 如果消息包含"成功"但没有具体目录，仍然显示完整的消息
+                    } else if (message.contains("成功") && !message.contains("生成文件位于目录")) {
+                        // 如果消息包含"成功"但没有具体目录，且前面没有处理过，显示完整的消息
                         Text(
                             text = message,
                             style = MaterialTheme.typography.bodySmall,

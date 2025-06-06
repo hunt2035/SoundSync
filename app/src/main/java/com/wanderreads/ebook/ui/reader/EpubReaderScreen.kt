@@ -1280,13 +1280,6 @@ fun LayoutSettings(
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        // TTS朗读设置
-        Text(
-            text = "TTS朗读设置",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-        
         // 语速设置
         Row(
             verticalAlignment = Alignment.CenterVertically,
