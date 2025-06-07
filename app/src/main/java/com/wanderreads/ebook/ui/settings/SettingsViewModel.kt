@@ -1,6 +1,12 @@
 package com.wanderreads.ebook.ui.settings
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
+import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -40,7 +46,8 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                     fontSize = preferences[FONT_SIZE_KEY]?.toInt() ?: FONT_SIZE_MEDIUM,
                     coverStyle = preferences[COVER_STYLE_KEY]?.toInt() ?: COVER_STYLE_DEFAULT,
                     primaryColor = preferences[PRIMARY_COLOR_KEY] ?: PRIMARY_COLOR_DEFAULT,
-                    backgroundColor = preferences[BACKGROUND_COLOR_KEY] ?: BACKGROUND_COLOR_DEFAULT
+                    backgroundColor = preferences[BACKGROUND_COLOR_KEY] ?: BACKGROUND_COLOR_DEFAULT,
+                    batteryOptimizationDisabled = preferences[BATTERY_OPTIMIZATION_KEY] ?: false
                 )
             }.first().let { state ->
                 _uiState.value = state
@@ -119,6 +126,58 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
             _uiState.value = _uiState.value.copy(backgroundColor = color)
         }
     }
+    
+    /**
+     * 设置电池优化状态
+     */
+    fun setBatteryOptimization(disabled: Boolean) {
+        viewModelScope.launch {
+            context.dataStore.edit { preferences ->
+                preferences[BATTERY_OPTIMIZATION_KEY] = disabled
+            }
+            _uiState.value = _uiState.value.copy(batteryOptimizationDisabled = disabled)
+            
+            // 如果用户选择禁用电池优化，则跳转到系统设置
+            if (disabled) {
+                requestIgnoreBatteryOptimization()
+            }
+        }
+    }
+    
+    /**
+     * 请求忽略电池优化
+     */
+    private fun requestIgnoreBatteryOptimization() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val packageName = context.packageName
+                val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                }
+            } catch (e: Exception) {
+                Log.e("SettingsViewModel", "请求忽略电池优化失败: ${e.message}", e)
+            }
+        }
+    }
+    
+    /**
+     * 检查电池优化状态
+     */
+    fun checkBatteryOptimizationStatus(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val packageName = context.packageName
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            pm.isIgnoringBatteryOptimizations(packageName)
+        } else {
+            // 低于Android M的设备不支持此功能，默认返回true
+            true
+        }
+    }
 
     companion object {
         val LANGUAGE_KEY = stringPreferencesKey("language")
@@ -127,6 +186,7 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
         val COVER_STYLE_KEY = stringPreferencesKey("cover_style")
         val PRIMARY_COLOR_KEY = stringPreferencesKey("primary_color")
         val BACKGROUND_COLOR_KEY = stringPreferencesKey("background_color")
+        val BATTERY_OPTIMIZATION_KEY = booleanPreferencesKey("battery_optimization_disabled")
         
         const val LANGUAGE_SYSTEM = 0
         const val LANGUAGE_CHINESE = 1
@@ -158,5 +218,6 @@ data class SettingsUiState(
     val fontSize: Int = SettingsViewModel.FONT_SIZE_MEDIUM,
     val coverStyle: Int = SettingsViewModel.COVER_STYLE_DEFAULT,
     val primaryColor: String = SettingsViewModel.PRIMARY_COLOR_DEFAULT,
-    val backgroundColor: String = SettingsViewModel.BACKGROUND_COLOR_DEFAULT
+    val backgroundColor: String = SettingsViewModel.BACKGROUND_COLOR_DEFAULT,
+    val batteryOptimizationDisabled: Boolean = false
 ) 

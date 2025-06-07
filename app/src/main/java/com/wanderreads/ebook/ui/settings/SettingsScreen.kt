@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Battery5Bar
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Delete
@@ -101,6 +102,9 @@ fun SettingsScreen() {
     var showColorDialog by remember { mutableStateOf(false) }
     var showBackgroundDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    
+    // 检查系统电池优化状态
+    val isBatteryOptimizationDisabled = remember { mutableStateOf(settingsViewModel.checkBatteryOptimizationStatus()) }
     
     Scaffold(
         topBar = {
@@ -187,9 +191,23 @@ fun SettingsScreen() {
                 )
             }
             
-            // 关于
+            // 其他
             item {
                 SettingsCategoryTitle(title = "其他")
+                
+                // 电池优化开关
+                SettingsSwitchItem(
+                    icon = Icons.Default.Battery5Bar,
+                    title = "关闭电池优化",
+                    subtitle = "允许应用在后台运行TTS朗读，不受系统电池优化限制",
+                    isChecked = isBatteryOptimizationDisabled.value,
+                    onCheckedChange = { checked ->
+                        settingsViewModel.setBatteryOptimization(checked)
+                        // 更新UI状态
+                        isBatteryOptimizationDisabled.value = checked
+                    }
+                )
+                
                 SettingsItem(
                     icon = Icons.Default.Info,
                     title = "关于",
@@ -198,93 +216,83 @@ fun SettingsScreen() {
                 )
             }
         }
-    }
-    
-    // 语言选择对话框
-    if (showLanguageDialog) {
-        SettingsOptionDialog(
-            title = "选择语言",
-            options = listOf(
-                "跟随系统",
-                "简体中文",
-                "英语"
-            ),
-            selectedOption = settingsState.language,
-            onOptionSelected = { settingsViewModel.setLanguage(it) },
-            onDismiss = { showLanguageDialog = false }
-        )
-    }
-    
-    // 主题选择对话框
-    if (showThemeDialog) {
-        SettingsOptionDialog(
-            title = "选择主题",
-            options = listOf(
-                "浅色模式",
-                "深色模式",
-                "跟随系统"
-            ),
-            selectedOption = settingsState.theme,
-            onOptionSelected = { settingsViewModel.setTheme(it) },
-            onDismiss = { showThemeDialog = false }
-        )
-    }
-    
-    // 字体大小对话框
-    if (showFontSizeDialog) {
-        SettingsOptionDialog(
-            title = "字体大小",
-            options = listOf(
-                "小",
-                "中",
-                "大"
-            ),
-            selectedOption = settingsState.fontSize,
-            onOptionSelected = { settingsViewModel.setFontSize(it) },
-            onDismiss = { showFontSizeDialog = false }
-        )
-    }
-    
-    // 封面样式对话框
-    if (showCoverStyleDialog) {
-        SettingsOptionDialog(
-            title = "封面样式",
-            options = listOf(
-                "默认样式",
-                "卡片样式",
-                "材质样式"
-            ),
-            selectedOption = settingsState.coverStyle,
-            onOptionSelected = { settingsViewModel.setCoverStyle(it) },
-            onDismiss = { showCoverStyleDialog = false }
-        )
-    }
-    
-    // 颜色选择对话框
-    if (showColorDialog) {
-        ColorPickerDialog(
-            title = "选择主色调",
-            currentColor = Color(android.graphics.Color.parseColor(settingsState.primaryColor)),
-            onColorSelected = { settingsViewModel.setPrimaryColor("#%06X".format(0xFFFFFF and it.toArgb())) },
-            onDismiss = { showColorDialog = false }
-        )
-    }
-    
-    // 背景色选择对话框
-    if (showBackgroundDialog) {
-        ColorPickerDialog(
-            title = "选择背景色",
-            currentColor = Color(android.graphics.Color.parseColor(settingsState.backgroundColor)),
-            onColorSelected = { settingsViewModel.setBackgroundColor("#%06X".format(0xFFFFFF and it.toArgb())) },
-            onDismiss = { showBackgroundDialog = false }
-        )
-    }
-    
-    // 关于对话框
-    if (showAboutDialog) {
-        AboutDialog(
-            onDismiss = { showAboutDialog = false }
-        )
+        
+        // 语言对话框
+        if (showLanguageDialog) {
+            SettingsOptionDialog(
+                title = "选择语言",
+                options = listOf("跟随系统", "简体中文", "英语"),
+                selectedOption = settingsState.language,
+                onOptionSelected = { settingsViewModel.setLanguage(it) },
+                onDismiss = { showLanguageDialog = false }
+            )
+        }
+        
+        // 主题对话框
+        if (showThemeDialog) {
+            SettingsOptionDialog(
+                title = "选择主题",
+                options = listOf("浅色模式", "深色模式", "跟随系统"),
+                selectedOption = settingsState.theme,
+                onOptionSelected = { settingsViewModel.setTheme(it) },
+                onDismiss = { showThemeDialog = false }
+            )
+        }
+        
+        // 字体大小对话框
+        if (showFontSizeDialog) {
+            SettingsOptionDialog(
+                title = "选择字体大小",
+                options = listOf("小", "中", "大"),
+                selectedOption = settingsState.fontSize,
+                onOptionSelected = { settingsViewModel.setFontSize(it) },
+                onDismiss = { showFontSizeDialog = false }
+            )
+        }
+        
+        // 封面样式对话框
+        if (showCoverStyleDialog) {
+            SettingsOptionDialog(
+                title = "选择封面样式",
+                options = listOf("默认样式", "卡片样式", "材质样式"),
+                selectedOption = settingsState.coverStyle,
+                onOptionSelected = { settingsViewModel.setCoverStyle(it) },
+                onDismiss = { showCoverStyleDialog = false }
+            )
+        }
+        
+        // 主色调对话框
+        if (showColorDialog) {
+            ColorPickerDialog(
+                title = "选择主色调",
+                currentColor = Color(android.graphics.Color.parseColor(settingsState.primaryColor)),
+                onColorSelected = { 
+                    val colorString = String.format("#%06X", 0xFFFFFF and it.toArgb())
+                    settingsViewModel.setPrimaryColor(colorString)
+                },
+                onDismiss = { showColorDialog = false }
+            )
+        }
+        
+        // 背景色对话框
+        if (showBackgroundDialog) {
+            ColorPickerDialog(
+                title = "选择背景色",
+                currentColor = Color(android.graphics.Color.parseColor(settingsState.backgroundColor)),
+                onColorSelected = { 
+                    val colorString = String.format("#%06X", 0xFFFFFF and it.toArgb())
+                    settingsViewModel.setBackgroundColor(colorString)
+                },
+                onDismiss = { showBackgroundDialog = false }
+            )
+        }
+        
+        // 关于对话框
+        if (showAboutDialog) {
+            AboutDialog(
+                onDismiss = { showAboutDialog = false }
+            )
+        }
     }
 }
 
@@ -295,10 +303,8 @@ fun SettingsScreen() {
 fun SettingsCategoryTitle(title: String) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleMedium.copy(
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-        ),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
     )
 }
@@ -312,67 +318,53 @@ fun SettingsItem(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    endContent: @Composable (() -> Unit)? = null
+    endContent: @Composable (() -> Unit)? = {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 ) {
-    Card(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column(
+            modifier = Modifier.weight(1f)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
             
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            if (endContent != null) {
-                endContent()
-            } else {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+        
+        endContent?.invoke()
     }
-    
-    Divider(
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-        thickness = 1.dp,
-        modifier = Modifier.padding(horizontal = 16.dp)
-    )
 }
 
 /**
- * 带开关的设置项
+ * 设置开关项
  */
 @Composable
 fun SettingsSwitchItem(
@@ -382,47 +374,43 @@ fun SettingsSwitchItem(
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onCheckedChange(!isChecked) }
+            .padding(vertical = 12.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column(
+            modifier = Modifier.weight(1f)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
             
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            
-            Switch(
-                checked = isChecked,
-                onCheckedChange = onCheckedChange
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        
+        Switch(
+            checked = isChecked,
+            onCheckedChange = onCheckedChange
+        )
     }
 }
 

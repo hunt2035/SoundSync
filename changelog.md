@@ -1,5 +1,18 @@
 # 更新日志
 
+## 2025-07-10：添加电池优化设置功能
+- **功能增强**：在设置界面添加"关闭电池优化"开关
+- **实现内容**：
+  1. 在设置界面的"其他"分类下添加电池优化开关
+  2. 用户开启后，自动跳转到系统设置界面请求忽略电池优化
+  3. 实时显示当前电池优化状态
+  4. 添加REQUEST_IGNORE_BATTERY_OPTIMIZATIONS权限
+- **改进目的**：提高TTS朗读服务在后台的稳定性，避免系统电池优化导致的服务中断
+- **技术改进**：
+  1. 使用PowerManager.isIgnoringBatteryOptimizations检查当前状态
+  2. 通过Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS Intent跳转到系统设置
+  3. 使用DataStore保存用户设置，确保设置持久化
+
 ## 2025-07-05：打开网址功能实现
 - **功能增强**：在阅读界面添加"打开网址"功能
 - **实现内容**：
