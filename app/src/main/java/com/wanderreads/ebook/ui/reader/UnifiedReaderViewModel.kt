@@ -1318,6 +1318,49 @@ class UnifiedReaderViewModel(
         // 使用测试文本进行朗读
         ttsManager.startReading("test", 0, testText)
     }
+
+    /**
+     * 获取当前书籍的全部文本内容
+     * 用于修改文本功能
+     */
+    fun getBookFullContent(): String {
+        return readerEngine?.getAllContent() ?: ""
+    }
+
+    /**
+     * 重新加载书籍内容
+     * 用于修改文本后刷新显示
+     */
+    fun reloadContent() {
+        viewModelScope.launch {
+            try {
+                readerEngine?.let { engine ->
+                    // 重新加载内容
+                    engine.loadContent()
+                    
+                    // 更新UI状态
+                    _uiState.update { state ->
+                        state.copy(
+                            currentContent = engine.getCurrentPageContent(),
+                            chapterTitle = engine.getCurrentChapterTitle()
+                        )
+                    }
+                    
+                    // 如果正在TTS朗读，重新开始朗读当前页
+                    if (ttsManager.ttsState.value.status == TtsManager.STATUS_PLAYING) {
+                        ttsManager.stopReading()
+                        ttsManager.startReading(
+                            getContentForCurrentPage(),
+                            _uiState.value.currentPage,
+                            _uiState.value.book?.title ?: ""
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "重新加载内容失败", e)
+            }
+        }
+    }
 }
 
 /**

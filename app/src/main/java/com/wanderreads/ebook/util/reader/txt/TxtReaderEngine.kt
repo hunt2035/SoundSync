@@ -500,10 +500,28 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
     }
     
     /**
-     * 获取所有内容
+     * 获取书籍的全部文本内容
      */
-    private fun getAllContent(): String {
-        return pages.joinToString("\n")
+    override fun getAllContent(): String {
+        val bookFile = book?.filePath ?: return ""
+        
+        return try {
+            val file = File(bookFile)
+            val reader = BufferedReader(InputStreamReader(FileInputStream(file), charset))
+            val content = StringBuilder()
+            var line: String?
+            
+            // 读取整个文件内容
+            while (reader.readLine().also { line = it } != null) {
+                content.append(line).append("\n")
+            }
+            
+            reader.close()
+            content.toString()
+        } catch (e: Exception) {
+            Log.e(TAG, "获取书籍全部内容失败", e)
+            ""
+        }
     }
     
     /**

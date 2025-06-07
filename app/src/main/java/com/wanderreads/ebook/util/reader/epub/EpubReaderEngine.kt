@@ -890,4 +890,13 @@ class EpubReaderEngine(private val context: Context) : BookReaderEngine {
             .replace("&apos;", "'")
             .trim()
     }
+
+    /**
+     * 获取书籍的全部文本内容
+     */
+    override fun getAllContent(): String {
+        // EPUB格式较为复杂，无法直接获取全部内容
+        // 这里返回当前章节内容作为替代
+        return getCurrentChapterText()
+    }
 } 

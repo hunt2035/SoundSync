@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -114,6 +115,9 @@ import androidx.compose.material3.SnackbarHost
 import com.wanderreads.ebook.util.TtsSettings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import com.wanderreads.ebook.ui.components.EditTextDialog
+import com.wanderreads.ebook.domain.model.Book
+import com.wanderreads.ebook.domain.model.BookType
 
 /**
  * 统一阅读器屏幕
@@ -206,6 +210,9 @@ fun UnifiedReaderScreen(
     
     // 当前合成状态
     val synthesisState by viewModel.synthesisState.collectAsState(initial = null)
+    
+    // 控制修改文本对话框显示
+    var showEditText by remember { mutableStateOf(false) }
     
     // 初始化TTS
     LaunchedEffect(Unit) {
@@ -406,6 +413,22 @@ fun UnifiedReaderScreen(
                             onDismissRequest = { showMenu = false },
                             modifier = Modifier.background(navyBlueBackground)
                         ) {
+                            // 添加修改文本选项
+                            DropdownMenuItem(
+                                text = { Text("修改文本", color = whiteText) },
+                                onClick = { 
+                                    showMenu = false
+                                    showEditText = true 
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = "修改文本",
+                                        tint = whiteText
+                                    )
+                                }
+                            )
+                            
                             DropdownMenuItem(
                                 text = { Text("查看目录", color = whiteText) },
                                 onClick = { 
@@ -1392,6 +1415,30 @@ fun UnifiedReaderScreen(
                 currentPlaybackPosition = uiState.currentPlaybackPosition,
                 totalDuration = uiState.totalAudioDuration,
                 isAudioPlaying = uiState.isAudioPlaying
+            )
+        }
+        
+        // 修改文本对话框
+        if (showEditText) {
+            val bookContent = viewModel.getBookFullContent()
+            EditTextDialog(
+                initialText = bookContent,
+                book = uiState.book ?: Book(
+                    id = "",
+                    title = "",
+                    filePath = "",
+                    type = BookType.TXT
+                ),
+                onDismiss = { showEditText = false },
+                onSaveComplete = {
+                    // 重新加载内容
+                    viewModel.reloadContent()
+                    // 显示提示
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("文本已保存")
+                    }
+                },
+                coroutineScope = coroutineScope
             )
         }
     }

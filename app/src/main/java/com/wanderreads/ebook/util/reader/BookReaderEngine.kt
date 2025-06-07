@@ -129,6 +129,12 @@ interface BookReaderEngine {
      */
     fun initTts(tts: TextToSpeech)
     
+    /**
+     * 获取书籍的全部文本内容
+     * 用于修改文本功能
+     */
+    fun getAllContent(): String
+    
     companion object {
         /**
          * 创建适合指定格式的阅读引擎
