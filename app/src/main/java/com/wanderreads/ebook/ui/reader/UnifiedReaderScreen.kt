@@ -118,6 +118,9 @@ import androidx.compose.material3.ButtonDefaults
 import com.wanderreads.ebook.ui.components.EditTextDialog
 import com.wanderreads.ebook.domain.model.Book
 import com.wanderreads.ebook.domain.model.BookType
+import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
+import com.wanderreads.ebook.ui.navigation.Screen
 
 /**
  * 统一阅读器屏幕
@@ -127,7 +130,8 @@ import com.wanderreads.ebook.domain.model.BookType
 @Composable
 fun UnifiedReaderScreen(
     viewModel: UnifiedReaderViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    navController: NavController = rememberNavController()
 ) {
     // 定义颜色
     val navyBlueBackground = Color(0xFF0A1929) // 墨蓝色背景
@@ -428,6 +432,24 @@ fun UnifiedReaderScreen(
                                     )
                                 }
                             )
+                            
+                            // 添加打开网址选项，仅当urlPath不为空时显示
+                            if (uiState.book?.urlPath != null) {
+                                DropdownMenuItem(
+                                    text = { Text("打开网址", color = whiteText) },
+                                    onClick = { 
+                                        showMenu = false
+                                        navController.navigate(Screen.WebView.createRoute(uiState.book?.urlPath!!))
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Share,
+                                            contentDescription = "打开网址",
+                                            tint = whiteText
+                                        )
+                                    }
+                                )
+                            }
                             
                             DropdownMenuItem(
                                 text = { Text("查看目录", color = whiteText) },

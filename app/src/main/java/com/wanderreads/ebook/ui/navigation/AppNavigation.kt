@@ -540,7 +540,8 @@ fun AppNavigation(
                     viewModel = unifiedReaderViewModel,
                     onNavigateBack = {
                         navController.popBackStack()
-                    }
+                    },
+                    navController = navController
                 )
             }
             
