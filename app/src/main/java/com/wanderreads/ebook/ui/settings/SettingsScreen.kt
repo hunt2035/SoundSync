@@ -208,6 +208,17 @@ fun SettingsScreen() {
                     }
                 )
                 
+                // 后台运行开关
+                SettingsSwitchItem(
+                    icon = Icons.Default.MenuBook,
+                    title = "允许后台运行",
+                    subtitle = "跳转到系统设置，将应用设置为允许后台活动，防止系统自动关闭",
+                    isChecked = settingsState.backgroundRunningEnabled,
+                    onCheckedChange = { checked ->
+                        settingsViewModel.setBackgroundRunning(checked)
+                    }
+                )
+                
                 SettingsItem(
                     icon = Icons.Default.Info,
                     title = "关于",

@@ -1,5 +1,6 @@
 package com.wanderreads.ebook.ui.settings
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -47,7 +48,8 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                     coverStyle = preferences[COVER_STYLE_KEY]?.toInt() ?: COVER_STYLE_DEFAULT,
                     primaryColor = preferences[PRIMARY_COLOR_KEY] ?: PRIMARY_COLOR_DEFAULT,
                     backgroundColor = preferences[BACKGROUND_COLOR_KEY] ?: BACKGROUND_COLOR_DEFAULT,
-                    batteryOptimizationDisabled = preferences[BATTERY_OPTIMIZATION_KEY] ?: false
+                    batteryOptimizationDisabled = preferences[BATTERY_OPTIMIZATION_KEY] ?: false,
+                    backgroundRunningEnabled = preferences[BACKGROUND_RUNNING_KEY] ?: false
                 )
             }.first().let { state ->
                 _uiState.value = state
@@ -145,6 +147,23 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
     }
     
     /**
+     * 设置后台运行状态
+     */
+    fun setBackgroundRunning(enabled: Boolean) {
+        viewModelScope.launch {
+            context.dataStore.edit { preferences ->
+                preferences[BACKGROUND_RUNNING_KEY] = enabled
+            }
+            _uiState.value = _uiState.value.copy(backgroundRunningEnabled = enabled)
+            
+            // 如果用户选择启用后台运行，则跳转到系统设置
+            if (enabled) {
+                requestBackgroundRunningPermission()
+            }
+        }
+    }
+    
+    /**
      * 请求忽略电池优化
      */
     private fun requestIgnoreBatteryOptimization() {
@@ -161,6 +180,89 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                 }
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "请求忽略电池优化失败: ${e.message}", e)
+            }
+        }
+    }
+    
+    /**
+     * 请求后台运行权限
+     * 根据不同厂商设备打开相应的设置页面
+     */
+    private fun requestBackgroundRunningPermission() {
+        try {
+            val packageName = context.packageName
+            val manufacturer = Build.MANUFACTURER.lowercase()
+            val intent = Intent()
+            
+            when {
+                // 华为设备
+                manufacturer.contains("huawei") -> {
+                    intent.component = ComponentName(
+                        "com.huawei.systemmanager",
+                        "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
+                    )
+                }
+                // 小米设备
+                manufacturer.contains("xiaomi") -> {
+                    intent.component = ComponentName(
+                        "com.miui.securitycenter",
+                        "com.miui.permcenter.autostart.AutoStartManagementActivity"
+                    )
+                }
+                // OPPO设备
+                manufacturer.contains("oppo") -> {
+                    intent.component = ComponentName(
+                        "com.coloros.safecenter",
+                        "com.coloros.safecenter.permission.startup.StartupAppListActivity"
+                    )
+                }
+                // VIVO设备
+                manufacturer.contains("vivo") -> {
+                    intent.component = ComponentName(
+                        "com.vivo.permissionmanager",
+                        "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"
+                    )
+                }
+                // 三星设备
+                manufacturer.contains("samsung") -> {
+                    intent.component = ComponentName(
+                        "com.samsung.android.lool",
+                        "com.samsung.android.sm.ui.battery.BatteryActivity"
+                    )
+                }
+                // 联想设备
+                manufacturer.contains("lenovo") -> {
+                    intent.component = ComponentName(
+                        "com.lenovo.security",
+                        "com.lenovo.security.purebackground.PureBackgroundActivity"
+                    )
+                }
+                // 其他设备尝试使用通用的电池优化设置
+                else -> {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        intent.action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                        intent.data = Uri.parse("package:$packageName")
+                    } else {
+                        intent.action = Settings.ACTION_APPLICATION_SETTINGS
+                    }
+                }
+            }
+            
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            context.startActivity(intent)
+            Log.d("SettingsViewModel", "打开后台运行权限设置页面: 设备=${manufacturer}")
+            
+        } catch (e: Exception) {
+            Log.e("SettingsViewModel", "打开后台运行权限设置页面失败: ${e.message}", e)
+            // 如果特定厂商的设置页面打开失败，尝试打开应用详情页
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            } catch (e2: Exception) {
+                Log.e("SettingsViewModel", "打开应用详情页失败: ${e2.message}", e2)
             }
         }
     }
@@ -187,6 +289,7 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
         val PRIMARY_COLOR_KEY = stringPreferencesKey("primary_color")
         val BACKGROUND_COLOR_KEY = stringPreferencesKey("background_color")
         val BATTERY_OPTIMIZATION_KEY = booleanPreferencesKey("battery_optimization_disabled")
+        val BACKGROUND_RUNNING_KEY = booleanPreferencesKey("background_running_enabled")
         
         const val LANGUAGE_SYSTEM = 0
         const val LANGUAGE_CHINESE = 1
@@ -219,5 +322,6 @@ data class SettingsUiState(
     val coverStyle: Int = SettingsViewModel.COVER_STYLE_DEFAULT,
     val primaryColor: String = SettingsViewModel.PRIMARY_COLOR_DEFAULT,
     val backgroundColor: String = SettingsViewModel.BACKGROUND_COLOR_DEFAULT,
-    val batteryOptimizationDisabled: Boolean = false
+    val batteryOptimizationDisabled: Boolean = false,
+    val backgroundRunningEnabled: Boolean = false
 ) 

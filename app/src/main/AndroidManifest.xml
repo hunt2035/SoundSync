@@ -36,6 +36,11 @@
     <!-- TTS相关权限 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    
+    <!-- 后台运行相关权限 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".EbookApplication"
@@ -106,6 +111,18 @@
                 <action android:name="com.wanderreads.ebook.PAUSE_TTS" />
                 <action android:name="com.wanderreads.ebook.RESUME_TTS" />
                 <action android:name="com.wanderreads.ebook.STOP_TTS" />
+            </intent-filter>
+        </receiver>
+        
+        <!-- 开机自启动接收器 -->
+        <receiver
+            android:name=".receiver.BootCompletedReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.REBOOT" />
             </intent-filter>
         </receiver>
     </application>
