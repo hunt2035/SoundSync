@@ -87,6 +87,7 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.activity.compose.BackHandler
 
 // 使用类型别名解决命名冲突
 typealias EbookModel = com.wanderreads.ebook.domain.model.Book
@@ -104,6 +105,11 @@ fun BookshelfScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showNewTextDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    
+    // 处理返回键：如果在选择模式，则退出选择模式而不是退出应用
+    BackHandler(enabled = uiState.isSelectionMode) {
+        viewModel.toggleSelectionMode()
+    }
     
     // 显示新建文本对话框
     if (showNewTextDialog) {
