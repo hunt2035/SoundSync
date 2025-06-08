@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
 import com.wanderreads.ebook.domain.model.BookFile
 import com.wanderreads.ebook.util.FileUtil
 import java.text.SimpleDateFormat
@@ -40,6 +41,17 @@ fun FileListScreen(
     // 加载文件
     LaunchedEffect(category) {
         viewModel.loadFiles(category)
+    }
+    
+    // 处理系统返回键
+    BackHandler {
+        if (uiState.isSelectionMode) {
+            // 如果处于选择模式，先退出选择模式
+            viewModel.toggleSelectionMode()
+        } else {
+            // 否则返回上一级
+            onBackClick()
+        }
     }
     
     // 重命名对话框

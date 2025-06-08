@@ -1,6 +1,7 @@
 package com.wanderreads.ebook.ui.reader
 
 import android.media.MediaMetadataRetriever
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -87,6 +88,11 @@ fun SynthesizedAudioListScreen(
         if (currentPlayingRecordId != null) {
             expandedRecordId = currentPlayingRecordId
         }
+    }
+    
+    // 拦截系统返回键，确保返回时调用onDismiss而不是直接导航到书架
+    BackHandler {
+        onDismiss()
     }
     
     // 使用key为Unit的LaunchedEffect，确保只在组件首次进入组合时执行一次

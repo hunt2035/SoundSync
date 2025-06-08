@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.compose.BackHandler
 import com.wanderreads.ebook.domain.model.BookFile
 
 /**
@@ -61,6 +62,12 @@ fun LibraryScreen() {
                 }
             }
         )
+    }
+    
+    // 处理系统返回键
+    BackHandler(enabled = selectedCategory != null) {
+        // 如果当前在二级界面，返回到一级界面
+        selectedCategory = null
     }
     
     // 根据是否选择了类别显示不同的界面
