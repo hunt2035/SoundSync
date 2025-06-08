@@ -44,7 +44,11 @@ data class BookshelfUiState(
     val books: List<Book> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val currentSort: BookSort = BookSort.ADDED_DATE
+    val currentSort: BookSort = BookSort.ADDED_DATE,
+    val isSelectionMode: Boolean = false,
+    val selectedBooks: Set<String> = emptySet(),
+    val isDeleteConfirmationVisible: Boolean = false,
+    val deleteBookFiles: Boolean = false
 )
 
 /**
@@ -370,6 +374,134 @@ class BookshelfViewModel(
         } catch (e: Exception) {
             // 如果无法生成哈希，使用备用方法
             "${file.name}-${file.length()}-${file.lastModified()}"
+        }
+    }
+
+    /**
+     * 切换选择模式
+     */
+    fun toggleSelectionMode() {
+        _uiState.value = _uiState.value.copy(
+            isSelectionMode = !_uiState.value.isSelectionMode,
+            selectedBooks = emptySet()
+        )
+    }
+
+    /**
+     * 切换书籍选择状态
+     */
+    fun toggleBookSelection(bookId: String) {
+        val selectedBooks = _uiState.value.selectedBooks.toMutableSet()
+        if (selectedBooks.contains(bookId)) {
+            selectedBooks.remove(bookId)
+        } else {
+            selectedBooks.add(bookId)
+        }
+        
+        _uiState.value = _uiState.value.copy(
+            selectedBooks = selectedBooks
+        )
+    }
+
+    /**
+     * 全选所有书籍
+     */
+    fun selectAllBooks() {
+        val allBookIds = _uiState.value.books.map { it.id }.toSet()
+        _uiState.value = _uiState.value.copy(
+            selectedBooks = allBookIds
+        )
+    }
+
+    /**
+     * 取消全选所有书籍
+     */
+    fun deselectAllBooks() {
+        _uiState.value = _uiState.value.copy(
+            selectedBooks = emptySet()
+        )
+    }
+
+    /**
+     * 检查是否已全选
+     */
+    fun isAllSelected(): Boolean {
+        val allBooks = _uiState.value.books
+        val selectedBooks = _uiState.value.selectedBooks
+        return allBooks.isNotEmpty() && allBooks.size == selectedBooks.size
+    }
+
+    /**
+     * 显示删除确认对话框
+     */
+    fun showDeleteConfirmation() {
+        _uiState.value = _uiState.value.copy(
+            isDeleteConfirmationVisible = true
+        )
+    }
+
+    /**
+     * 隐藏删除确认对话框
+     */
+    fun hideDeleteConfirmation() {
+        _uiState.value = _uiState.value.copy(
+            isDeleteConfirmationVisible = false,
+            deleteBookFiles = false
+        )
+    }
+
+    /**
+     * 设置是否同时删除书籍文件
+     */
+    fun setDeleteBookFiles(delete: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            deleteBookFiles = delete
+        )
+    }
+
+    /**
+     * 批量删除选中的书籍
+     */
+    fun deleteSelectedBooks() {
+        viewModelScope.launch {
+            try {
+                val selectedBookIds = _uiState.value.selectedBooks
+                val deleteFiles = _uiState.value.deleteBookFiles
+                
+                // 获取选中的书籍
+                val booksToDelete = _uiState.value.books.filter { selectedBookIds.contains(it.id) }
+                
+                for (book in booksToDelete) {
+                    // 删除数据库中的书籍记录
+                    bookRepository.deleteBook(book)
+                    
+                    // 如果需要，同时删除书籍文件
+                    if (deleteFiles && book.filePath.isNotBlank()) {
+                        val file = File(book.filePath)
+                        if (file.exists()) {
+                            file.delete()
+                        }
+                    }
+                }
+                
+                // 重置状态
+                _uiState.value = _uiState.value.copy(
+                    isSelectionMode = false,
+                    selectedBooks = emptySet(),
+                    isDeleteConfirmationVisible = false,
+                    deleteBookFiles = false
+                )
+                
+                // 显示成功提示
+                _uiEvents.emit(UiEvent.ShowToast("已删除${booksToDelete.size}本书籍"))
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "批量删除书籍失败", e)
+                _uiState.value = _uiState.value.copy(
+                    error = "删除书籍失败: ${e.message}",
+                    isDeleteConfirmationVisible = false
+                )
+            }
         }
     }
 } 

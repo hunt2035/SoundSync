@@ -3,6 +3,8 @@ package com.wanderreads.ebook.ui.bookshelf
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -23,8 +25,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowRight
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.IndeterminateCheckBox
 import androidx.compose.material.icons.filled.LibraryBooks
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.MoreVert
@@ -37,17 +43,23 @@ import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Sort
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Divider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -106,6 +118,45 @@ fun BookshelfScreen(
         )
     }
     
+    // 删除确认对话框
+    if (uiState.isDeleteConfirmationVisible) {
+        val selectedCount = uiState.selectedBooks.size
+        
+        AlertDialog(
+            onDismissRequest = { viewModel.hideDeleteConfirmation() },
+            title = { Text("确认删除") },
+            text = { 
+                Column {
+                    Text("是否确认删除这${selectedCount}本书籍？")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = uiState.deleteBookFiles,
+                            onCheckedChange = { viewModel.setDeleteBookFiles(it) }
+                        )
+                        Text("同时删除书籍文件")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteSelectedBooks()
+                    }
+                ) {
+                    Text("确认删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideDeleteConfirmation() }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+    
     Scaffold(
         topBar = {
             TopAppBar(
@@ -124,161 +175,217 @@ fun BookshelfScreen(
                     }
                 },
                 actions = {
-                    // 搜索图标按钮
-                    Box(
-                        modifier = Modifier.fillMaxHeight(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    if (uiState.isSelectionMode) {
+                        // 批量删除图标
                         IconButton(
-                            onClick = {
-                                // 导航到搜索页面的逻辑
+                            onClick = { 
+                                if (uiState.selectedBooks.isNotEmpty()) {
+                                    viewModel.showDeleteConfirmation()
+                                }
                             },
-                            modifier = Modifier.size(48.dp)
+                            enabled = uiState.selectedBooks.isNotEmpty()
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "搜索",
-                                tint = Color.White,
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "批量删除",
+                                tint = if (uiState.selectedBooks.isEmpty()) 
+                                    Color.White.copy(alpha = 0.38f)
+                                else 
+                                    Color.White,
                                 modifier = Modifier.size(28.dp)
                             )
                         }
-                    }
-                    
-                    // 三点菜单按钮
-                    Box(
-                        modifier = Modifier.fillMaxHeight(),
-                        contentAlignment = Alignment.Center
-                    ) {
+                        
+                        // 全选/取消全选按钮
                         IconButton(
-                            onClick = { showMenu = true },
-                            modifier = Modifier.size(48.dp)
+                            onClick = { 
+                                if (viewModel.isAllSelected()) {
+                                    viewModel.deselectAllBooks()
+                                } else {
+                                    viewModel.selectAllBooks()
+                                }
+                            }
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "更多选项",
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
+                            if (viewModel.isAllSelected()) {
+                                // 已全选状态，显示取消全选图标
+                                Icon(
+                                    imageVector = Icons.Default.IndeterminateCheckBox,
+                                    contentDescription = "取消全选",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            } else {
+                                // 未全选状态，显示全选图标
+                                Icon(
+                                    imageVector = Icons.Default.CheckBox,
+                                    contentDescription = "全选",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
                         }
-                    }
-                    
-                    // 下拉菜单
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("新建文本") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.FormatTextdirectionLToR,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = { 
-                                showNewTextDialog = true
-                                showMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("网址导入") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Language,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = { 
-                                onWebImportClick()
-                                showMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("本地导入") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.Storage,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = { 
-                                onImportClick()
-                                showMenu = false
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("书架管理") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.LibraryBooks,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = { 
-                                // 书架管理逻辑
-                                showMenu = false
-                            }
-                        )
                         
-                        // 替换原来的排序菜单项
-                        var showSortMenu by remember { mutableStateOf(false) }
-                        DropdownMenuItem(
-                            text = { Text("书籍排序") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Sort,
-                                    contentDescription = null
-                                )
-                            },
-                            trailingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowRight,
-                                    contentDescription = null
-                                )
-                            },
-                            onClick = { 
-                                showSortMenu = true
-                            }
-                        )
-                        
-                        // 子菜单：排序选项
-                        if (showSortMenu) {
-                            DropdownMenu(
-                                expanded = showSortMenu,
-                                onDismissRequest = { showSortMenu = false },
-                                modifier = Modifier.width(200.dp)
+                        // 取消按钮
+                        TextButton(onClick = { viewModel.toggleSelectionMode() }) {
+                            Text("取消", color = Color.White)
+                        }
+                    } else {
+                        // 搜索图标按钮
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    // 导航到搜索页面的逻辑
+                                },
+                                modifier = Modifier.size(48.dp)
                             ) {
-                                val sortOptions = listOf(
-                                    BookSort.ADDED_DATE to "添加时间",
-                                    BookSort.LAST_OPENED to "最近阅读",
-                                    BookSort.TITLE to "书名",
-                                    BookSort.AUTHOR to "作者"
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "搜索",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
                                 )
-                                
-                                sortOptions.forEach { (sort, label) ->
-                                    DropdownMenuItem(
-                                        text = { 
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Text(label)
-                                                if (uiState.currentSort == sort) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = null,
-                                                        tint = MaterialTheme.colorScheme.primary
-                                                    )
-                                                }
-                                            }
-                                        },
-                                        onClick = { 
-                                            viewModel.sortBooks(sort)
-                                            showSortMenu = false
-                                            showMenu = false
-                                        }
+                            }
+                        }
+                        
+                        // 三点菜单按钮
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            IconButton(
+                                onClick = { showMenu = true },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "更多选项",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                        
+                        // 下拉菜单
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("新建文本") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.FormatTextdirectionLToR,
+                                        contentDescription = null
                                     )
+                                },
+                                onClick = { 
+                                    showNewTextDialog = true
+                                    showMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("网址导入") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Language,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { 
+                                    onWebImportClick()
+                                    showMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("本地导入") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.Storage,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { 
+                                    onImportClick()
+                                    showMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("书架管理") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.LibraryBooks,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { 
+                                    // 书架管理逻辑
+                                    showMenu = false
+                                }
+                            )
+                            
+                            // 替换原来的排序菜单项
+                            var showSortMenu by remember { mutableStateOf(false) }
+                            DropdownMenuItem(
+                                text = { Text("书籍排序") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Sort,
+                                        contentDescription = null
+                                    )
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowRight,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { 
+                                    showSortMenu = true
+                                }
+                            )
+                            
+                            // 子菜单：排序选项
+                            if (showSortMenu) {
+                                DropdownMenu(
+                                    expanded = showSortMenu,
+                                    onDismissRequest = { showSortMenu = false },
+                                    modifier = Modifier.width(200.dp)
+                                ) {
+                                    val sortOptions = listOf(
+                                        BookSort.ADDED_DATE to "添加时间",
+                                        BookSort.LAST_OPENED to "最近阅读",
+                                        BookSort.TITLE to "书名",
+                                        BookSort.AUTHOR to "作者"
+                                    )
+                                    
+                                    sortOptions.forEach { (sort, label) ->
+                                        DropdownMenuItem(
+                                            text = { 
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Text(label)
+                                                    if (uiState.currentSort == sort) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Check,
+                                                            contentDescription = null,
+                                                            tint = MaterialTheme.colorScheme.primary
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onClick = { 
+                                                viewModel.sortBooks(sort)
+                                                showSortMenu = false
+                                                showMenu = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -317,8 +424,33 @@ fun BookshelfScreen(
             } else {
                 BookList(
                     books = uiState.books,
-                    onBookClick = onBookClick
+                    onBookClick = { book ->
+                        if (uiState.isSelectionMode) {
+                            viewModel.toggleBookSelection(book.id)
+                        } else {
+                            onBookClick(book)
+                        }
+                    },
+                    onBookLongClick = { book ->
+                        if (!uiState.isSelectionMode) {
+                            viewModel.toggleSelectionMode()
+                            viewModel.toggleBookSelection(book.id)
+                        }
+                    },
+                    isSelectionMode = uiState.isSelectionMode,
+                    selectedBooks = uiState.selectedBooks
                 )
+            }
+            
+            // 错误提示
+            uiState.error?.let { error ->
+                Snackbar(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(16.dp)
+                ) {
+                    Text(error)
+                }
             }
         }
     }
@@ -359,25 +491,39 @@ fun EmptyBookshelf(onImportClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BookList(
     books: List<EbookModel>,
-    onBookClick: (EbookModel) -> Unit
+    onBookClick: (EbookModel) -> Unit,
+    onBookLongClick: (EbookModel) -> Unit,
+    isSelectionMode: Boolean,
+    selectedBooks: Set<String>
 ) {
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         items(books) { book ->
-            BookListItem(book = book, onClick = { onBookClick(book) })
+            BookListItem(
+                book = book,
+                onClick = { onBookClick(book) },
+                onLongClick = { onBookLongClick(book) },
+                isSelectionMode = isSelectionMode,
+                isSelected = selectedBooks.contains(book.id)
+            )
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BookListItem(
     book: EbookModel,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    isSelectionMode: Boolean,
+    isSelected: Boolean
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -412,13 +558,15 @@ fun BookListItem(
                 elevation = elevation.dp,
                 shape = RoundedCornerShape(8.dp)
             )
-            .clickable(
+            .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick
+                onClick = onClick,
+                onLongClick = onLongClick
             ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer 
+                            else MaterialTheme.colorScheme.surface
         )
     ) {
         Row(
@@ -540,6 +688,14 @@ fun BookListItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            
+            // 选择状态指示器
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onClick() }
+                )
             }
         }
     }
