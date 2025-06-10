@@ -1,11 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- 共享外部存储的Documents目录下的WanderReads/voices目录 -->
-    <external-path name="external_files" path="Documents/WanderReads/voices" />
+    <!-- 共享外部存储的Documents目录下的整个WanderReads目录 -->
+    <external-path name="external_files" path="Documents/WanderReads" />
     
     <!-- 共享应用专属外部存储目录 -->
-    <external-files-path name="external_files_app" path="voices" />
+    <external-files-path name="external_files_app" path="." />
     
     <!-- 共享应用内部存储目录 -->
-    <files-path name="internal_files" path="voices" />
+    <files-path name="internal_files" path="." />
+    
+    <!-- 共享外部存储根目录 -->
+    <external-path name="external" path="." />
+    
+    <!-- 共享缓存目录 -->
+    <cache-path name="cache" path="." />
+    
+    <!-- 共享外部缓存目录 -->
+    <external-cache-path name="external_cache" path="." />
 </paths> 

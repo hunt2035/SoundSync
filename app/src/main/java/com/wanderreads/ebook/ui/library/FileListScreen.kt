@@ -308,6 +308,7 @@ fun FileItem(
     val uiState = viewModel.uiState.collectAsState().value
     val isPlaying = uiState.currentPlayingFilePath == file.filePath && uiState.isAudioPlaying
     val isVoiceFile = onSetAlarmClick != null // 如果onSetAlarmClick不为null，说明是语音文件
+    val context = LocalContext.current
     
     Card(
         modifier = Modifier
@@ -376,6 +377,16 @@ fun FileItem(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        // 所属目录选项（对所有文件显示）
+                        DropdownMenuItem(
+                            text = { Text("所属目录") },
+                            leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                            onClick = {
+                                viewModel.openFileLocation(context, file.filePath)
+                                showMenu = false
+                            }
+                        )
+                        
                         // 播放语音选项（仅对语音文件显示）
                         if (isVoiceFile) {
                             DropdownMenuItem(
