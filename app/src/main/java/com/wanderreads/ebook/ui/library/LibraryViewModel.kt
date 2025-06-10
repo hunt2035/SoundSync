@@ -521,6 +521,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     }
     
     /**
+     * 设置错误信息
+     */
+    fun setError(errorMessage: String) {
+        _uiState.value = _uiState.value.copy(
+            error = errorMessage
+        )
+    }
+    
+    /**
      * 全选所有文件
      */
     fun selectAllFiles() {

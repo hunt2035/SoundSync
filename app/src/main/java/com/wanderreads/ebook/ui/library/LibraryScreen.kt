@@ -1,5 +1,9 @@
 package com.wanderreads.ebook.ui.library
 
+import android.content.Intent
+import android.provider.AlarmClock
+import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.BackHandler
 import com.wanderreads.ebook.domain.model.BookFile
+import androidx.core.content.FileProvider
 
 /**
  * 书库屏幕
@@ -54,11 +59,82 @@ fun LibraryScreen() {
             onDismissRequest = { showAlarmDialog = false },
             title = { Text("设置闹钟") },
             text = { 
-                Text("为语音文件 ${selectedVoiceFile?.fileName} 设置闹钟功能即将上线") 
+                Text("将语音文件 \"${selectedVoiceFile?.fileName}\" 设置为闹钟铃声？") 
             },
             confirmButton = {
-                TextButton(onClick = { showAlarmDialog = false }) {
+                TextButton(
+                    onClick = { 
+                        // 调用系统闹钟设置
+                        try {
+                            val file = selectedVoiceFile
+                            if (file != null) {
+                                // 使用FileProvider获取Uri
+                                val fileObj = java.io.File(file.filePath)
+                                val fileUri = FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    fileObj
+                                )
+                                
+                                // 创建闹钟设置Intent - 使用标准的ACTION_SET_ALARM操作
+                                val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                                    // 添加铃声URI
+                                    putExtra(AlarmClock.EXTRA_RINGTONE, fileUri.toString())
+                                    
+                                    // 设置其他闹钟参数
+                                    putExtra(AlarmClock.EXTRA_MESSAGE, file.fileName) // 闹钟标签
+                                    putExtra(AlarmClock.EXTRA_HOUR, 8) // 默认时间8点
+                                    putExtra(AlarmClock.EXTRA_MINUTES, 0) // 默认0分
+                                    putExtra(AlarmClock.EXTRA_SKIP_UI, false) // 显示闹钟设置界面
+                                    
+                                    // 添加授权标志
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                }
+                                
+                                // 添加临时权限
+                                // 为常见的闹钟应用授予权限
+                                val commonClockPackages = arrayOf(
+                                    "com.android.deskclock", // 原生Android闹钟
+                                    "com.google.android.deskclock", // Google闹钟
+                                    "com.sec.android.app.clockpackage", // 三星闹钟
+                                    "com.huawei.deskclock", // 华为闹钟
+                                    "com.android.alarmclock", // 其他常见闹钟
+                                    "com.oneplus.deskclock", // 一加闹钟
+                                    "com.oppo.alarmclock", // OPPO闹钟
+                                    "com.vivo.alarmclock" // vivo闹钟
+                                )
+                                
+                                // 为所有可能的闹钟应用授予权限
+                                for (packageName in commonClockPackages) {
+                                    try {
+                                        context.grantUriPermission(
+                                            packageName, 
+                                            fileUri, 
+                                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                        )
+                                    } catch (e: Exception) {
+                                        Log.w("LibraryScreen", "授予 $packageName 权限失败: ${e.message}")
+                                        // 继续尝试下一个包名
+                                    }
+                                }
+                                
+                                context.startActivity(intent)
+                                Log.d("LibraryScreen", "启动系统闹钟设置: ${fileUri}")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("LibraryScreen", "设置闹钟失败: ${e.message}", e)
+                            // 显示错误提示
+                            viewModel.setError("设置闹钟失败: ${e.message}")
+                        }
+                        showAlarmDialog = false
+                    }
+                ) {
                     Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAlarmDialog = false }) {
+                    Text("取消")
                 }
             }
         )
