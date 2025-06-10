@@ -33,6 +33,11 @@ import com.wanderreads.ebook.ui.theme.EbookTheme
 import com.wanderreads.ebook.ui.navigation.AppNavigation
 import com.wanderreads.ebook.ui.navigation.Screen
 import com.wanderreads.ebook.util.FileUtil
+import com.wanderreads.ebook.ui.settings.SettingsViewModel
+import com.wanderreads.ebook.util.LocaleHelper
+import com.wanderreads.ebook.data.local.dataStore
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /**
  * 主Activity
@@ -84,6 +89,27 @@ class MainActivity : ComponentActivity() {
                 createDirectoryStructure()
             }
         }
+    }
+    
+    /**
+     * 在创建Activity时，应用已保存的语言设置
+     */
+    override fun attachBaseContext(newBase: Context) {
+        // 获取保存的语言设置并应用
+        var languageCode = SettingsViewModel.LANGUAGE_SYSTEM
+        
+        try {
+            // 从DataStore同步读取语言设置
+            val preferences = runBlocking { newBase.dataStore.data.first() }
+            val savedLanguage = preferences[SettingsViewModel.LANGUAGE_KEY]
+            languageCode = savedLanguage?.toIntOrNull() ?: SettingsViewModel.LANGUAGE_SYSTEM
+        } catch (e: Exception) {
+            Log.e(TAG, "读取语言设置失败: ${e.message}", e)
+        }
+        
+        // 应用语言设置
+        val context = LocaleHelper.updateLocale(newBase, languageCode)
+        super.attachBaseContext(context)
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {

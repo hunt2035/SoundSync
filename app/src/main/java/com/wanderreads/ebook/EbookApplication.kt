@@ -1,17 +1,28 @@
 package com.wanderreads.ebook
 
 import android.app.Application
+import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.wanderreads.ebook.data.local.AppDatabase
+import com.wanderreads.ebook.data.local.dataStore
 import com.wanderreads.ebook.data.repository.BookRepository
 import com.wanderreads.ebook.data.repository.BookRepositoryImpl
 import com.wanderreads.ebook.data.repository.RecordRepository
 import com.wanderreads.ebook.data.repository.RecordRepositoryImpl
+import com.wanderreads.ebook.ui.settings.SettingsViewModel
+import com.wanderreads.ebook.util.LocaleHelper
 import com.wanderreads.ebook.util.WeChatShareUtil
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.net.HttpURLConnection
 import java.security.NoSuchAlgorithmException
 import java.util.concurrent.TimeUnit
@@ -31,9 +42,33 @@ class EbookApplication : Application(), Configuration.Provider {
         }
     }
     
+    /**
+     * 在创建Application时，应用已保存的语言设置
+     */
+    override fun attachBaseContext(base: Context) {
+        // 获取保存的语言设置并应用
+        var languageCode = SettingsViewModel.LANGUAGE_SYSTEM
+        
+        try {
+            // 从DataStore同步读取语言设置
+            val preferences = runBlocking { base.dataStore.data.first() }
+            val savedLanguage = preferences[SettingsViewModel.LANGUAGE_KEY]
+            languageCode = savedLanguage?.toIntOrNull() ?: SettingsViewModel.LANGUAGE_SYSTEM
+        } catch (e: Exception) {
+            Log.e(TAG, "读取语言设置失败: ${e.message}", e)
+        }
+        
+        // 应用语言设置
+        val context = LocaleHelper.updateLocale(base, languageCode)
+        super.attachBaseContext(context)
+    }
+    
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "应用启动，初始化...")
+        
+        // 初始化语言设置
+        initializeLocale()
         
         // 初始化Tom Roush PdfBox库
         PDFBoxResourceLoader.init(applicationContext)
@@ -54,6 +89,28 @@ class EbookApplication : Application(), Configuration.Provider {
         // 初始化微信SDK
         WeChatShareUtil.registerWeChatAPI(this)
         Log.d(TAG, "微信SDK已初始化")
+    }
+    
+    /**
+     * 初始化语言设置
+     * 非阻塞方式监听语言设置变化并应用
+     */
+    private fun initializeLocale() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // 监听语言设置变化
+                applicationContext.dataStore.data
+                    .map { preferences -> 
+                        preferences[SettingsViewModel.LANGUAGE_KEY]?.toIntOrNull() ?: SettingsViewModel.LANGUAGE_SYSTEM 
+                    }
+                    .collect { languageCode ->
+                        Log.d(TAG, "语言设置变化: $languageCode")
+                        // 这里不需要更新baseContext，因为配置变更会触发Activity重新创建
+                    }
+            } catch (e: Exception) {
+                Log.e(TAG, "监听语言设置变化失败: ${e.message}", e)
+            }
+        }
     }
     
     /**

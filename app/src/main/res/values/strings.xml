@@ -5,4 +5,49 @@
     <string name="huawei_accessibility_guide_title">需要无障碍服务权限</string>
     <string name="huawei_accessibility_guide_message">在华为设备上进行内部音频录制需要启用无障碍服务，请前往设置开启"漫阅内录服务"</string>
     <string name="go_to_settings">前往设置</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings">Settings</string>
+    <string name="language_settings">Language Settings</string>
+    <string name="language">Language</string>
+    <string name="select_language">Select Language</string>
+    <string name="follow_system">Follow System</string>
+    <string name="simplified_chinese">Simplified Chinese</string>
+    <string name="english">English</string>
+    <string name="theme_mode">Theme Mode</string>
+    <string name="theme">Theme</string>
+    <string name="light_mode">Light Mode</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="system_mode">Follow System</string>
+    
+    <!-- Theme Style Settings -->
+    <string name="theme_style">Theme Style</string>
+    <string name="font_size">Font Size</string>
+    <string name="select_font_size">Select Font Size</string>
+    <string name="font_size_small">Small</string>
+    <string name="font_size_medium">Medium</string>
+    <string name="font_size_large">Large</string>
+    <string name="cover_settings">Cover Settings</string>
+    <string name="select_cover_style">Select Cover Style</string>
+    <string name="cover_style_default">Default Style</string>
+    <string name="cover_style_card">Card Style</string>
+    <string name="cover_style_material">Material Style</string>
+    <string name="primary_color">Primary Color</string>
+    <string name="primary_color_subtitle">Customize app primary color</string>
+    <string name="select_primary_color">Select Primary Color</string>
+    <string name="background_color">Background Color</string>
+    <string name="background_color_subtitle">Customize app background color</string>
+    <string name="select_background_color">Select Background Color</string>
+    
+    <!-- Other Settings -->
+    <string name="other">Other</string>
+    <string name="disable_battery_optimization">Disable Battery Optimization</string>
+    <string name="battery_optimization_subtitle">Allow app to run TTS reading in background without battery optimization restrictions</string>
+    <string name="allow_background_running">Allow Background Running</string>
+    <string name="background_running_subtitle">Set the app to allow background activities, preventing the system from automatically closing it</string>
+    <string name="about">About</string>
+    <string name="about_subtitle">App version and terms of use</string>
+    
+    <!-- Common -->
+    <string name="unknown">Unknown</string>
 </resources>

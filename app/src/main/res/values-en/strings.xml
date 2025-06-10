@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Wander Reads</string>
+    <string name="accessibility_service_description">Enable this service to allow internal audio recording for text-to-speech.</string>
+    <string name="app_name_audio_capture_service">Wander Reads Audio Capture</string>
+    <string name="huawei_accessibility_guide_title">Accessibility Service Permission Required</string>
+    <string name="huawei_accessibility_guide_message">On Huawei devices, enabling the accessibility service is required for internal audio recording. Please go to settings and enable \"Wander Reads Audio Capture Service\"</string>
+    <string name="go_to_settings">Go to Settings</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings">Settings</string>
+    <string name="language_settings">Language Settings</string>
+    <string name="language">Language</string>
+    <string name="select_language">Select Language</string>
+    <string name="follow_system">Follow System</string>
+    <string name="simplified_chinese">Simplified Chinese</string>
+    <string name="english">English</string>
+    <string name="theme_mode">Theme Mode</string>
+    <string name="theme">Theme</string>
+    <string name="light_mode">Light Mode</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="system_mode">Follow System</string>
+</resources> 

@@ -6,4 +6,49 @@
     <string name="huawei_accessibility_guide_title">开启无障碍服务</string>
     <string name="huawei_accessibility_guide_message">在华为设备上实现内录功能需要开启"漫阅内录服务"无障碍权限。\n\n1. 点击"前往设置"\n2. 找到并点击"漫阅内录服务"\n3. 开启开关即可</string>
     <string name="go_to_settings">前往设置</string>
+    
+    <!-- 设置界面 -->
+    <string name="settings">设置</string>
+    <string name="language_settings">语言设置</string>
+    <string name="language">语言</string>
+    <string name="select_language">选择语言</string>
+    <string name="follow_system">跟随系统</string>
+    <string name="simplified_chinese">简体中文</string>
+    <string name="english">英语</string>
+    <string name="theme_mode">主题模式</string>
+    <string name="theme">主题</string>
+    <string name="light_mode">浅色模式</string>
+    <string name="dark_mode">深色模式</string>
+    <string name="system_mode">跟随系统</string>
+    
+    <!-- 主题样式设置 -->
+    <string name="theme_style">主题样式</string>
+    <string name="font_size">字体大小</string>
+    <string name="select_font_size">选择字体大小</string>
+    <string name="font_size_small">小</string>
+    <string name="font_size_medium">中</string>
+    <string name="font_size_large">大</string>
+    <string name="cover_settings">封面设置</string>
+    <string name="select_cover_style">选择封面样式</string>
+    <string name="cover_style_default">默认样式</string>
+    <string name="cover_style_card">卡片样式</string>
+    <string name="cover_style_material">材质样式</string>
+    <string name="primary_color">主色调</string>
+    <string name="primary_color_subtitle">自定义应用主色调</string>
+    <string name="select_primary_color">选择主色调</string>
+    <string name="background_color">背景色</string>
+    <string name="background_color_subtitle">自定义应用背景色</string>
+    <string name="select_background_color">选择背景色</string>
+    
+    <!-- 其他设置 -->
+    <string name="other">其他</string>
+    <string name="disable_battery_optimization">关闭电池优化</string>
+    <string name="battery_optimization_subtitle">允许应用在后台运行TTS朗读，不受系统电池优化限制</string>
+    <string name="allow_background_running">允许后台运行</string>
+    <string name="background_running_subtitle">将应用设置为允许后台活动，防止系统自动关闭</string>
+    <string name="about">关于</string>
+    <string name="about_subtitle">应用版本和使用条款</string>
+    
+    <!-- 通用 -->
+    <string name="unknown">未知</string>
 </resources> 

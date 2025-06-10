@@ -71,6 +71,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -109,7 +110,7 @@ fun SettingsScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { Text(stringResource(R.string.settings)) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
@@ -126,10 +127,10 @@ fun SettingsScreen() {
         ) {
             // 语言设置
             item {
-                SettingsCategoryTitle(title = "语言设置")
+                SettingsCategoryTitle(title = stringResource(R.string.language_settings))
                 SettingsItem(
                     icon = Icons.Default.Language,
-                    title = "语言",
+                    title = stringResource(R.string.language),
                     subtitle = getLanguageText(settingsState.language),
                     onClick = { showLanguageDialog = true }
                 )
@@ -137,10 +138,10 @@ fun SettingsScreen() {
             
             // 主题模式
             item {
-                SettingsCategoryTitle(title = "主题模式")
+                SettingsCategoryTitle(title = stringResource(R.string.theme_mode))
                 SettingsItem(
                     icon = Icons.Default.DarkMode,
-                    title = "主题",
+                    title = stringResource(R.string.theme),
                     subtitle = getThemeText(settingsState.theme),
                     onClick = { showThemeDialog = true }
                 )
@@ -148,23 +149,23 @@ fun SettingsScreen() {
             
             // 主题样式
             item {
-                SettingsCategoryTitle(title = "主题样式")
+                SettingsCategoryTitle(title = stringResource(R.string.theme_style))
                 SettingsItem(
                     icon = Icons.Default.FormatSize,
-                    title = "字体大小",
+                    title = stringResource(R.string.font_size),
                     subtitle = getFontSizeText(settingsState.fontSize),
                     onClick = { showFontSizeDialog = true }
                 )
                 SettingsItem(
                     icon = Icons.Default.Style,
-                    title = "封面设置",
+                    title = stringResource(R.string.cover_settings),
                     subtitle = getCoverStyleText(settingsState.coverStyle),
                     onClick = { showCoverStyleDialog = true }
                 )
                 SettingsItem(
                     icon = Icons.Default.Palette,
-                    title = "主色调",
-                    subtitle = "自定义应用主色调",
+                    title = stringResource(R.string.primary_color),
+                    subtitle = stringResource(R.string.primary_color_subtitle),
                     onClick = { showColorDialog = true },
                     endContent = {
                         Box(
@@ -177,8 +178,8 @@ fun SettingsScreen() {
                 )
                 SettingsItem(
                     icon = Icons.Default.Contrast,
-                    title = "背景色",
-                    subtitle = "自定义应用背景色",
+                    title = stringResource(R.string.background_color),
+                    subtitle = stringResource(R.string.background_color_subtitle),
                     onClick = { showBackgroundDialog = true },
                     endContent = {
                         Box(
@@ -193,13 +194,13 @@ fun SettingsScreen() {
             
             // 其他
             item {
-                SettingsCategoryTitle(title = "其他")
+                SettingsCategoryTitle(title = stringResource(R.string.other))
                 
                 // 电池优化开关
                 SettingsSwitchItem(
                     icon = Icons.Default.Battery5Bar,
-                    title = "关闭电池优化",
-                    subtitle = "允许应用在后台运行TTS朗读，不受系统电池优化限制",
+                    title = stringResource(R.string.disable_battery_optimization),
+                    subtitle = stringResource(R.string.battery_optimization_subtitle),
                     isChecked = isBatteryOptimizationDisabled.value,
                     onCheckedChange = { checked ->
                         settingsViewModel.setBatteryOptimization(checked)
@@ -211,8 +212,8 @@ fun SettingsScreen() {
                 // 后台运行开关
                 SettingsSwitchItem(
                     icon = Icons.Default.MenuBook,
-                    title = "允许后台运行",
-                    subtitle = "跳转到系统设置，将应用设置为允许后台活动，防止系统自动关闭",
+                    title = stringResource(R.string.allow_background_running),
+                    subtitle = stringResource(R.string.background_running_subtitle),
                     isChecked = settingsState.backgroundRunningEnabled,
                     onCheckedChange = { checked ->
                         settingsViewModel.setBackgroundRunning(checked)
@@ -221,8 +222,8 @@ fun SettingsScreen() {
                 
                 SettingsItem(
                     icon = Icons.Default.Info,
-                    title = "关于",
-                    subtitle = "应用版本和使用条款",
+                    title = stringResource(R.string.about),
+                    subtitle = stringResource(R.string.about_subtitle),
                     onClick = { showAboutDialog = true }
                 )
             }
@@ -231,8 +232,12 @@ fun SettingsScreen() {
         // 语言对话框
         if (showLanguageDialog) {
             SettingsOptionDialog(
-                title = "选择语言",
-                options = listOf("跟随系统", "简体中文", "英语"),
+                title = stringResource(R.string.select_language),
+                options = listOf(
+                    stringResource(R.string.follow_system),
+                    stringResource(R.string.simplified_chinese),
+                    stringResource(R.string.english)
+                ),
                 selectedOption = settingsState.language,
                 onOptionSelected = { settingsViewModel.setLanguage(it) },
                 onDismiss = { showLanguageDialog = false }
@@ -242,8 +247,12 @@ fun SettingsScreen() {
         // 主题对话框
         if (showThemeDialog) {
             SettingsOptionDialog(
-                title = "选择主题",
-                options = listOf("浅色模式", "深色模式", "跟随系统"),
+                title = stringResource(R.string.theme),
+                options = listOf(
+                    stringResource(R.string.light_mode),
+                    stringResource(R.string.dark_mode),
+                    stringResource(R.string.system_mode)
+                ),
                 selectedOption = settingsState.theme,
                 onOptionSelected = { settingsViewModel.setTheme(it) },
                 onDismiss = { showThemeDialog = false }
@@ -253,8 +262,12 @@ fun SettingsScreen() {
         // 字体大小对话框
         if (showFontSizeDialog) {
             SettingsOptionDialog(
-                title = "选择字体大小",
-                options = listOf("小", "中", "大"),
+                title = stringResource(R.string.select_font_size),
+                options = listOf(
+                    stringResource(R.string.font_size_small),
+                    stringResource(R.string.font_size_medium),
+                    stringResource(R.string.font_size_large)
+                ),
                 selectedOption = settingsState.fontSize,
                 onOptionSelected = { settingsViewModel.setFontSize(it) },
                 onDismiss = { showFontSizeDialog = false }
@@ -264,8 +277,12 @@ fun SettingsScreen() {
         // 封面样式对话框
         if (showCoverStyleDialog) {
             SettingsOptionDialog(
-                title = "选择封面样式",
-                options = listOf("默认样式", "卡片样式", "材质样式"),
+                title = stringResource(R.string.select_cover_style),
+                options = listOf(
+                    stringResource(R.string.cover_style_default),
+                    stringResource(R.string.cover_style_card),
+                    stringResource(R.string.cover_style_material)
+                ),
                 selectedOption = settingsState.coverStyle,
                 onOptionSelected = { settingsViewModel.setCoverStyle(it) },
                 onDismiss = { showCoverStyleDialog = false }
@@ -275,7 +292,7 @@ fun SettingsScreen() {
         // 主色调对话框
         if (showColorDialog) {
             ColorPickerDialog(
-                title = "选择主色调",
+                title = stringResource(R.string.select_primary_color),
                 currentColor = Color(android.graphics.Color.parseColor(settingsState.primaryColor)),
                 onColorSelected = { 
                     val colorString = String.format("#%06X", 0xFFFFFF and it.toArgb())
@@ -288,7 +305,7 @@ fun SettingsScreen() {
         // 背景色对话框
         if (showBackgroundDialog) {
             ColorPickerDialog(
-                title = "选择背景色",
+                title = stringResource(R.string.select_background_color),
                 currentColor = Color(android.graphics.Color.parseColor(settingsState.backgroundColor)),
                 onColorSelected = { 
                     val colorString = String.format("#%06X", 0xFFFFFF and it.toArgb())
@@ -725,11 +742,12 @@ fun AboutDialog(
 /**
  * 获取语言文本
  */
+@Composable
 fun getLanguageText(language: Int): String {
     return when (language) {
-        SettingsViewModel.LANGUAGE_SYSTEM -> "跟随系统"
-        SettingsViewModel.LANGUAGE_CHINESE -> "简体中文"
-        SettingsViewModel.LANGUAGE_ENGLISH -> "英语"
+        SettingsViewModel.LANGUAGE_SYSTEM -> stringResource(R.string.follow_system)
+        SettingsViewModel.LANGUAGE_CHINESE -> stringResource(R.string.simplified_chinese)
+        SettingsViewModel.LANGUAGE_ENGLISH -> stringResource(R.string.english)
         else -> "未知"
     }
 }
@@ -737,11 +755,12 @@ fun getLanguageText(language: Int): String {
 /**
  * 获取主题文本
  */
+@Composable
 fun getThemeText(theme: Int): String {
     return when (theme) {
-        SettingsViewModel.THEME_LIGHT -> "浅色模式"
-        SettingsViewModel.THEME_DARK -> "深色模式"
-        SettingsViewModel.THEME_SYSTEM -> "跟随系统"
+        SettingsViewModel.THEME_LIGHT -> stringResource(R.string.light_mode)
+        SettingsViewModel.THEME_DARK -> stringResource(R.string.dark_mode)
+        SettingsViewModel.THEME_SYSTEM -> stringResource(R.string.system_mode)
         else -> "未知"
     }
 }
@@ -749,23 +768,25 @@ fun getThemeText(theme: Int): String {
 /**
  * 获取字体大小文本
  */
+@Composable
 fun getFontSizeText(fontSize: Int): String {
     return when (fontSize) {
-        SettingsViewModel.FONT_SIZE_SMALL -> "小"
-        SettingsViewModel.FONT_SIZE_MEDIUM -> "中"
-        SettingsViewModel.FONT_SIZE_LARGE -> "大"
-        else -> "未知"
+        SettingsViewModel.FONT_SIZE_SMALL -> stringResource(R.string.font_size_small)
+        SettingsViewModel.FONT_SIZE_MEDIUM -> stringResource(R.string.font_size_medium)
+        SettingsViewModel.FONT_SIZE_LARGE -> stringResource(R.string.font_size_large)
+        else -> stringResource(R.string.unknown)
     }
 }
 
 /**
  * 获取封面样式文本
  */
+@Composable
 fun getCoverStyleText(coverStyle: Int): String {
     return when (coverStyle) {
-        SettingsViewModel.COVER_STYLE_DEFAULT -> "默认样式"
-        SettingsViewModel.COVER_STYLE_CARD -> "卡片样式"
-        SettingsViewModel.COVER_STYLE_MATERIAL -> "材质样式"
-        else -> "未知"
+        SettingsViewModel.COVER_STYLE_DEFAULT -> stringResource(R.string.cover_style_default)
+        SettingsViewModel.COVER_STYLE_CARD -> stringResource(R.string.cover_style_card)
+        SettingsViewModel.COVER_STYLE_MATERIAL -> stringResource(R.string.cover_style_material)
+        else -> stringResource(R.string.unknown)
     }
 } 

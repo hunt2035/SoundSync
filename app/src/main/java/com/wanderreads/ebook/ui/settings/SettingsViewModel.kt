@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import android.app.Activity
+import com.wanderreads.ebook.util.LocaleHelper
 
 /**
  * 设置视图模型
@@ -62,10 +64,28 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
      */
     fun setLanguage(language: Int) {
         viewModelScope.launch {
+            // 保存语言设置到DataStore
             context.dataStore.edit { preferences ->
                 preferences[LANGUAGE_KEY] = language.toString()
             }
             _uiState.value = _uiState.value.copy(language = language)
+            
+            // 立即更新当前Context的语言配置
+            if (context is Activity) {
+                // 获取当前Activity
+                val activity = context as Activity
+                
+                // 更新语言配置
+                val updatedContext = LocaleHelper.updateLocale(activity, language)
+                
+                // 创建重启Activity的Intent
+                val intent = activity.intent
+                activity.finish()
+                activity.startActivity(intent)
+                
+                // 添加淡入淡出动画
+                activity.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            }
         }
     }
 
