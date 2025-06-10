@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.ComponentName
 import android.net.Uri
 import android.os.Environment
+import android.os.Build
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -150,52 +152,142 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 dir.mkdirs()
             }
             
-            // 尝试使用系统文件浏览器打开目录
-            val intent = Intent(Intent.ACTION_VIEW)
+            Log.d("LibraryViewModel", "尝试打开目录: ${dir.absolutePath}")
             
-            // 指定系统文件管理器的包名和类名
-            // 不同Android设备的系统文件管理器可能不同，这里尝试几种常见的系统文件管理器
-            val systemFileManagerPackages = arrayOf(
-                // 通用Android系统文件管理器
-                Pair("com.android.documentsui", "com.android.documentsui.files.FilesActivity"),
-                // 三星设备
-                Pair("com.sec.android.app.myfiles", "com.sec.android.app.myfiles.common.MainActivity"),
-                // 华为设备
-                Pair("com.huawei.filemanager", "com.huawei.filemanager.activity.MainActivity"),
-                // 小米设备
-                Pair("com.miui.fileexplorer", "com.miui.fileexplorer.FileExplorerTabActivity"),
-                // OPPO设备
-                Pair("com.coloros.filemanager", "com.coloros.filemanager.MainActivity"),
-                // VIVO设备
-                Pair("com.vivo.filemanager", "com.vivo.filemanager.activity.MainActivity")
-            )
+            // 构建正确的Uri格式
+            val documentPath = "primary:Documents/WanderReads/${category.dirName}"
+            Log.d("LibraryViewModel", "目标文档路径: $documentPath")
             
-            // 设置数据和类型
-            intent.setDataAndType(Uri.parse(dir.absolutePath), "resource/folder")
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            
-            // 首先尝试使用系统文件管理器打开
-            var launched = false
-            for ((packageName, className) in systemFileManagerPackages) {
-                try {
-                    intent.component = ComponentName(packageName, className)
-                    context.startActivity(intent)
-                    launched = true
-                    Log.d("LibraryViewModel", "成功使用 $packageName 打开文件浏览器")
-                    break
-                } catch (e: Exception) {
-                    Log.d("LibraryViewModel", "尝试使用 $packageName 打开文件浏览器失败: ${e.message}")
-                    // 继续尝试下一个
-                }
+            val initialUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // Android 8.0+使用DocumentsContract.buildDocumentUri
+                val uri = DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
+                Log.d("LibraryViewModel", "构建的URI (O+): $uri")
+                uri
+            } else {
+                // 旧版本使用基本Uri
+                val uri = Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads/${category.dirName}")
+                Log.d("LibraryViewModel", "构建的URI (旧版本): $uri")
+                uri
             }
             
-            // 如果所有系统文件管理器都失败，则使用通用方式打开
-            if (!launched) {
-                Log.d("LibraryViewModel", "尝试使用通用方式打开文件浏览器")
+            // 尝试方法1: 使用ACTION_GET_CONTENT
+            try {
+                val intent = Intent(Intent.ACTION_GET_CONTENT)
+                intent.type = "*/*"
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                
+                context.startActivity(intent)
+                Log.d("LibraryViewModel", "成功使用ACTION_GET_CONTENT打开文件浏览器")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用ACTION_GET_CONTENT打开失败: ${e.message}", e)
+            }
+            
+            // 尝试方法2: 使用ACTION_OPEN_DOCUMENT
+            try {
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+                intent.type = "*/*"
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                
+                context.startActivity(intent)
+                Log.d("LibraryViewModel", "成功使用ACTION_OPEN_DOCUMENT打开文件浏览器")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用ACTION_OPEN_DOCUMENT打开失败: ${e.message}", e)
+            }
+            
+            // 尝试方法3: 使用ACTION_OPEN_DOCUMENT_TREE
+            try {
+                val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                
+                // 对于Android 11+，使用EXTRA_INITIAL_URI
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    treeIntent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
+                } else {
+                    // 对于旧版本，尝试使用不同的键
+                    treeIntent.putExtra("android.provider.extra.INITIAL_URI", initialUri)
+                    treeIntent.putExtra("android.content.extra.SHOW_ADVANCED", true)
+                }
+                
+                treeIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.startActivity(treeIntent)
+                Log.d("LibraryViewModel", "成功使用ACTION_OPEN_DOCUMENT_TREE打开文件浏览器")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用ACTION_OPEN_DOCUMENT_TREE打开失败: ${e.message}", e)
+            }
+            
+            // 尝试方法4: 使用特定设备的文件管理器
+            try {
+                // 指定系统文件管理器的包名和类名
+                val systemFileManagerPackages = arrayOf(
+                    // 通用Android系统文件管理器
+                    Pair("com.android.documentsui", "com.android.documentsui.files.FilesActivity"),
+                    // 三星设备
+                    Pair("com.sec.android.app.myfiles", "com.sec.android.app.myfiles.common.MainActivity"),
+                    // 华为设备
+                    Pair("com.huawei.filemanager", "com.huawei.filemanager.activity.MainActivity"),
+                    // 小米设备
+                    Pair("com.miui.fileexplorer", "com.miui.fileexplorer.FileExplorerTabActivity"),
+                    // OPPO设备
+                    Pair("com.coloros.filemanager", "com.coloros.filemanager.MainActivity"),
+                    // VIVO设备
+                    Pair("com.vivo.filemanager", "com.vivo.filemanager.activity.MainActivity")
+                )
+                
+                // 尝试使用系统文件管理器打开
+                var launched = false
+                for ((packageName, className) in systemFileManagerPackages) {
+                    try {
+                        val backupIntent = Intent(Intent.ACTION_VIEW)
+                        backupIntent.setDataAndType(initialUri, "resource/folder")
+                        backupIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        backupIntent.component = ComponentName(packageName, className)
+                        
+                        context.startActivity(backupIntent)
+                        launched = true
+                        Log.d("LibraryViewModel", "成功使用 $packageName 打开文件浏览器")
+                        break
+                    } catch (e: Exception) {
+                        Log.d("LibraryViewModel", "尝试使用 $packageName 打开文件浏览器失败: ${e.message}")
+                        // 继续尝试下一个
+                    }
+                }
+                
+                if (launched) return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用特定设备文件管理器打开失败: ${e.message}", e)
+            }
+            
+            // 尝试方法5: 使用通用方式打开
+            try {
                 val genericIntent = Intent(Intent.ACTION_VIEW)
-                genericIntent.setDataAndType(Uri.parse(dir.absolutePath), "resource/folder")
+                genericIntent.setDataAndType(Uri.fromFile(dir), "resource/folder")
                 genericIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 context.startActivity(genericIntent)
+                Log.d("LibraryViewModel", "成功使用通用方式打开文件浏览器")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用通用方式打开文件浏览器失败: ${e.message}", e)
+                
+                // 最后尝试: 打开任意文件浏览器
+                try {
+                    val finalIntent = Intent(Intent.ACTION_VIEW)
+                    finalIntent.type = "resource/folder"
+                    finalIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    context.startActivity(Intent.createChooser(finalIntent, "选择文件浏览器打开目录"))
+                    Log.d("LibraryViewModel", "成功使用文件浏览器选择器打开")
+                    return
+                } catch (e2: Exception) {
+                    Log.e("LibraryViewModel", "所有方法均失败: ${e2.message}", e2)
+                    _uiState.value = _uiState.value.copy(
+                        error = "无法打开文件浏览器: ${e2.message}"
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.e("LibraryViewModel", "打开文件浏览器失败", e)
