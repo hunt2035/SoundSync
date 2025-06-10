@@ -4,9 +4,13 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.ComponentName
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Environment
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +24,7 @@ import com.wanderreads.ebook.domain.model.BookFile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -48,7 +53,12 @@ data class LibraryUiState(
     val fileToRename: BookFile? = null,
     val newFileName: String = "",
     val isDeleteConfirmationVisible: Boolean = false,
-    val singleFileToDelete: String? = null
+    val singleFileToDelete: String? = null,
+    // 音频播放相关状态
+    val currentPlayingFilePath: String? = null,
+    val isAudioPlaying: Boolean = false,
+    val currentPlaybackPosition: Int = 0,
+    val totalAudioDuration: Int = 0
 )
 
 /**
@@ -64,8 +74,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         "WanderReads"
     )
     
+    // 媒体播放器相关
+    private var mediaPlayer: MediaPlayer? = null
+    private var playbackProgressHandler: Handler? = null
+    private val playbackUpdateInterval = 1000L // 1秒更新一次播放进度
+    
     init {
         loadCategories()
+    }
+    
+    // 在ViewModel销毁时释放资源
+    override fun onCleared() {
+        super.onCleared()
+        stopAudioPlayback()
     }
     
     /**
@@ -555,6 +576,159 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         val allFiles = _uiState.value.files
         val selectedFiles = _uiState.value.selectedFiles
         return allFiles.isNotEmpty() && allFiles.size == selectedFiles.size
+    }
+    
+    /**
+     * 播放音频文件
+     */
+    fun playAudioFile(file: BookFile) {
+        try {
+            // 如果有正在播放的音频，先停止
+            stopAudioPlayback()
+            
+            val audioFile = File(file.filePath)
+            if (!audioFile.exists()) {
+                Log.e("LibraryViewModel", "音频文件不存在: ${file.filePath}")
+                _uiState.update { it.copy(error = "音频文件不存在") }
+                return
+            }
+            
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .build()
+                )
+                setDataSource(file.filePath)
+                setOnPreparedListener { mp ->
+                    mp.start()
+                    val duration = mp.duration
+                    _uiState.update { it.copy(
+                        currentPlayingFilePath = file.filePath,
+                        isAudioPlaying = true,
+                        currentPlaybackPosition = 0,
+                        totalAudioDuration = duration
+                    ) }
+                    startPlaybackProgressTracking()
+                }
+                setOnCompletionListener {
+                    stopAudioPlayback()
+                }
+                prepareAsync()
+            }
+        } catch (e: Exception) {
+            Log.e("LibraryViewModel", "播放音频文件失败: ${e.message}")
+            stopAudioPlayback()
+            _uiState.update { it.copy(error = "播放失败: ${e.message}") }
+        }
+    }
+    
+    /**
+     * 暂停播放音频
+     */
+    fun pauseAudioPlayback() {
+        mediaPlayer?.let {
+            if (it.isPlaying) {
+                it.pause()
+                stopPlaybackProgressTracking()
+                _uiState.update { state -> 
+                    state.copy(isAudioPlaying = false)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 继续播放音频
+     */
+    fun resumeAudioPlayback() {
+        mediaPlayer?.let {
+            if (!it.isPlaying) {
+                it.start()
+                startPlaybackProgressTracking()
+                _uiState.update { state -> 
+                    state.copy(isAudioPlaying = true)
+                }
+            }
+        }
+    }
+    
+    /**
+     * 停止播放音频
+     */
+    fun stopAudioPlayback() {
+        stopPlaybackProgressTracking()
+        
+        mediaPlayer?.let {
+            try {
+                if (it.isPlaying) {
+                    it.stop()
+                }
+                it.release()
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "停止播放失败: ${e.message}")
+            }
+        }
+        
+        mediaPlayer = null
+        
+        _uiState.update { 
+            it.copy(
+                currentPlayingFilePath = null,
+                isAudioPlaying = false,
+                currentPlaybackPosition = 0,
+                totalAudioDuration = 0
+            )
+        }
+    }
+    
+    /**
+     * 开始追踪播放进度
+     */
+    private fun startPlaybackProgressTracking() {
+        playbackProgressHandler = Handler(Looper.getMainLooper())
+        
+        playbackProgressHandler?.post(object : Runnable {
+            override fun run() {
+                mediaPlayer?.let {
+                    if (it.isPlaying) {
+                        val position = it.currentPosition
+                        _uiState.update { state -> 
+                            state.copy(
+                                currentPlaybackPosition = position,
+                                isAudioPlaying = true
+                            )
+                        }
+                    }
+                }
+                playbackProgressHandler?.postDelayed(this, playbackUpdateInterval)
+            }
+        })
+    }
+    
+    /**
+     * 停止追踪播放进度
+     */
+    private fun stopPlaybackProgressTracking() {
+        playbackProgressHandler?.removeCallbacksAndMessages(null)
+        playbackProgressHandler = null
+    }
+    
+    /**
+     * 调整音频播放位置
+     */
+    fun seekToPosition(position: Int) {
+        try {
+            mediaPlayer?.let {
+                it.seekTo(position)
+                _uiState.update { state ->
+                    state.copy(currentPlaybackPosition = position)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("LibraryViewModel", "调整播放位置失败: ${e.message}")
+        }
     }
 }
 

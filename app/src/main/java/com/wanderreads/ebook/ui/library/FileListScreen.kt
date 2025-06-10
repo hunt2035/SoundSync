@@ -190,6 +190,29 @@ fun FileListScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            // 音频播放控制器
+            if (uiState.currentPlayingFilePath != null) {
+                val currentFile = uiState.files.find { it.filePath == uiState.currentPlayingFilePath }
+                if (currentFile != null) {
+                    AudioPlayerControl(
+                        file = currentFile,
+                        isPlaying = uiState.isAudioPlaying,
+                        currentPosition = uiState.currentPlaybackPosition,
+                        totalDuration = uiState.totalAudioDuration,
+                        onPlayPause = {
+                            if (uiState.isAudioPlaying) {
+                                viewModel.pauseAudioPlayback()
+                            } else {
+                                viewModel.resumeAudioPlayback()
+                            }
+                        },
+                        onStop = { viewModel.stopAudioPlayback() },
+                        onSeek = { position -> viewModel.seekToPosition(position) }
+                    )
+                }
+            }
         }
     ) { paddingValues ->
         Box(
@@ -221,6 +244,15 @@ fun FileListScreen(
                             onItemClick = {
                                 if (uiState.isSelectionMode) {
                                     viewModel.toggleFileSelection(file.filePath)
+                                } else if (category == LibraryCategory.VOICE_FILES) {
+                                    // 点击语音文件时直接播放
+                                    if (uiState.currentPlayingFilePath == file.filePath && uiState.isAudioPlaying) {
+                                        viewModel.pauseAudioPlayback()
+                                    } else if (uiState.currentPlayingFilePath == file.filePath) {
+                                        viewModel.resumeAudioPlayback()
+                                    } else {
+                                        viewModel.playAudioFile(file)
+                                    }
                                 }
                             },
                             onItemLongClick = {
@@ -273,6 +305,9 @@ fun FileItem(
     viewModel: LibraryViewModel
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val uiState = viewModel.uiState.collectAsState().value
+    val isPlaying = uiState.currentPlayingFilePath == file.filePath && uiState.isAudioPlaying
+    val isVoiceFile = onSetAlarmClick != null // 如果onSetAlarmClick不为null，说明是语音文件
     
     Card(
         modifier = Modifier
@@ -284,6 +319,7 @@ fun FileItem(
             ),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer 
+                            else if (isPlaying) MaterialTheme.colorScheme.secondaryContainer
                             else MaterialTheme.colorScheme.surface
         )
     ) {
@@ -340,6 +376,29 @@ fun FileItem(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        // 播放语音选项（仅对语音文件显示）
+                        if (isVoiceFile) {
+                            DropdownMenuItem(
+                                text = { Text("播放语音") },
+                                leadingIcon = { 
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = null
+                                    ) 
+                                },
+                                onClick = {
+                                    if (isPlaying) {
+                                        viewModel.pauseAudioPlayback()
+                                    } else if (uiState.currentPlayingFilePath == file.filePath) {
+                                        viewModel.resumeAudioPlayback()
+                                    } else {
+                                        viewModel.playAudioFile(file)
+                                    }
+                                    showMenu = false
+                                }
+                            )
+                        }
+                        
                         DropdownMenuItem(
                             text = { Text("重命名") },
                             leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
@@ -386,4 +445,99 @@ fun FileItem(
             }
         }
     }
+}
+
+/**
+ * 音频播放控制器
+ */
+@Composable
+fun AudioPlayerControl(
+    file: BookFile,
+    isPlaying: Boolean,
+    currentPosition: Int,
+    totalDuration: Int,
+    onPlayPause: () -> Unit,
+    onStop: () -> Unit,
+    onSeek: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(8.dp)
+    ) {
+        // 文件名
+        Text(
+            text = file.fileName,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(4.dp))
+        
+        // 进度条
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            // 当前时间
+            Text(
+                text = formatDuration(currentPosition),
+                style = MaterialTheme.typography.bodySmall
+            )
+            
+            // 进度滑块
+            Slider(
+                value = if (totalDuration > 0) currentPosition.toFloat() / totalDuration else 0f,
+                onValueChange = { value ->
+                    val newPosition = (value * totalDuration).toInt()
+                    onSeek(newPosition)
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 8.dp)
+            )
+            
+            // 总时长
+            Text(
+                text = formatDuration(totalDuration),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        
+        // 控制按钮
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // 播放/暂停按钮
+            IconButton(onClick = onPlayPause) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "暂停" else "播放"
+                )
+            }
+            
+            // 停止按钮
+            IconButton(onClick = onStop) {
+                Icon(
+                    imageVector = Icons.Default.Stop,
+                    contentDescription = "停止"
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 格式化时长
+ */
+fun formatDuration(durationMs: Int): String {
+    val totalSeconds = durationMs / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return String.format("%d:%02d", minutes, seconds)
 } 
