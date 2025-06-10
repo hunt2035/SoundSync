@@ -394,6 +394,22 @@ fun BookshelfScreen(
                                     }
                                 }
                             }
+                            
+                            // 添加批量操作选项
+                            Divider()
+                            DropdownMenuItem(
+                                text = { Text("批量操作") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckBox,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { 
+                                    viewModel.toggleSelectionMode()
+                                    showMenu = false
+                                }
+                            )
                         }
                     }
                 },
