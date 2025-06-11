@@ -1,5 +1,6 @@
 package com.wanderreads.ebook.ui.settings
 
+import android.app.Application
 import android.content.Context
 import android.util.Log
 import android.view.View
@@ -57,6 +58,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,6 +84,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.wanderreads.ebook.R
 import com.wanderreads.ebook.ui.theme.Primary
+import com.wanderreads.ebook.util.TtsManager
 
 /**
  * 设置屏幕
@@ -89,10 +92,26 @@ import com.wanderreads.ebook.ui.theme.Primary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
-    // 创建ViewModel
     val context = LocalContext.current
-    val settingsViewModel: SettingsViewModel = viewModel { SettingsViewModel(context) }
-    val settingsState by settingsViewModel.uiState.collectAsState()
+    val application = LocalContext.current.applicationContext as Application
+    val viewModel = viewModel<SettingsViewModel>(
+        factory = SettingsViewModelFactory(context)
+    )
+    
+    // 确保每次进入设置界面时，重置readBookId并更新TTS同步状态
+    LaunchedEffect(Unit) {
+        // 重置全局阅读位置
+        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+        mainActivity?.updateReadingPosition(null, 0, 0)
+        
+        // 更新TTS同步状态
+        val ttsManager = TtsManager.getInstance(context)
+        ttsManager.updateSyncPageState()
+        
+        Log.d("SettingsScreen", "进入设置界面，重置readBookId为null，更新IsSyncPageState=${ttsManager.isSyncPageState.value}")
+    }
+    
+    val settingsState by viewModel.uiState.collectAsState()
     
     // 对话框状态
     var showLanguageDialog by remember { mutableStateOf(false) }
@@ -105,7 +124,7 @@ fun SettingsScreen() {
     var showAboutDialog by remember { mutableStateOf(false) }
     
     // 检查系统电池优化状态
-    val isBatteryOptimizationDisabled = remember { mutableStateOf(settingsViewModel.checkBatteryOptimizationStatus()) }
+    val isBatteryOptimizationDisabled = remember { mutableStateOf(viewModel.checkBatteryOptimizationStatus()) }
     
     Scaffold(
         topBar = {
@@ -203,7 +222,7 @@ fun SettingsScreen() {
                     subtitle = stringResource(R.string.battery_optimization_subtitle),
                     isChecked = isBatteryOptimizationDisabled.value,
                     onCheckedChange = { checked ->
-                        settingsViewModel.setBatteryOptimization(checked)
+                        viewModel.setBatteryOptimization(checked)
                         // 更新UI状态
                         isBatteryOptimizationDisabled.value = checked
                     }
@@ -216,7 +235,7 @@ fun SettingsScreen() {
                     subtitle = stringResource(R.string.background_running_subtitle),
                     isChecked = settingsState.backgroundRunningEnabled,
                     onCheckedChange = { checked ->
-                        settingsViewModel.setBackgroundRunning(checked)
+                        viewModel.setBackgroundRunning(checked)
                     }
                 )
                 
@@ -239,7 +258,7 @@ fun SettingsScreen() {
                     stringResource(R.string.english)
                 ),
                 selectedOption = settingsState.language,
-                onOptionSelected = { settingsViewModel.setLanguage(it) },
+                onOptionSelected = { viewModel.setLanguage(it) },
                 onDismiss = { showLanguageDialog = false }
             )
         }
@@ -254,7 +273,7 @@ fun SettingsScreen() {
                     stringResource(R.string.system_mode)
                 ),
                 selectedOption = settingsState.theme,
-                onOptionSelected = { settingsViewModel.setTheme(it) },
+                onOptionSelected = { viewModel.setTheme(it) },
                 onDismiss = { showThemeDialog = false }
             )
         }
@@ -269,7 +288,7 @@ fun SettingsScreen() {
                     stringResource(R.string.font_size_large)
                 ),
                 selectedOption = settingsState.fontSize,
-                onOptionSelected = { settingsViewModel.setFontSize(it) },
+                onOptionSelected = { viewModel.setFontSize(it) },
                 onDismiss = { showFontSizeDialog = false }
             )
         }
@@ -284,7 +303,7 @@ fun SettingsScreen() {
                     stringResource(R.string.cover_style_material)
                 ),
                 selectedOption = settingsState.coverStyle,
-                onOptionSelected = { settingsViewModel.setCoverStyle(it) },
+                onOptionSelected = { viewModel.setCoverStyle(it) },
                 onDismiss = { showCoverStyleDialog = false }
             )
         }
@@ -296,7 +315,7 @@ fun SettingsScreen() {
                 currentColor = Color(android.graphics.Color.parseColor(settingsState.primaryColor)),
                 onColorSelected = { 
                     val colorString = String.format("#%06X", 0xFFFFFF and it.toArgb())
-                    settingsViewModel.setPrimaryColor(colorString)
+                    viewModel.setPrimaryColor(colorString)
                 },
                 onDismiss = { showColorDialog = false }
             )
@@ -309,7 +328,7 @@ fun SettingsScreen() {
                 currentColor = Color(android.graphics.Color.parseColor(settingsState.backgroundColor)),
                 onColorSelected = { 
                     val colorString = String.format("#%06X", 0xFFFFFF and it.toArgb())
-                    settingsViewModel.setBackgroundColor(colorString)
+                    viewModel.setBackgroundColor(colorString)
                 },
                 onDismiss = { showBackgroundDialog = false }
             )

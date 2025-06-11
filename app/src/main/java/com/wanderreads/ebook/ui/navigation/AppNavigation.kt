@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -84,6 +85,7 @@ import com.wanderreads.ebook.ui.reader.UnifiedReaderViewModelFactory
 import com.wanderreads.ebook.domain.model.BookType
 import android.app.Application
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.wanderreads.ebook.ui.components.BookshelfAudioPlayerControl
 
 /**
  * 应用导航路由
@@ -211,6 +213,7 @@ fun AppNavigation(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val context = LocalContext.current
     
     // 提供NavController的引用
     LaunchedEffect(navController) {
@@ -226,7 +229,6 @@ fun AppNavigation(
     }
     
     // AppDatabase实例
-    val context = LocalContext.current
     val database = remember { AppDatabase.getInstance(context) }
     
     // 仓库实例
@@ -319,11 +321,32 @@ fun AppNavigation(
     
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(
-                navController = navController,
-                currentDestination = currentDestination,
-                visible = bottomBarVisible
-            )
+            Column {
+                // 添加音频播放控件，位于底部导航栏上方
+                if (bottomBarVisible) {
+                    BookshelfAudioPlayerControl(
+                        onSyncPosition = {
+                            // 获取当前TTS朗读的书籍ID和页码
+                            val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                            val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(context)
+                            val bookId = ttsManager.bookId
+                            val pageIndex = ttsManager.currentPage
+                            
+                            if (bookId != null) {
+                                // 导航到正在朗读的书籍页面
+                                mainActivity?.navigateToBook(bookId, pageIndex)
+                            }
+                        }
+                    )
+                }
+                
+                // 底部导航栏
+                BottomNavigationBar(
+                    navController = navController,
+                    currentDestination = currentDestination,
+                    visible = bottomBarVisible
+                )
+            }
         }
     ) { paddingValues ->
         NavHost(
@@ -434,6 +457,15 @@ fun AppNavigation(
                     viewModel = readerViewModel,
                     bookId = bookId,
                     onBackClick = {
+                        // 离开阅读界面时，重置readBookId为null，以确保IsSyncPageState更新为0
+                        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                        mainActivity?.updateReadingPosition(null, 0, 0)
+                        
+                        // 更新TTS同步状态
+                        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(context)
+                        ttsManager.updateSyncPageState()
+                        
+                        // 返回上一个界面
                         navController.popBackStack()
                     },
                     onOpenSettings = {
@@ -467,6 +499,15 @@ fun AppNavigation(
                 EpubReaderScreen(
                     viewModel = epubReaderViewModel,
                     onNavigateBack = {
+                        // 离开阅读界面时，重置readBookId为null，以确保IsSyncPageState更新为0
+                        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                        mainActivity?.updateReadingPosition(null, 0, 0)
+                        
+                        // 更新TTS同步状态
+                        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(context)
+                        ttsManager.updateSyncPageState()
+                        
+                        // 返回上一个界面
                         navController.popBackStack()
                     }
                 )
@@ -539,6 +580,15 @@ fun AppNavigation(
                 UnifiedReaderScreen(
                     viewModel = unifiedReaderViewModel,
                     onNavigateBack = {
+                        // 离开阅读界面时，重置readBookId为null，以确保IsSyncPageState更新为0
+                        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                        mainActivity?.updateReadingPosition(null, 0, 0)
+                        
+                        // 更新TTS同步状态
+                        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(context)
+                        ttsManager.updateSyncPageState()
+                        
+                        // 返回上一个界面
                         navController.popBackStack()
                     },
                     navController = navController

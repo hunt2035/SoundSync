@@ -15,6 +15,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.addCallback
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -123,6 +125,27 @@ class MainActivity : ComponentActivity() {
         
         // 处理从TTS通知点击过来的情况
         handleTtsNotificationIntent(intent)
+        
+        // 添加系统返回键监听
+        onBackPressedDispatcher.addCallback(this) {
+            // 获取当前路由
+            val currentRoute = navController?.currentDestination?.route
+            
+            // 如果当前在阅读器屏幕，重置readBookId
+            if (currentRoute?.contains("reader") == true) {
+                updateReadingPosition(null, 0, 0)
+                
+                // 更新TTS同步状态
+                val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(this@MainActivity)
+                ttsManager.updateSyncPageState()
+                
+                Log.d(TAG, "系统返回键：从阅读界面返回，重置readBookId为null，更新IsSyncPageState=${ttsManager.isSyncPageState.value}")
+            }
+            
+            // 继续默认的返回行为
+            isEnabled = false
+            onBackPressedDispatcher.onBackPressed()
+        }
         
         setContent {
             EbookTheme {

@@ -79,6 +79,7 @@ class TtsManager private constructor(private val context: Context) {
      * - 如果TTS状态为停止，则IsSyncPageState=-1
      * - 如果TTS状态为朗读或暂停，且TTS朗读位置与用户当前阅读位置同步，则IsSyncPageState=1
      * - 如果TTS状态为朗读或暂停，但TTS朗读位置与用户当前阅读位置不同步，则IsSyncPageState=0
+     * - 当APP不在阅读界面时（例如在书架界面），IsSyncPageState也等于0
      */
     fun updateSyncPageState() {
         try {
@@ -93,8 +94,12 @@ class TtsManager private constructor(private val context: Context) {
             val newState = when (_ttsState.value.status) {
                 STATUS_STOPPED -> -1
                 STATUS_PLAYING, STATUS_PAUSED -> {
+                    // 如果readBookId为null，说明不在阅读界面，设置为0
+                    if (readBookId == null) {
+                        0
+                    }
                     // 确保bookId非空并且页码有效
-                    if (currentBookId != null && currentPageIndex >= 0 && readBookId != null && readCurrentPage >= 0) {
+                    else if (currentBookId != null && currentPageIndex >= 0 && readCurrentPage >= 0) {
                         val isSynced = readBookId == currentBookId && readCurrentPage == currentPageIndex
                         if (isSynced) 1 else 0
                     } else {

@@ -61,6 +61,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Divider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -88,6 +89,7 @@ import java.util.Locale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.activity.compose.BackHandler
+import android.util.Log
 
 // 使用类型别名解决命名冲突
 typealias EbookModel = com.wanderreads.ebook.domain.model.Book
@@ -105,6 +107,20 @@ fun BookshelfScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showNewTextDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    
+    // 确保每次进入书架界面时，重置readBookId并更新TTS同步状态
+    LaunchedEffect(Unit) {
+        // 重置全局阅读位置
+        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+        mainActivity?.updateReadingPosition(null, 0, 0)
+        
+        // 更新TTS同步状态
+        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(context)
+        ttsManager.updateSyncPageState()
+        
+        Log.d("BookshelfScreen", "进入书架界面，重置readBookId为null，更新IsSyncPageState=${ttsManager.isSyncPageState.value}")
+    }
     
     // 处理返回键：如果在选择模式，则退出选择模式而不是退出应用
     BackHandler(enabled = uiState.isSelectionMode) {

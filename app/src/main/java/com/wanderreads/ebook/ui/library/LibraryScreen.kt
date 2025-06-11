@@ -37,6 +37,19 @@ fun LibraryScreen() {
     // 当前选中的类别
     var selectedCategory by remember { mutableStateOf<LibraryCategory?>(null) }
     
+    // 确保每次进入书库界面时，重置readBookId并更新TTS同步状态
+    LaunchedEffect(Unit) {
+        // 重置全局阅读位置
+        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+        mainActivity?.updateReadingPosition(null, 0, 0)
+        
+        // 更新TTS同步状态
+        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(context)
+        ttsManager.updateSyncPageState()
+        
+        Log.d("LibraryScreen", "进入书库界面，重置readBookId为null，更新IsSyncPageState=${ttsManager.isSyncPageState.value}")
+    }
+    
     // 加载类别
     LaunchedEffect(Unit) {
         viewModel.loadCategories()

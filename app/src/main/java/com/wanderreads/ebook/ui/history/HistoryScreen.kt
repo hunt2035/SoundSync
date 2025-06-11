@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -45,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +60,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.util.Log
 import androidx.compose.foundation.layout.WindowInsets
 
 // 使用类型别名解决命名冲突
@@ -69,10 +72,24 @@ typealias EbookModel = com.wanderreads.ebook.domain.model.Book
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
-    viewModel: HistoryViewModel = viewModel(),
+    viewModel: HistoryViewModel,
     onBookClick: (EbookModel) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    
+    // 确保每次进入历史界面时，重置readBookId并更新TTS同步状态
+    LaunchedEffect(Unit) {
+        // 重置全局阅读位置
+        val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+        mainActivity?.updateReadingPosition(null, 0, 0)
+        
+        // 更新TTS同步状态
+        val ttsManager = com.wanderreads.ebook.util.TtsManager.getInstance(context)
+        ttsManager.updateSyncPageState()
+        
+        Log.d("HistoryScreen", "进入历史界面，重置readBookId为null，更新IsSyncPageState=${ttsManager.isSyncPageState.value}")
+    }
     
     Scaffold(
         topBar = {
