@@ -543,4 +543,86 @@ class TtsManager private constructor(private val context: Context) {
         val currentSentenceIndex: Int = -1,   // 当前高亮的句子索引
         val currentSentence: String = ""      // 当前高亮的句子内容
     )
+
+    /**
+     * 播放前一句
+     * 如果当前是第一句，则保持在第一句
+     */
+    fun playPreviousSentence() {
+        if (!isInitialized || sentencesList.isEmpty()) return
+        
+        // 确保TTS状态为朗读或暂停
+        if (_ttsState.value.status != STATUS_PLAYING && _ttsState.value.status != STATUS_PAUSED) {
+            Log.d(TAG, "TTS状态不是朗读或暂停状态，无法播放前一句")
+            return
+        }
+        
+        // 计算前一句的索引
+        val prevIndex = (currentSentenceIndex - 1).coerceAtLeast(0)
+        
+        // 如果已经是第一句，记录日志
+        if (prevIndex == currentSentenceIndex) {
+            Log.d(TAG, "已经是第一句，无法播放前一句")
+            return
+        }
+        
+        // 更新当前句子索引
+        currentSentenceIndex = prevIndex
+        
+        // 更新高亮状态
+        _highlightState.value = _highlightState.value.copy(
+            isHighlighting = true,
+            currentSentenceIndex = currentSentenceIndex,
+            currentSentence = sentencesList[currentSentenceIndex]
+        )
+        
+        // 朗读前一句
+        speakSentence(sentencesList[currentSentenceIndex], currentSentenceIndex)
+        
+        // 确保TTS状态为朗读
+        _ttsState.value = _ttsState.value.copy(status = STATUS_PLAYING)
+        
+        Log.d(TAG, "播放前一句: 索引=$currentSentenceIndex, 句子=${sentencesList[currentSentenceIndex]}")
+    }
+    
+    /**
+     * 播放后一句
+     * 如果当前是最后一句，则保持在最后一句
+     */
+    fun playNextSentence() {
+        if (!isInitialized || sentencesList.isEmpty()) return
+        
+        // 确保TTS状态为朗读或暂停
+        if (_ttsState.value.status != STATUS_PLAYING && _ttsState.value.status != STATUS_PAUSED) {
+            Log.d(TAG, "TTS状态不是朗读或暂停状态，无法播放后一句")
+            return
+        }
+        
+        // 计算后一句的索引
+        val nextIndex = (currentSentenceIndex + 1).coerceAtMost(sentencesList.size - 1)
+        
+        // 如果已经是最后一句，记录日志
+        if (nextIndex == currentSentenceIndex) {
+            Log.d(TAG, "已经是最后一句，无法播放后一句")
+            return
+        }
+        
+        // 更新当前句子索引
+        currentSentenceIndex = nextIndex
+        
+        // 更新高亮状态
+        _highlightState.value = _highlightState.value.copy(
+            isHighlighting = true,
+            currentSentenceIndex = currentSentenceIndex,
+            currentSentence = sentencesList[currentSentenceIndex]
+        )
+        
+        // 朗读后一句
+        speakSentence(sentencesList[currentSentenceIndex], currentSentenceIndex)
+        
+        // 确保TTS状态为朗读
+        _ttsState.value = _ttsState.value.copy(status = STATUS_PLAYING)
+        
+        Log.d(TAG, "播放后一句: 索引=$currentSentenceIndex, 句子=${sentencesList[currentSentenceIndex]}")
+    }
 } 

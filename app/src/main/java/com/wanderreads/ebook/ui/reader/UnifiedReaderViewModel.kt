@@ -1361,6 +1361,20 @@ class UnifiedReaderViewModel(
             }
         }
     }
+
+    /**
+     * 播放前一句
+     */
+    fun playPreviousSentence() {
+        ttsManager.playPreviousSentence()
+    }
+    
+    /**
+     * 播放后一句
+     */
+    fun playNextSentence() {
+        ttsManager.playNextSentence()
+    }
 }
 
 /**

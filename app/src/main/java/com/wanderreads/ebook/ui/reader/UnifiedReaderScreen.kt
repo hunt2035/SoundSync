@@ -121,6 +121,8 @@ import com.wanderreads.ebook.domain.model.BookType
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.wanderreads.ebook.ui.navigation.Screen
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 
 /**
  * 统一阅读器屏幕
@@ -144,16 +146,16 @@ fun UnifiedReaderScreen(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     
-    // 获取屏幕宽度(像素)
-    val screenWidthPx = LocalContext.current.resources.displayMetrics.widthPixels
-    val screenHeightPx = LocalContext.current.resources.displayMetrics.heightPixels
+    // 获取屏幕尺寸
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current.density
+    val screenWidthDp = configuration.screenWidthDp
+    val screenHeightDp = configuration.screenHeightDp
+    val screenWidthPx = screenWidthDp * density
+    val screenHeightPx = screenHeightDp * density
     
-    // 计算屏幕宽度(dp)
-    val density = LocalContext.current.resources.displayMetrics.density
-    val screenWidthDp = (screenWidthPx / density).toInt()
-    
-    // 音频控件宽度(屏幕宽度的65%)
-    val audioControlWidth = (screenWidthDp * 0.65f).toInt()
+    // 音频控件宽度 - 根据屏幕宽度设置
+    val audioControlWidth = if (screenWidthDp >= 360) 324 else (screenWidthDp * 0.95f).toInt()
     
     // 控制顶部和底部工具栏的显示
     var showControls by remember { mutableStateOf(true) }
@@ -1065,6 +1067,9 @@ fun UnifiedReaderScreen(
                         val isSyncPageState by ttsManager.isSyncPageState.collectAsState()
                         val isPositionSynced = isSyncPageState == 1
                         
+                        // 在这里获取density，而不是在回调中
+                        val density = LocalDensity.current.density
+                        
                         AudioPlayerControl(
                             ttsStatus = ttsState.status,
                             isPositionSynced = isPositionSynced,
@@ -1108,7 +1113,14 @@ fun UnifiedReaderScreen(
                                     }
                                 }
                             },
+                            onPrevSentence = {
+                                viewModel.playPreviousSentence()
+                            },
+                            onNextSentence = {
+                                viewModel.playNextSentence()
+                            },
                             onOffsetChange = { offset ->
+                                // 使用外部传入的density，而不是在这里调用LocalDensity.current
                                 audioControlPosition = audioControlPosition.copy(
                                     x = (audioControlPosition.x + offset.x).coerceIn(0f, screenWidthPx - (audioControlWidth * density)),
                                     y = (audioControlPosition.y + offset.y).coerceIn(0f, screenHeightPx - 270 * density)

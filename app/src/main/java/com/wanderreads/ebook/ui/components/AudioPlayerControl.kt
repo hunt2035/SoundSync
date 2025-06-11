@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -43,11 +45,12 @@ fun AudioPlayerControl(
     onStop: () -> Unit, // 停止回调
     onSyncPosition: () -> Unit, // 同步位置回调（点击"边听边看"时）
     onOffsetChange: (IntOffset) -> Unit, // 位置变化回调
+    onPrevSentence: () -> Unit = {}, // 播放前一句回调
+    onNextSentence: () -> Unit = {}, // 播放后一句回调
     modifier: Modifier = Modifier
 ) {
     val isDragging = remember { mutableStateOf(false) }
     val dragOffset = remember { mutableStateOf(IntOffset(0, 0)) }
-    val density = LocalDensity.current
     val isPlaying = ttsStatus == TtsManager.STATUS_PLAYING
 
     // 定义颜色
@@ -122,6 +125,18 @@ fun AudioPlayerControl(
                 )
             }
             
+            // 播放前一句按钮
+            IconButton(
+                onClick = onPrevSentence,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowLeft,
+                    contentDescription = "播放前一句",
+                    tint = Color.White
+                )
+            }
+            
             // 播放/暂停按钮
             IconButton(
                 onClick = onPlayPause,
@@ -130,6 +145,18 @@ fun AudioPlayerControl(
                 Icon(
                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                     contentDescription = if (isPlaying) "暂停" else "播放",
+                    tint = Color.White
+                )
+            }
+            
+            // 播放后一句按钮
+            IconButton(
+                onClick = onNextSentence,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = "播放后一句",
                     tint = Color.White
                 )
             }
@@ -144,23 +171,6 @@ fun AudioPlayerControl(
                     contentDescription = "停止",
                     tint = Color.White
                 )
-            }
-            
-            // 三条横线（示意菜单）
-            Column(
-                modifier = Modifier
-                    .width(18.dp)
-                    .height(24.dp),
-                verticalArrangement = Arrangement.SpaceEvenly
-            ) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(2.dp)
-                            .background(Color.White)
-                    )
-                }
             }
         }
     }
@@ -185,7 +195,9 @@ fun AudioPlayerControlPreview() {
                 onPlayPause = { },
                 onStop = { },
                 onSyncPosition = { },
-                onOffsetChange = { }
+                onOffsetChange = { },
+                onPrevSentence = { },
+                onNextSentence = { }
             )
             
             // 预览"边听边看"状态
@@ -195,7 +207,9 @@ fun AudioPlayerControlPreview() {
                 onPlayPause = { },
                 onStop = { },
                 onSyncPosition = { },
-                onOffsetChange = { }
+                onOffsetChange = { },
+                onPrevSentence = { },
+                onNextSentence = { }
             )
         }
     }
