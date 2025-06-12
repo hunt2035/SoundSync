@@ -18,10 +18,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,6 +42,11 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+import android.content.Intent
+import android.provider.AlarmClock
+import androidx.core.content.FileProvider
+import android.net.Uri
+import android.util.Log
 
 /**
  * 合成语音列表屏幕
@@ -358,6 +366,85 @@ fun SynthesizedAudioListScreen(
                                     if (!isPlaying) {
                                         onPlayRecord(record)
                                     }
+                                },
+                                onOpenFileLocation = {
+                                    // 打开文件所在目录
+                                    val file = File(record.voiceFilePath)
+                                    if (file.exists()) {
+                                        try {
+                                            // 使用LibraryViewModel中的方法打开文件所在目录
+                                            // 这里我们直接在UI层实现类似功能
+                                            val intent = Intent(Intent.ACTION_VIEW)
+                                            val parentDir = file.parentFile
+                                            if (parentDir != null && parentDir.exists()) {
+                                                val uri = Uri.fromFile(parentDir)
+                                                intent.setDataAndType(uri, "resource/folder")
+                                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                context.startActivity(Intent.createChooser(intent, "选择文件浏览器打开目录"))
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e("SynthesizedAudioListScreen", "打开文件所在目录失败", e)
+                                        }
+                                    }
+                                },
+                                onSetAlarm = {
+                                    // 设置闹钟
+                                    val file = File(record.voiceFilePath)
+                                    if (file.exists()) {
+                                        try {
+                                            // 使用FileProvider获取Uri
+                                            val fileUri = FileProvider.getUriForFile(
+                                                context,
+                                                "${context.packageName}.fileprovider",
+                                                file
+                                            )
+                                            
+                                            // 创建闹钟设置Intent
+                                            val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                                                // 添加铃声URI
+                                                putExtra(AlarmClock.EXTRA_RINGTONE, fileUri.toString())
+                                                
+                                                // 设置其他闹钟参数
+                                                putExtra(AlarmClock.EXTRA_MESSAGE, record.title) // 闹钟标签
+                                                putExtra(AlarmClock.EXTRA_HOUR, 8) // 默认时间8点
+                                                putExtra(AlarmClock.EXTRA_MINUTES, 0) // 默认0分
+                                                putExtra(AlarmClock.EXTRA_SKIP_UI, false) // 显示闹钟设置界面
+                                                
+                                                // 添加授权标志
+                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                            }
+                                            
+                                            // 为常见的闹钟应用授予权限
+                                            val commonClockPackages = arrayOf(
+                                                "com.android.deskclock", // 原生Android闹钟
+                                                "com.google.android.deskclock", // Google闹钟
+                                                "com.sec.android.app.clockpackage", // 三星闹钟
+                                                "com.huawei.deskclock", // 华为闹钟
+                                                "com.android.alarmclock", // 其他常见闹钟
+                                                "com.oneplus.deskclock", // 一加闹钟
+                                                "com.oppo.alarmclock", // OPPO闹钟
+                                                "com.vivo.alarmclock" // vivo闹钟
+                                            )
+                                            
+                                            // 为所有可能的闹钟应用授予权限
+                                            for (packageName in commonClockPackages) {
+                                                try {
+                                                    context.grantUriPermission(
+                                                        packageName, 
+                                                        fileUri, 
+                                                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                    )
+                                                } catch (e: Exception) {
+                                                    Log.w("SynthesizedAudioListScreen", "授予 $packageName 权限失败: ${e.message}")
+                                                    // 继续尝试下一个包名
+                                                }
+                                            }
+                                            
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            Log.e("SynthesizedAudioListScreen", "设置闹钟失败: ${e.message}", e)
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -536,7 +623,9 @@ fun AudioControlPanel(
     onDelete: () -> Unit,
     onSeek: (Int) -> Unit = {},
     onSliderSeek: (Int) -> Unit = onSeek,
-    onSliderSeekFinished: (Int) -> Unit = onSeek
+    onSliderSeekFinished: (Int) -> Unit = onSeek,
+    onOpenFileLocation: () -> Unit = {},
+    onSetAlarm: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -654,6 +743,41 @@ fun AudioControlPanel(
                 description = "删除",
                 onClick = onDelete
             )
+            
+            // 添加三个点菜单按钮
+            var showMenu by remember { mutableStateOf(false) }
+            Box {
+                ControlButton(
+                    icon = Icons.Default.MoreVert,
+                    description = "更多选项",
+                    onClick = { showMenu = true }
+                )
+                
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    // 所属目录选项
+                    DropdownMenuItem(
+                        text = { Text("所属目录") },
+                        leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                        onClick = {
+                            onOpenFileLocation()
+                            showMenu = false
+                        }
+                    )
+                    
+                    // 设置闹钟选项
+                    DropdownMenuItem(
+                        text = { Text("设置闹钟") },
+                        leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null) },
+                        onClick = {
+                            onSetAlarm()
+                            showMenu = false
+                        }
+                    )
+                }
+            }
         }
     }
 }

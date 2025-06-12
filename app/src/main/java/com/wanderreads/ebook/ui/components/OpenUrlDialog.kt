@@ -85,7 +85,7 @@ fun OpenUrlDialog(
                         .fillMaxWidth()
                         .focusRequester(focusRequester),
                     label = { Text("网页地址") },
-                    placeholder = { Text("https://wanderreads.com") },
+                    placeholder = { Text("https://wanderreads.com/book01.html") },
                     leadingIcon = { 
                         Icon(
                             imageVector = Icons.Outlined.Language,

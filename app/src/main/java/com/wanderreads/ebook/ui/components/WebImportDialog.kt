@@ -49,7 +49,7 @@ fun WebImportDialog(
     onConfirm: (String) -> Unit
 ) {
     // 默认显示的网址
-    val defaultUrl = "http://wanderreads.com"
+    val defaultUrl = "http://wanderreads.com/book01.html"
     
     // 使用空字符串作为初始值，但在UI中显示默认网址
     var url by remember { mutableStateOf("") }
