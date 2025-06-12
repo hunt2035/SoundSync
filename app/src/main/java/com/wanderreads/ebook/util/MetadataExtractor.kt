@@ -38,6 +38,7 @@ class MetadataExtractor(private val context: Context) {
                 BookFormat.MOBI -> extractMobiMetadata(file)
                 BookFormat.TXT -> extractTxtMetadata(file)
                 BookFormat.MD -> extractTxtMetadata(file) // MD格式使用与TXT相同的元数据提取方法
+                BookFormat.DOC, BookFormat.DOCX -> extractWordMetadata(file) // Word文件元数据提取
                 else -> BookMetadata(
                     title = file.nameWithoutExtension,
                     author = "",
@@ -269,6 +270,48 @@ class MetadataExtractor(private val context: Context) {
         
         // 默认UTF-8
         return StandardCharsets.UTF_8
+    }
+
+    /**
+     * 提取Word文件元数据
+     */
+    private fun extractWordMetadata(file: File): BookMetadata {
+        // 从文件名中提取信息
+        val fileName = file.nameWithoutExtension
+        val parts = fileName.split(" - ", "-", limit = 2)
+        
+        val title = if (parts.size > 1) parts[1].trim() else fileName
+        val author = if (parts.size > 1) parts[0].trim() else ""
+        
+        // 估算页数 (每页约2000字符)
+        // 尝试提取文本来更准确地估计页数
+        val text = try {
+            when {
+                file.name.endsWith(".docx", ignoreCase = true) -> {
+                    com.wanderreads.ebook.util.WordTextExtractor.extractText(file)
+                }
+                file.name.endsWith(".doc", ignoreCase = true) -> {
+                    com.wanderreads.ebook.util.WordTextExtractor.extractText(file)
+                }
+                else -> ""
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "提取Word文本失败", e)
+            ""
+        }
+        
+        val pageCount = if (text.isNotEmpty()) {
+            (text.length / 2000).toInt().coerceAtLeast(1)
+        } else {
+            (file.length() / 8000).toInt().coerceAtLeast(1) // Word二进制文件估算
+        }
+        
+        return BookMetadata(
+            title = title,
+            author = author,
+            pageCount = pageCount,
+            coverImage = null
+        )
     }
 }
 

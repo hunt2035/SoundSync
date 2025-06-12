@@ -19,7 +19,8 @@ data class Book(
     val totalPages: Int = 0,
     val addedDate: Long = System.currentTimeMillis(),
     val lastOpenedDate: Long = System.currentTimeMillis(),
-    val urlPath: String? = null
+    val urlPath: String? = null,
+    val originalFilePath: String? = null // 原始文件路径，例如PDF转TXT时保存原PDF路径
 ) {
     val file: File
         get() = File(filePath)
@@ -35,7 +36,7 @@ data class Book(
  * 电子书格式
  */
 enum class BookFormat {
-    PDF, EPUB, TXT, MOBI, MD, UNKNOWN;
+    PDF, EPUB, TXT, MOBI, MD, DOCX, DOC, UNKNOWN;
     
     companion object {
         fun fromFileName(fileName: String): BookFormat {
@@ -45,6 +46,8 @@ enum class BookFormat {
                 fileName.endsWith(".txt", ignoreCase = true) -> TXT
                 fileName.endsWith(".mobi", ignoreCase = true) -> MOBI
                 fileName.endsWith(".md", ignoreCase = true) -> MD
+                fileName.endsWith(".docx", ignoreCase = true) -> DOCX
+                fileName.endsWith(".doc", ignoreCase = true) -> DOC
                 else -> UNKNOWN
             }
         }

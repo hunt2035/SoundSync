@@ -23,7 +23,8 @@ data class BookEntity(
     val totalPages: Int,
     val addedDate: Long,
     val lastOpenedDate: Long,
-    val urlPath: String? = null // 网页导入的URL
+    val urlPath: String? = null, // 网页导入的URL
+    val originalFilePath: String? = null // 原始文件路径，例如PDF转TXT时保存原PDF路径
 ) {
     fun toBook(): Book {
         return Book(
@@ -39,7 +40,8 @@ data class BookEntity(
             totalPages = totalPages,
             addedDate = addedDate,
             lastOpenedDate = lastOpenedDate,
-            urlPath = urlPath
+            urlPath = urlPath,
+            originalFilePath = originalFilePath
         )
     }
     
@@ -58,7 +60,8 @@ data class BookEntity(
                 totalPages = book.totalPages,
                 addedDate = book.addedDate,
                 lastOpenedDate = book.lastOpenedDate,
-                urlPath = book.urlPath
+                urlPath = book.urlPath,
+                originalFilePath = book.originalFilePath
             )
         }
     }

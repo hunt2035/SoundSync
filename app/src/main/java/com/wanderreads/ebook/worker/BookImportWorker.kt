@@ -18,6 +18,8 @@ import com.wanderreads.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_STE
 import com.wanderreads.ebook.ui.importbook.ImportBookViewModel.Companion.KEY_URI
 import com.wanderreads.ebook.util.FileUtil
 import com.wanderreads.ebook.util.MetadataExtractor
+import com.wanderreads.ebook.util.PdfTextExtractor
+import com.wanderreads.ebook.util.WordTextExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -92,8 +94,72 @@ class BookImportWorker(
             // 步骤2：元数据提取
             setProgress(ImportStep.METADATA_EXTRACTION, fileName, 0)
             
+            // 特殊处理：如果是PDF或Word格式，提取文本内容并创建TXT文件
+            var finalBookFile = bookFile
+            var finalBookFormat = bookFormat
+            var txtFilePath: String? = null
+            
+            // 处理PDF文件
+            if (bookFormat == BookFormat.PDF) {
+                Log.d(TAG, "正在处理PDF文件: ${bookFile.name}")
+                
+                // 提取PDF文本内容
+                val pdfText = PdfTextExtractor.extractText(bookFile)
+                
+                if (pdfText.isBlank()) {
+                    Log.w(TAG, "PDF文本提取结果为空")
+                } else {
+                    // 创建与PDF同名的TXT文件
+                    val txtFileName = "${bookFile.nameWithoutExtension}.txt"
+                    val txtFile = File(bookFile.parent, txtFileName)
+                    
+                    try {
+                        // 写入文本内容到TXT文件
+                        txtFile.writeText(pdfText)
+                        Log.d(TAG, "成功从PDF提取文本并保存为TXT: ${txtFile.absolutePath}")
+                        
+                        // 更新处理文件和格式
+                        finalBookFile = txtFile
+                        finalBookFormat = BookFormat.TXT
+                        txtFilePath = txtFile.absolutePath
+                    } catch (e: Exception) {
+                        Log.e(TAG, "保存PDF提取文本到TXT文件失败", e)
+                        // 如果保存失败，仍然使用原始PDF文件
+                    }
+                }
+            }
+            // 处理Word文件 (DOC/DOCX)
+            else if (bookFormat == BookFormat.DOC || bookFormat == BookFormat.DOCX) {
+                Log.d(TAG, "正在处理Word文件: ${bookFile.name}")
+                
+                // 提取Word文本内容
+                val wordText = WordTextExtractor.extractText(bookFile)
+                
+                if (wordText.isBlank()) {
+                    Log.w(TAG, "Word文本提取结果为空")
+                } else {
+                    // 创建与Word文件同名的TXT文件
+                    val txtFileName = "${bookFile.nameWithoutExtension}.txt"
+                    val txtFile = File(bookFile.parent, txtFileName)
+                    
+                    try {
+                        // 写入文本内容到TXT文件
+                        txtFile.writeText(wordText)
+                        Log.d(TAG, "成功从Word提取文本并保存为TXT: ${txtFile.absolutePath}")
+                        
+                        // 更新处理文件和格式
+                        finalBookFile = txtFile
+                        finalBookFormat = BookFormat.TXT
+                        txtFilePath = txtFile.absolutePath
+                    } catch (e: Exception) {
+                        Log.e(TAG, "保存Word提取文本到TXT文件失败", e)
+                        // 如果保存失败，仍然使用原始Word文件
+                    }
+                }
+            }
+            
             // 计算哈希值
-            val fileHash = FileUtil.calculateSHA256(bookFile)
+            val fileHash = FileUtil.calculateSHA256(finalBookFile)
             
             // 检查是否重复导入
             val bookDao = AppDatabase.getInstance(context).bookDao()
@@ -104,12 +170,14 @@ class BookImportWorker(
             
             // 如果存在相同哈希值的书籍，认为是重复导入
             val duplicateBook = allBooks.find { book -> 
-                book.filePath == bookFile.absolutePath || (fileHash.isNotEmpty() && book.fileHash == fileHash)
+                book.filePath == finalBookFile.absolutePath || (fileHash.isNotEmpty() && book.fileHash == fileHash)
             }
             
             if (duplicateBook != null) {
                 // 已存在相同书籍，删除临时文件
-                bookFile.delete()
+                if (txtFilePath != null && txtFilePath != duplicateBook.filePath) {
+                    File(txtFilePath).delete()
+                }
                 return@withContext createFailureResult("该书籍已存在: ${duplicateBook.title}")
             }
             
@@ -117,7 +185,7 @@ class BookImportWorker(
             
             // 提取元数据
             val metadataExtractor = MetadataExtractor(context)
-            val metadataResult = metadataExtractor.extractMetadata(bookFile, bookFormat)
+            val metadataResult = metadataExtractor.extractMetadata(finalBookFile, finalBookFormat)
             
             if (metadataResult.isFailure) {
                 return@withContext createFailureResult("元数据提取失败: ${metadataResult.exceptionOrNull()?.message}")
@@ -155,16 +223,22 @@ class BookImportWorker(
             val book = Book(
                 title = metadata.title,
                 author = metadata.author,
-                filePath = bookFile.absolutePath,
+                filePath = finalBookFile.absolutePath,
                 coverPath = coverPath,
                 fileHash = fileHash,
-                type = when(bookFormat) {
+                type = when(finalBookFormat) {
                     BookFormat.EPUB -> BookType.EPUB
                     BookFormat.PDF -> BookType.PDF
                     BookFormat.TXT -> BookType.TXT
                     BookFormat.MD -> BookType.MD
+                    BookFormat.DOC, BookFormat.DOCX -> BookType.WORD
                     BookFormat.MOBI, BookFormat.UNKNOWN -> BookType.UNKNOWN
                 },
+                // 对于从PDF或Word转换来的TXT文件，保存原始文件路径
+                originalFilePath = if ((bookFormat == BookFormat.PDF || bookFormat == BookFormat.DOC || bookFormat == BookFormat.DOCX) 
+                    && finalBookFormat == BookFormat.TXT) {
+                    bookFile.absolutePath
+                } else null,
                 totalPages = metadata.pageCount,
                 addedDate = System.currentTimeMillis(),
                 lastOpenedDate = System.currentTimeMillis()

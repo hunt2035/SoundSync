@@ -266,6 +266,7 @@ fun HistoryListItem(
                         BookType.PDF -> MaterialTheme.colorScheme.secondaryContainer
                         BookType.TXT -> MaterialTheme.colorScheme.surfaceVariant
                         BookType.MD -> MaterialTheme.colorScheme.surfaceVariant
+                        BookType.WORD -> MaterialTheme.colorScheme.secondaryContainer
                         BookType.UNKNOWN -> MaterialTheme.colorScheme.tertiaryContainer
                     }
                     

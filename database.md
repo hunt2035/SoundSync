@@ -23,6 +23,7 @@
 | addedDate | Long | 添加时间 | NOT NULL |
 | lastOpenedDate | Long | 最后打开时间 | NOT NULL |
 | urlPath | String | 网页导入的URL | NULL |
+| originalFilePath | String | 原始文件路径，例如PDF转TXT时保存原PDF路径 | NULL |
 
 ### 2. 录音表 (records)
 
@@ -97,7 +98,8 @@ data class Book(
     val totalPages: Int,
     val addedDate: Long,
     val lastOpenedDate: Long,
-    val urlPath: String?
+    val urlPath: String?,
+    val originalFilePath: String?
 )
 ```
 

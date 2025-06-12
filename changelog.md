@@ -1,3 +1,28 @@
+## 2024-07-08 更新日志
+
+### 新增功能
+- **Word文件支持**：添加对Word文档(DOC/DOCX)格式的支持，系统会自动提取Word文件中的文本内容，并以TXT格式保存，方便用户阅读和使用TTS朗读功能
+- **文件格式扩展**：扩展了BookFormat枚举，增加了DOC和DOCX格式的识别
+- **文件类型扩展**：在BookType枚举中添加了WORD类型，用于标识Word文档
+
+### 技术改进
+- 创建WordTextExtractor工具类，使用Apache POI库提取Word文档(DOC/DOCX)中的文本内容
+- 扩展MetadataExtractor类，增加对Word文档元数据的提取支持
+- 优化BookImportWorker工作流程，添加对Word文档的处理逻辑
+- 添加Apache POI相关依赖库，用于处理Word文档格式
+
+## 2024-07-01 更新日志
+
+### 新增功能
+- **PDF文本提取功能**：增强PDF导入功能，现在系统会自动从PDF文件中提取文本内容，并以TXT格式保存，使用户可以像阅读TXT文件一样阅读和使用TTS朗读功能
+- **原始文件路径记录**：为从PDF提取的TXT文件添加原始PDF文件路径记录，保证文件溯源关系完整
+
+### 技术改进
+- 创建PdfTextExtractor工具类，使用tom-roush的PDFBox库提取PDF文本内容
+- 优化BookImportWorker工作流程，在PDF处理过程中添加文本提取和保存步骤
+- 增强BookEntity和Book模型，添加originalFilePath字段支持
+- 数据库版本升级到v7，支持存储原始文件路径信息
+
 ## 2024-05-30 更新日志
 
 ### 新增功能

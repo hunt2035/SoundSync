@@ -8,5 +8,6 @@ enum class BookType {
     PDF,
     TXT,
     MD,
+    WORD,
     UNKNOWN
 } 

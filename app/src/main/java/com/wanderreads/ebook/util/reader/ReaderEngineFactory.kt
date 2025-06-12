@@ -24,6 +24,8 @@ object ReaderEngineFactory {
             // 暂时其他格式也用TXT阅读引擎处理
             BookFormat.PDF -> TxtReaderEngine(context)
             BookFormat.MOBI -> TxtReaderEngine(context)
+            BookFormat.DOCX -> TxtReaderEngine(context)
+            BookFormat.DOC -> TxtReaderEngine(context)
             BookFormat.UNKNOWN -> TxtReaderEngine(context)
         }
     }

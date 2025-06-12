@@ -151,6 +151,11 @@ dependencies {
     // DocumentFile
     implementation("androidx.documentfile:documentfile:1.0.1")
     
+    // Apache POI for Word files
+    implementation("org.apache.poi:poi:5.2.3")
+    implementation("org.apache.poi:poi-ooxml:5.2.3")
+    implementation("org.apache.poi:poi-scratchpad:5.2.3")
+    
     // 微信分享SDK
     implementation("com.tencent.mm.opensdk:wechat-sdk-android-without-mta:6.8.0")
 } 
