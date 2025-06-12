@@ -28,7 +28,7 @@ data class BookChapter(
  * 阅读器配置
  */
 data class ReaderConfig(
-    val fontSize: Int = 18,            // 字体大小
+    val fontSize: Int = 17,            // 字体大小
     val lineHeight: Float = 1.6f,      // 行高
     val fontFamily: String = "Default", // 字体族
     val isDarkMode: Boolean = false,    // 是否暗黑模式
