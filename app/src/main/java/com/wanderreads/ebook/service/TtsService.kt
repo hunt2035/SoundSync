@@ -133,8 +133,16 @@ class TtsService : Service() {
                             val syncState = ttsManager.isSyncPageState.value
                             Log.d(TAG, "TTS服务自动翻页前的同步状态: ${syncState}")
                             
-                            if (syncState == 1) {
-                                // 如果是同步状态(IsSyncPageState=1)，先发送广播通知前端UI更新
+                            // 获取MainActivity的全局阅读位置
+                            val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
+                            val readBookId = com.wanderreads.ebook.MainActivity.readBookId
+                            
+                            // 判断当前查看的书籍是否与正在朗读的书籍相同
+                            val isSameBook = readBookId != null && readBookId == bookId
+                            Log.d(TAG, "当前查看的书籍与朗读的书籍是否相同: $isSameBook (readBookId=$readBookId, currentBookId=$bookId)")
+                            
+                            if (syncState == 1 && isSameBook) {
+                                // 如果是同步状态(IsSyncPageState=1)且书籍相同，发送广播通知前端UI更新
                                 val intent = Intent("com.wanderreads.ebook.TTS_PAGE_CHANGED")
                                 intent.putExtra("bookId", bookId)
                                 intent.putExtra("pageIndex", nextPage)
@@ -149,9 +157,13 @@ class TtsService : Service() {
                                     // 继续执行，不要因为延迟失败而中断整个流程
                                 }
                                 
-                                // 更新全局阅读位置，确保与TTS保持同步
-                                val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
-                                mainActivity?.updateReadingPosition(bookId, nextPage, engine.getTotalPages())
+                                // 只有当前界面是阅读界面且查看的书籍与朗读的书籍相同时，才更新全局阅读位置
+                                if (isSameBook) {
+                                    mainActivity?.updateReadingPosition(bookId, nextPage, engine.getTotalPages())
+                                    Log.d(TAG, "更新全局阅读位置: bookId=$bookId, page=$nextPage")
+                                } else {
+                                    Log.d(TAG, "不更新全局阅读位置，因为当前不在阅读界面或查看的书籍与朗读的书籍不同")
+                                }
                                 
                                 try {
                                     // 开始朗读新页面
@@ -162,10 +174,18 @@ class TtsService : Service() {
                                     // 即使开始朗读失败，也不影响整个翻页流程
                                 }
                             } else {
-                                // 非同步状态(IsSyncPageState=0)，不需要更新前端UI，直接开始朗读
+                                // 非同步状态(IsSyncPageState=0)或书籍不同，不需要更新前端UI，直接开始朗读
                                 try {
+                                    // 只有当前界面是阅读界面且查看的书籍与朗读的书籍相同时，才更新全局阅读位置
+                                    if (isSameBook) {
+                                        mainActivity?.updateReadingPosition(bookId, nextPage, engine.getTotalPages())
+                                        Log.d(TAG, "更新全局阅读位置: bookId=$bookId, page=$nextPage")
+                                    } else {
+                                        Log.d(TAG, "不更新全局阅读位置，因为当前不在阅读界面或查看的书籍与朗读的书籍不同")
+                                    }
+                                    
                                     ttsManager.startReading(bookId, nextPage, nextPageText)
-                                    Log.d(TAG, "非同步状态下开始朗读新页面: page=${nextPage}, 同步状态=${syncState}")
+                                    Log.d(TAG, "非同步状态或书籍不同，直接朗读新页面: page=${nextPage}, 同步状态=${syncState}, 书籍相同=${isSameBook}")
                                 } catch (e: Exception) {
                                     Log.e(TAG, "开始朗读新页面失败: ${e.message}", e)
                                 }
@@ -196,16 +216,29 @@ class TtsService : Service() {
                 // 获取下一页
                 val nextPage = currentPage + 1
                 
-                // 再次尝试更新全局阅读位置
+                // 获取MainActivity的全局阅读位置
                 val mainActivity = com.wanderreads.ebook.MainActivity.getInstance()
-                mainActivity?.updateReadingPosition(bookId, nextPage, currentReaderEngine?.getTotalPages() ?: 0)
+                val readBookId = com.wanderreads.ebook.MainActivity.readBookId
                 
-                // 发送UI更新广播
-                val intent = Intent("com.wanderreads.ebook.TTS_PAGE_CHANGED")
-                intent.putExtra("bookId", bookId)
-                intent.putExtra("pageIndex", nextPage)
-                applicationContext.sendBroadcast(intent)
-                Log.d(TAG, "在异常恢复中发送UI更新广播: 页面=${nextPage}")
+                // 判断当前查看的书籍是否与正在朗读的书籍相同
+                val isSameBook = readBookId != null && readBookId == bookId
+                
+                // 只有当前界面是阅读界面且查看的书籍与朗读的书籍相同时，才更新全局阅读位置
+                if (isSameBook) {
+                    mainActivity?.updateReadingPosition(bookId, nextPage, currentReaderEngine?.getTotalPages() ?: 0)
+                    Log.d(TAG, "异常恢复中更新全局阅读位置: bookId=$bookId, page=$nextPage")
+                } else {
+                    Log.d(TAG, "异常恢复中不更新全局阅读位置，因为当前不在阅读界面或查看的书籍与朗读的书籍不同")
+                }
+                
+                // 只有当书籍相同时，才发送UI更新广播
+                if (isSameBook) {
+                    val intent = Intent("com.wanderreads.ebook.TTS_PAGE_CHANGED")
+                    intent.putExtra("bookId", bookId)
+                    intent.putExtra("pageIndex", nextPage)
+                    applicationContext.sendBroadcast(intent)
+                    Log.d(TAG, "在异常恢复中发送UI更新广播: 页面=${nextPage}")
+                }
             } catch (ex: Exception) {
                 Log.e(TAG, "尝试恢复TTS朗读失败: ${ex.message}", ex)
                 // 不停止TTS，让用户可以手动继续
