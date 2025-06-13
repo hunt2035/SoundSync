@@ -35,7 +35,13 @@ enum class LibraryCategory(val displayName: String, val dirName: String, val ico
     TEXT_BOOKS("新建文本", "txtfiles", "text_fields"),
     WEB_BOOKS("网址导入", "webbook", "language"),
     LOCAL_BOOKS("本地导入", "books", "book"),
-    VOICE_FILES("语音文件", "voices", "record_voice_over")
+    VOICE_FILES("语音文件", "voices", "record_voice_over");
+    
+    // 默认使用Documents目录
+    open fun getDirectory(context: Context): File {
+        val documentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+        return File(File(documentsDir, "WanderReads"), dirName)
+    }
 }
 
 /**
@@ -69,6 +75,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     private val _uiState = MutableStateFlow(LibraryUiState())
     val uiState: StateFlow<LibraryUiState> = _uiState.asStateFlow()
     
+    // 默认根目录（仅用于向后兼容，实际使用LibraryCategory.getDirectory方法）
     private val rootDir = File(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS),
         "WanderReads"
@@ -100,7 +107,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 val categories = mutableMapOf<LibraryCategory, Int>()
                 
                 LibraryCategory.values().forEach { category ->
-                    val dir = File(rootDir, category.dirName)
+                    val dir = category.getDirectory(getApplication())
                     val count = if (dir.exists() && dir.isDirectory) {
                         dir.listFiles()?.size ?: 0
                     } else {
@@ -138,7 +145,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             )
             
             try {
-                val dir = File(rootDir, category.dirName)
+                val dir = category.getDirectory(getApplication())
                 val files = if (dir.exists() && dir.isDirectory) {
                     dir.listFiles()
                         ?.filter { it.isFile }
@@ -168,7 +175,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
      */
     fun openFileExplorer(context: Context, category: LibraryCategory) {
         try {
-            val dir = File(rootDir, category.dirName)
+            val dir = category.getDirectory(context)
             if (!dir.exists()) {
                 dir.mkdirs()
             }
@@ -338,7 +345,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             Log.d("LibraryViewModel", "尝试打开文件所在目录: ${parentDir.absolutePath}")
             Log.d("LibraryViewModel", "文件名: ${file.name}")
             
-            // 获取相对于Documents/WanderReads的路径
+            // 获取相对路径
             val relativeDirPath = if (parentDir.absolutePath.contains("WanderReads")) {
                 parentDir.absolutePath.substringAfter("WanderReads")
             } else {
@@ -365,11 +372,19 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             // 尝试方法1: 使用SAF直接打开文件所在目录
             try {
                 // 构建文档URI
-                val documentPath = "primary:Documents/WanderReads${relativeDirPath}"
+                val documentPath = if (parentDir.absolutePath.contains("WanderReads")) {
+                    "primary:Documents/WanderReads${relativeDirPath}"
+                } else {
+                    "primary:Documents/WanderReads${relativeDirPath}"
+                }
                 val documentUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
                 } else {
-                    Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads${relativeDirPath}")
+                    if (parentDir.absolutePath.contains("WanderReads")) {
+                        Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads${relativeDirPath}")
+                    } else {
+                        Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads${relativeDirPath}")
+                    }
                 }
                 
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)

@@ -317,6 +317,18 @@ class MainActivity : ComponentActivity() {
                         if (!webBookDir.exists()) {
                             Log.d(TAG, "创建webbook目录: ${webBookDir.mkdirs()}")
                         }
+                        
+                        // 创建books目录
+                        val booksDir = File(appRootDir, "books")
+                        if (!booksDir.exists()) {
+                            Log.d(TAG, "创建books目录: ${booksDir.mkdirs()}")
+                        }
+                        
+                        // 创建voices目录
+                        val voicesDir = File(appRootDir, "voices")
+                        if (!voicesDir.exists()) {
+                            Log.d(TAG, "创建voices目录: ${voicesDir.mkdirs()}")
+                        }
                     }
                     
                     // 2. 始终创建应用专属目录
@@ -330,6 +342,11 @@ class MainActivity : ComponentActivity() {
                     val appWebBookDir = File(appSpecificExternalDir, "webbook")
                     if (!appWebBookDir.exists()) {
                         Log.d(TAG, "创建应用专属webbook目录: ${appWebBookDir.mkdirs()}")
+                    }
+                    
+                    val appVoicesDir = File(appSpecificExternalDir, "voices")
+                    if (!appVoicesDir.exists()) {
+                        Log.d(TAG, "创建应用专属voices目录: ${appVoicesDir.mkdirs()}")
                     }
                     
                 } catch (e: Exception) {
