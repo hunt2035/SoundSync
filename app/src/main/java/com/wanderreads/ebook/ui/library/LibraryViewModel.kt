@@ -186,70 +186,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             val documentPath = "primary:Documents/WanderReads/${category.dirName}"
             Log.d("LibraryViewModel", "目标文档路径: $documentPath")
             
-            val initialUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // Android 8.0+使用DocumentsContract.buildDocumentUri
-                val uri = DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
-                Log.d("LibraryViewModel", "构建的URI (O+): $uri")
-                uri
-            } else {
-                // 旧版本使用基本Uri
-                val uri = Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads/${category.dirName}")
-                Log.d("LibraryViewModel", "构建的URI (旧版本): $uri")
-                uri
-            }
-            
-            // 尝试方法1: 使用ACTION_GET_CONTENT
-            try {
-                val intent = Intent(Intent.ACTION_GET_CONTENT)
-                intent.type = "*/*"
-                intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                
-                context.startActivity(intent)
-                Log.d("LibraryViewModel", "成功使用ACTION_GET_CONTENT打开文件浏览器")
-                return
-            } catch (e: Exception) {
-                Log.e("LibraryViewModel", "使用ACTION_GET_CONTENT打开失败: ${e.message}", e)
-            }
-            
-            // 尝试方法2: 使用ACTION_OPEN_DOCUMENT
-            try {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-                intent.type = "*/*"
-                intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                
-                context.startActivity(intent)
-                Log.d("LibraryViewModel", "成功使用ACTION_OPEN_DOCUMENT打开文件浏览器")
-                return
-            } catch (e: Exception) {
-                Log.e("LibraryViewModel", "使用ACTION_OPEN_DOCUMENT打开失败: ${e.message}", e)
-            }
-            
-            // 尝试方法3: 使用ACTION_OPEN_DOCUMENT_TREE
-            try {
-                val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-                
-                // 对于Android 11+，使用EXTRA_INITIAL_URI
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    treeIntent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
-                } else {
-                    // 对于旧版本，尝试使用不同的键
-                    treeIntent.putExtra("android.provider.extra.INITIAL_URI", initialUri)
-                    treeIntent.putExtra("android.content.extra.SHOW_ADVANCED", true)
-                }
-                
-                treeIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                context.startActivity(treeIntent)
-                Log.d("LibraryViewModel", "成功使用ACTION_OPEN_DOCUMENT_TREE打开文件浏览器")
-                return
-            } catch (e: Exception) {
-                Log.e("LibraryViewModel", "使用ACTION_OPEN_DOCUMENT_TREE打开失败: ${e.message}", e)
-            }
-            
-            // 尝试方法4: 使用特定设备的文件管理器
+            // 尝试方法1: 直接打开系统文件管理器
             try {
                 // 指定系统文件管理器的包名和类名
                 val systemFileManagerPackages = arrayOf(
@@ -271,12 +208,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 var launched = false
                 for ((packageName, className) in systemFileManagerPackages) {
                     try {
-                        val backupIntent = Intent(Intent.ACTION_VIEW)
-                        backupIntent.setDataAndType(initialUri, "resource/folder")
-                        backupIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                        backupIntent.component = ComponentName(packageName, className)
+                        val fileManagerIntent = Intent(Intent.ACTION_VIEW)
+                        fileManagerIntent.setDataAndType(Uri.fromFile(dir), "resource/folder")
+                        fileManagerIntent.component = ComponentName(packageName, className)
+                        fileManagerIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
                         
-                        context.startActivity(backupIntent)
+                        context.startActivity(fileManagerIntent)
                         launched = true
                         Log.d("LibraryViewModel", "成功使用 $packageName 打开文件浏览器")
                         break
@@ -291,7 +228,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 Log.e("LibraryViewModel", "使用特定设备文件管理器打开失败: ${e.message}", e)
             }
             
-            // 尝试方法5: 使用通用方式打开
+            // 尝试方法2: 使用通用方式打开
             try {
                 val genericIntent = Intent(Intent.ACTION_VIEW)
                 genericIntent.setDataAndType(Uri.fromFile(dir), "resource/folder")
@@ -301,21 +238,69 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 return
             } catch (e: Exception) {
                 Log.e("LibraryViewModel", "使用通用方式打开文件浏览器失败: ${e.message}", e)
-                
-                // 最后尝试: 打开任意文件浏览器
-                try {
-                    val finalIntent = Intent(Intent.ACTION_VIEW)
-                    finalIntent.type = "resource/folder"
-                    finalIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    context.startActivity(Intent.createChooser(finalIntent, "选择文件浏览器打开目录"))
-                    Log.d("LibraryViewModel", "成功使用文件浏览器选择器打开")
-                    return
-                } catch (e2: Exception) {
-                    Log.e("LibraryViewModel", "所有方法均失败: ${e2.message}", e2)
-                    _uiState.value = _uiState.value.copy(
-                        error = "无法打开文件浏览器: ${e2.message}"
+            }
+            
+            // 尝试方法3: 使用Intent.ACTION_VIEW和content URI
+            try {
+                val contentUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        dir
                     )
+                } else {
+                    Uri.fromFile(dir)
                 }
+                
+                val viewIntent = Intent(Intent.ACTION_VIEW)
+                viewIntent.setDataAndType(contentUri, "resource/folder")
+                viewIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.startActivity(viewIntent)
+                Log.d("LibraryViewModel", "成功使用ACTION_VIEW和content URI打开文件浏览器")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用ACTION_VIEW和content URI打开失败: ${e.message}", e)
+            }
+            
+            // 尝试方法4: 使用外部应用选择器
+            try {
+                val finalIntent = Intent(Intent.ACTION_VIEW)
+                finalIntent.type = "resource/folder"
+                finalIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(Intent.createChooser(finalIntent, "选择文件浏览器打开目录"))
+                Log.d("LibraryViewModel", "成功使用文件浏览器选择器打开")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用文件浏览器选择器打开失败: ${e.message}", e)
+            }
+            
+            // 如果以上方法都失败，尝试SAF方法
+            val initialUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
+            } else {
+                Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads/${category.dirName}")
+            }
+            
+            // 尝试方法5: 使用ACTION_OPEN_DOCUMENT_TREE
+            try {
+                val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    treeIntent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
+                } else {
+                    treeIntent.putExtra("android.provider.extra.INITIAL_URI", initialUri)
+                    treeIntent.putExtra("android.content.extra.SHOW_ADVANCED", true)
+                }
+                
+                treeIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.startActivity(treeIntent)
+                Log.d("LibraryViewModel", "成功使用ACTION_OPEN_DOCUMENT_TREE打开文件浏览器")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用ACTION_OPEN_DOCUMENT_TREE打开失败: ${e.message}", e)
+                _uiState.value = _uiState.value.copy(
+                    error = "无法打开文件浏览器: ${e.message}"
+                )
             }
         } catch (e: Exception) {
             Log.e("LibraryViewModel", "打开文件浏览器失败", e)
@@ -352,80 +337,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 ""
             }
             
-            // 构建文件URI
-            val fileUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                // Android 7.0+ 使用FileProvider
-                try {
-                    androidx.core.content.FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-                } catch (e: Exception) {
-                    Log.e("LibraryViewModel", "FileProvider获取URI失败: ${e.message}", e)
-                    Uri.fromFile(file)
-                }
-            } else {
-                Uri.fromFile(file)
-            }
-            
-            // 尝试方法1: 使用SAF直接打开文件所在目录
+            // 尝试方法1: 使用特定文件管理器的Intent
             try {
-                // 构建文档URI
+                // 构建指向Documents/WanderReads目录的URI
                 val documentPath = if (parentDir.absolutePath.contains("WanderReads")) {
                     "primary:Documents/WanderReads${relativeDirPath}"
                 } else {
                     "primary:Documents/WanderReads${relativeDirPath}"
                 }
-                val documentUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
-                } else {
-                    if (parentDir.absolutePath.contains("WanderReads")) {
-                        Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads${relativeDirPath}")
-                    } else {
-                        Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads${relativeDirPath}")
-                    }
-                }
-                
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-                intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.type = "*/*"
-                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, documentUri)
-                intent.putExtra("android.content.extra.SHOW_ADVANCED", true)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                
-                context.startActivity(intent)
-                Log.d("LibraryViewModel", "成功使用ACTION_OPEN_DOCUMENT打开文件所在目录")
-                return
-            } catch (e: Exception) {
-                Log.e("LibraryViewModel", "使用ACTION_OPEN_DOCUMENT打开文件所在目录失败: ${e.message}", e)
-            }
-            
-            // 尝试方法2: 使用ACTION_VIEW打开文件所在目录
-            try {
-                val intent = Intent(Intent.ACTION_VIEW)
-                intent.setDataAndType(Uri.fromFile(parentDir), "resource/folder")
-                intent.putExtra("org.openintents.extra.ABSOLUTE_PATH", parentDir.absolutePath)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                
-                context.startActivity(intent)
-                Log.d("LibraryViewModel", "成功使用ACTION_VIEW打开文件所在目录")
-                return
-            } catch (e: Exception) {
-                Log.e("LibraryViewModel", "使用ACTION_VIEW打开文件所在目录失败: ${e.message}", e)
-            }
-            
-            // 尝试方法3: 使用特定文件管理器的Intent
-            try {
-                // 构建指向Documents/WanderReads目录的URI
-                val documentPath = "primary:Documents/WanderReads${relativeDirPath}"
                 Log.d("LibraryViewModel", "目标文档路径: $documentPath")
-                
-                val initialUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
-                } else {
-                    Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads${relativeDirPath}")
-                }
                 
                 // 尝试使用系统文件管理器打开
                 val systemFileManagerPackages = arrayOf(
@@ -447,9 +367,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 for ((packageName, className) in systemFileManagerPackages) {
                     try {
                         val fileManagerIntent = Intent(Intent.ACTION_VIEW)
-                        fileManagerIntent.setDataAndType(initialUri, "resource/folder")
+                        fileManagerIntent.setDataAndType(Uri.fromFile(parentDir), "resource/folder")
                         fileManagerIntent.putExtra("org.openintents.extra.ABSOLUTE_PATH", parentDir.absolutePath)
-                        fileManagerIntent.putExtra("android.provider.extra.INITIAL_URI", initialUri)
                         fileManagerIntent.component = ComponentName(packageName, className)
                         fileManagerIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
                         
@@ -467,27 +386,44 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 Log.e("LibraryViewModel", "使用特定文件管理器打开失败: ${e.message}", e)
             }
             
-            // 尝试方法4: 使用ACTION_OPEN_DOCUMENT_TREE
+            // 尝试方法2: 使用ACTION_VIEW打开文件所在目录
             try {
-                val documentPath = "primary:Documents/WanderReads"
-                val initialUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
-                } else {
-                    Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads")
-                }
+                val intent = Intent(Intent.ACTION_VIEW)
+                intent.setDataAndType(Uri.fromFile(parentDir), "resource/folder")
+                intent.putExtra("org.openintents.extra.ABSOLUTE_PATH", parentDir.absolutePath)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
                 
-                val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-                treeIntent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
-                treeIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                
-                context.startActivity(treeIntent)
-                Log.d("LibraryViewModel", "成功使用ACTION_OPEN_DOCUMENT_TREE打开文件浏览器")
+                context.startActivity(intent)
+                Log.d("LibraryViewModel", "成功使用ACTION_VIEW打开文件所在目录")
                 return
             } catch (e: Exception) {
-                Log.e("LibraryViewModel", "使用ACTION_OPEN_DOCUMENT_TREE打开失败: ${e.message}", e)
+                Log.e("LibraryViewModel", "使用ACTION_VIEW打开文件所在目录失败: ${e.message}", e)
             }
             
-            // 最后尝试: 打开任意文件浏览器
+            // 尝试方法3: 使用Intent.ACTION_VIEW和content URI
+            try {
+                val contentUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        parentDir
+                    )
+                } else {
+                    Uri.fromFile(parentDir)
+                }
+                
+                val viewIntent = Intent(Intent.ACTION_VIEW)
+                viewIntent.setDataAndType(contentUri, "resource/folder")
+                viewIntent.putExtra("org.openintents.extra.ABSOLUTE_PATH", parentDir.absolutePath)
+                viewIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.startActivity(viewIntent)
+                Log.d("LibraryViewModel", "成功使用ACTION_VIEW和content URI打开文件所在目录")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用ACTION_VIEW和content URI打开失败: ${e.message}", e)
+            }
+            
+            // 尝试方法4: 使用外部应用选择器
             try {
                 val finalIntent = Intent(Intent.ACTION_VIEW)
                 finalIntent.setDataAndType(Uri.fromFile(parentDir), "resource/folder")
@@ -496,7 +432,32 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 Log.d("LibraryViewModel", "成功使用文件浏览器选择器打开")
                 return
             } catch (e: Exception) {
-                Log.e("LibraryViewModel", "所有方法均失败: ${e.message}", e)
+                Log.e("LibraryViewModel", "使用文件浏览器选择器打开失败: ${e.message}", e)
+            }
+            
+            // 如果以上方法都失败，尝试SAF方法
+            // 构建文档URI
+            val documentUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val documentPath = "primary:Documents/WanderReads${relativeDirPath}"
+                DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
+            } else {
+                Uri.parse("content://com.android.externalstorage.documents/document/primary:Documents/WanderReads${relativeDirPath}")
+            }
+            
+            // 尝试方法5: 使用SAF直接打开文件所在目录
+            try {
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.type = "*/*"
+                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, documentUri)
+                intent.putExtra("android.content.extra.SHOW_ADVANCED", true)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                
+                context.startActivity(intent)
+                Log.d("LibraryViewModel", "成功使用ACTION_OPEN_DOCUMENT打开文件所在目录")
+                return
+            } catch (e: Exception) {
+                Log.e("LibraryViewModel", "使用ACTION_OPEN_DOCUMENT打开文件所在目录失败: ${e.message}", e)
                 _uiState.update { it.copy(error = "无法打开文件所在目录: ${e.message}") }
             }
         } catch (e: Exception) {

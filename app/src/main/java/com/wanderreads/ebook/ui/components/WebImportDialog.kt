@@ -238,4 +238,17 @@ private fun isNetworkAvailable(context: Context): Boolean {
         // 如果无法检查，则默认为有连接
         return true
     }
-} 
+}
+
+// 为更多可能的闹钟应用授予权限
+val commonClockPackages = arrayOf(
+    "com.android.deskclock", // 原生Android闹钟
+    "com.google.android.deskclock", // Google闹钟
+    "com.sec.android.app.clockpackage", // 三星闹钟
+    "com.huawei.deskclock", // 华为闹钟
+    "com.android.alarmclock", // 其他常见闹钟
+    "com.oneplus.deskclock", // 一加闹钟
+    "com.oppo.alarmclock", // OPPO闹钟
+    "com.vivo.alarmclock", // vivo闹钟
+    "com.huawei.android.totemweather" // 华为天气应用(也可能处理闹钟)
+) 
