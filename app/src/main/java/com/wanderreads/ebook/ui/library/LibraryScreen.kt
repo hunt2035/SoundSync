@@ -78,7 +78,7 @@ fun LibraryScreen() {
             onDismissRequest = { showAlarmDialog = false },
             title = { Text("设置闹钟") },
             text = { 
-                Text("将语音文件 \"${selectedVoiceFile?.fileName}\" 设置为闹钟铃声？") 
+                Text("将语音文件 \"${selectedVoiceFile?.fileName}\" 设置为闹钟铃声？\n（如设置失败，可直接在闹钟应用中选择Music/ringtone目录中的语音文件进行设置）") 
             },
             confirmButton = {
                 TextButton(

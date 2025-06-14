@@ -52,6 +52,7 @@ import android.os.Environment
 import java.io.FileOutputStream
 import android.content.Context
 import android.widget.Toast
+import android.os.Build
 
 /**
  * 合成语音列表屏幕
@@ -88,6 +89,10 @@ fun SynthesizedAudioListScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var recordToDelete by remember { mutableStateOf<Record?>(null) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    
+    // 添加设置闹钟对话框状态
+    var recordToSetAlarm by remember { mutableStateOf<Record?>(null) }
+    var showAlarmDialog by remember { mutableStateOf(false) }
     
     // 用于安全执行重命名和删除操作的状态
     var pendingRenameOperation by remember { mutableStateOf<Pair<Record, String>?>(null) }
@@ -379,13 +384,33 @@ fun SynthesizedAudioListScreen(
                                         try {
                                             // 使用LibraryViewModel中的方法打开文件所在目录
                                             // 这里我们直接在UI层实现类似功能
-                                            val intent = Intent(Intent.ACTION_VIEW)
                                             val parentDir = file.parentFile
                                             if (parentDir != null && parentDir.exists()) {
-                                                val uri = Uri.fromFile(parentDir)
-                                                intent.setDataAndType(uri, "resource/folder")
-                                                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                                context.startActivity(Intent.createChooser(intent, "选择文件浏览器打开目录"))
+                                                try {
+                                                    // 使用FileProvider获取内容URI
+                                                    val contentUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                                        androidx.core.content.FileProvider.getUriForFile(
+                                                            context,
+                                                            "${context.packageName}.fileprovider",
+                                                            parentDir
+                                                        )
+                                                    } else {
+                                                        Uri.fromFile(parentDir)
+                                                    }
+                                                    
+                                                    val viewIntent = Intent(Intent.ACTION_VIEW)
+                                                    viewIntent.setDataAndType(contentUri, "resource/folder")
+                                                    viewIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                    context.startActivity(viewIntent)
+                                                } catch (e: Exception) {
+                                                    Log.d("SynthesizedAudioListScreen", "尝试使用content URI打开失败: ${e.message}")
+                                                    
+                                                    // 尝试使用文件浏览器选择器
+                                                    val finalIntent = Intent(Intent.ACTION_VIEW)
+                                                    finalIntent.setDataAndType(Uri.fromFile(parentDir), "resource/folder")
+                                                    finalIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                                    context.startActivity(Intent.createChooser(finalIntent, "选择文件浏览器打开目录"))
+                                                }
                                             }
                                         } catch (e: Exception) {
                                             Log.e("SynthesizedAudioListScreen", "打开文件所在目录失败", e)
@@ -393,77 +418,9 @@ fun SynthesizedAudioListScreen(
                                     }
                                 },
                                 onSetAlarm = {
-                                    // 设置闹钟
-                                    val file = File(record.voiceFilePath)
-                                    if (file.exists()) {
-                                        try {
-                                            // 在设置闹钟前，先将语音文件复制到Music/ringtone目录
-                                            val ringtoneFile = copyToRingtoneDirectory(context, file)
-                                            
-                                            if (ringtoneFile != null) {
-                                                // 使用复制后的铃声文件URI
-                                                val fileUri = FileProvider.getUriForFile(
-                                                    context,
-                                                    "${context.packageName}.fileprovider",
-                                                    ringtoneFile
-                                                )
-                                                
-                                                // 创建闹钟设置Intent
-                                                val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
-                                                    // 添加铃声URI
-                                                    putExtra(AlarmClock.EXTRA_RINGTONE, fileUri.toString())
-                                                    
-                                                    // 设置其他闹钟参数
-                                                    putExtra(AlarmClock.EXTRA_MESSAGE, record.title) // 闹钟标签
-                                                    putExtra(AlarmClock.EXTRA_HOUR, 8) // 默认时间8点
-                                                    putExtra(AlarmClock.EXTRA_MINUTES, 0) // 默认0分
-                                                    putExtra(AlarmClock.EXTRA_SKIP_UI, false) // 显示闹钟设置界面
-                                                    
-                                                    // 添加授权标志
-                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                                }
-                                                
-                                                // 为常见的闹钟应用授予权限
-                                                val commonClockPackages = arrayOf(
-                                                    "com.android.deskclock", // 原生Android闹钟
-                                                    "com.google.android.deskclock", // Google闹钟
-                                                    "com.sec.android.app.clockpackage", // 三星闹钟
-                                                    "com.huawei.deskclock", // 华为闹钟
-                                                    "com.android.alarmclock", // 其他常见闹钟
-                                                    "com.oneplus.deskclock", // 一加闹钟
-                                                    "com.oppo.alarmclock", // OPPO闹钟
-                                                    "com.vivo.alarmclock" // vivo闹钟
-                                                )
-                                                
-                                                // 为所有可能的闹钟应用授予权限
-                                                for (packageName in commonClockPackages) {
-                                                    try {
-                                                        context.grantUriPermission(
-                                                            packageName, 
-                                                            fileUri, 
-                                                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                                        )
-                                                    } catch (e: Exception) {
-                                                        Log.w("SynthesizedAudioListScreen", "授予 $packageName 权限失败: ${e.message}")
-                                                        // 继续尝试下一个包名
-                                                    }
-                                                }
-                                                
-                                                context.startActivity(intent)
-                                                Log.d("SynthesizedAudioListScreen", "启动系统闹钟设置: ${fileUri}")
-                                            } else {
-                                                // 显示错误信息
-                                                Toast.makeText(
-                                                    context, 
-                                                    "设置闹钟失败: 无法将文件复制到ringtone目录", 
-                                                    Toast.LENGTH_LONG
-                                                ).show()
-                                                Log.e("SynthesizedAudioListScreen", "设置闹钟失败: 无法将文件复制到ringtone目录")
-                                            }
-                                        } catch (e: Exception) {
-                                            Log.e("SynthesizedAudioListScreen", "设置闹钟失败: ${e.message}", e)
-                                        }
-                                    }
+                                    // 设置闹钟前先显示确认对话框
+                                    recordToSetAlarm = record
+                                    showAlarmDialog = true
                                 }
                             )
                         }
@@ -476,6 +433,110 @@ fun SynthesizedAudioListScreen(
                 }
             }
         }
+    }
+    
+    // 设置闹钟确认对话框
+    if (showAlarmDialog && recordToSetAlarm != null) {
+        AlertDialog(
+            onDismissRequest = { showAlarmDialog = false },
+            title = { Text("设置闹钟") },
+            text = { 
+                Text("将语音文件 \"${recordToSetAlarm?.title}\" 设置为闹钟铃声？\n（如设置失败，可直接在闹钟应用中选择Music/ringtone目录中的语音文件进行设置）") 
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { 
+                        // 调用系统闹钟设置
+                        try {
+                            val record = recordToSetAlarm
+                            if (record != null) {
+                                val file = File(record.voiceFilePath)
+                                if (file.exists()) {
+                                    // 在设置闹钟前，先将语音文件复制到Music/ringtone目录
+                                    val ringtoneFile = copyToRingtoneDirectory(context, file)
+                                    
+                                    if (ringtoneFile != null) {
+                                        // 使用复制后的铃声文件URI
+                                        val fileUri = FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            ringtoneFile
+                                        )
+                                        
+                                        // 创建闹钟设置Intent
+                                        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                                            // 添加铃声URI
+                                            putExtra(AlarmClock.EXTRA_RINGTONE, fileUri.toString())
+                                            
+                                            // 设置其他闹钟参数
+                                            putExtra(AlarmClock.EXTRA_MESSAGE, record.title) // 闹钟标签
+                                            putExtra(AlarmClock.EXTRA_HOUR, 8) // 默认时间8点
+                                            putExtra(AlarmClock.EXTRA_MINUTES, 0) // 默认0分
+                                            putExtra(AlarmClock.EXTRA_SKIP_UI, false) // 显示闹钟设置界面
+                                            
+                                            // 添加授权标志
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                        }
+                                        
+                                        // 为常见的闹钟应用授予权限
+                                        val commonClockPackages = arrayOf(
+                                            "com.android.deskclock", // 原生Android闹钟
+                                            "com.google.android.deskclock", // Google闹钟
+                                            "com.sec.android.app.clockpackage", // 三星闹钟
+                                            "com.huawei.deskclock", // 华为闹钟
+                                            "com.android.alarmclock", // 其他常见闹钟
+                                            "com.oneplus.deskclock", // 一加闹钟
+                                            "com.oppo.alarmclock", // OPPO闹钟
+                                            "com.vivo.alarmclock" // vivo闹钟
+                                        )
+                                        
+                                        // 为所有可能的闹钟应用授予权限
+                                        for (packageName in commonClockPackages) {
+                                            try {
+                                                context.grantUriPermission(
+                                                    packageName, 
+                                                    fileUri, 
+                                                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                )
+                                            } catch (e: Exception) {
+                                                Log.w("SynthesizedAudioListScreen", "授予 $packageName 权限失败: ${e.message}")
+                                                // 继续尝试下一个包名
+                                            }
+                                        }
+                                        
+                                        context.startActivity(intent)
+                                        Log.d("SynthesizedAudioListScreen", "启动系统闹钟设置: ${fileUri}")
+                                    } else {
+                                        // 显示错误信息
+                                        Toast.makeText(
+                                            context, 
+                                            "设置闹钟失败: 无法将文件复制到ringtone目录", 
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        Log.e("SynthesizedAudioListScreen", "设置闹钟失败: 无法将文件复制到ringtone目录")
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("SynthesizedAudioListScreen", "设置闹钟失败: ${e.message}", e)
+                            Toast.makeText(
+                                context,
+                                "设置闹钟失败: ${e.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        showAlarmDialog = false
+                    }
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAlarmDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
     
     // 重命名对话框
@@ -791,6 +852,7 @@ fun AudioControlPanel(
                         text = { Text("设置闹钟") },
                         leadingIcon = { Icon(Icons.Default.Notifications, contentDescription = null) },
                         onClick = {
+                            // 使用传入的onSetAlarm回调
                             onSetAlarm()
                             showMenu = false
                         }
