@@ -47,6 +47,11 @@ import android.provider.AlarmClock
 import androidx.core.content.FileProvider
 import android.net.Uri
 import android.util.Log
+import android.media.MediaScannerConnection
+import android.os.Environment
+import java.io.FileOutputStream
+import android.content.Context
+import android.widget.Toast
 
 /**
  * 合成语音列表屏幕
@@ -392,55 +397,69 @@ fun SynthesizedAudioListScreen(
                                     val file = File(record.voiceFilePath)
                                     if (file.exists()) {
                                         try {
-                                            // 使用FileProvider获取Uri
-                                            val fileUri = FileProvider.getUriForFile(
-                                                context,
-                                                "${context.packageName}.fileprovider",
-                                                file
-                                            )
+                                            // 在设置闹钟前，先将语音文件复制到Music/ringtone目录
+                                            val ringtoneFile = copyToRingtoneDirectory(context, file)
                                             
-                                            // 创建闹钟设置Intent
-                                            val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
-                                                // 添加铃声URI
-                                                putExtra(AlarmClock.EXTRA_RINGTONE, fileUri.toString())
+                                            if (ringtoneFile != null) {
+                                                // 使用复制后的铃声文件URI
+                                                val fileUri = FileProvider.getUriForFile(
+                                                    context,
+                                                    "${context.packageName}.fileprovider",
+                                                    ringtoneFile
+                                                )
                                                 
-                                                // 设置其他闹钟参数
-                                                putExtra(AlarmClock.EXTRA_MESSAGE, record.title) // 闹钟标签
-                                                putExtra(AlarmClock.EXTRA_HOUR, 8) // 默认时间8点
-                                                putExtra(AlarmClock.EXTRA_MINUTES, 0) // 默认0分
-                                                putExtra(AlarmClock.EXTRA_SKIP_UI, false) // 显示闹钟设置界面
-                                                
-                                                // 添加授权标志
-                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                            }
-                                            
-                                            // 为常见的闹钟应用授予权限
-                                            val commonClockPackages = arrayOf(
-                                                "com.android.deskclock", // 原生Android闹钟
-                                                "com.google.android.deskclock", // Google闹钟
-                                                "com.sec.android.app.clockpackage", // 三星闹钟
-                                                "com.huawei.deskclock", // 华为闹钟
-                                                "com.android.alarmclock", // 其他常见闹钟
-                                                "com.oneplus.deskclock", // 一加闹钟
-                                                "com.oppo.alarmclock", // OPPO闹钟
-                                                "com.vivo.alarmclock" // vivo闹钟
-                                            )
-                                            
-                                            // 为所有可能的闹钟应用授予权限
-                                            for (packageName in commonClockPackages) {
-                                                try {
-                                                    context.grantUriPermission(
-                                                        packageName, 
-                                                        fileUri, 
-                                                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                                    )
-                                                } catch (e: Exception) {
-                                                    Log.w("SynthesizedAudioListScreen", "授予 $packageName 权限失败: ${e.message}")
-                                                    // 继续尝试下一个包名
+                                                // 创建闹钟设置Intent
+                                                val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                                                    // 添加铃声URI
+                                                    putExtra(AlarmClock.EXTRA_RINGTONE, fileUri.toString())
+                                                    
+                                                    // 设置其他闹钟参数
+                                                    putExtra(AlarmClock.EXTRA_MESSAGE, record.title) // 闹钟标签
+                                                    putExtra(AlarmClock.EXTRA_HOUR, 8) // 默认时间8点
+                                                    putExtra(AlarmClock.EXTRA_MINUTES, 0) // 默认0分
+                                                    putExtra(AlarmClock.EXTRA_SKIP_UI, false) // 显示闹钟设置界面
+                                                    
+                                                    // 添加授权标志
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
                                                 }
+                                                
+                                                // 为常见的闹钟应用授予权限
+                                                val commonClockPackages = arrayOf(
+                                                    "com.android.deskclock", // 原生Android闹钟
+                                                    "com.google.android.deskclock", // Google闹钟
+                                                    "com.sec.android.app.clockpackage", // 三星闹钟
+                                                    "com.huawei.deskclock", // 华为闹钟
+                                                    "com.android.alarmclock", // 其他常见闹钟
+                                                    "com.oneplus.deskclock", // 一加闹钟
+                                                    "com.oppo.alarmclock", // OPPO闹钟
+                                                    "com.vivo.alarmclock" // vivo闹钟
+                                                )
+                                                
+                                                // 为所有可能的闹钟应用授予权限
+                                                for (packageName in commonClockPackages) {
+                                                    try {
+                                                        context.grantUriPermission(
+                                                            packageName, 
+                                                            fileUri, 
+                                                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                        )
+                                                    } catch (e: Exception) {
+                                                        Log.w("SynthesizedAudioListScreen", "授予 $packageName 权限失败: ${e.message}")
+                                                        // 继续尝试下一个包名
+                                                    }
+                                                }
+                                                
+                                                context.startActivity(intent)
+                                                Log.d("SynthesizedAudioListScreen", "启动系统闹钟设置: ${fileUri}")
+                                            } else {
+                                                // 显示错误信息
+                                                Toast.makeText(
+                                                    context, 
+                                                    "设置闹钟失败: 无法将文件复制到ringtone目录", 
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                                Log.e("SynthesizedAudioListScreen", "设置闹钟失败: 无法将文件复制到ringtone目录")
                                             }
-                                            
-                                            context.startActivity(intent)
                                         } catch (e: Exception) {
                                             Log.e("SynthesizedAudioListScreen", "设置闹钟失败: ${e.message}", e)
                                         }
@@ -857,5 +876,57 @@ fun getAudioDuration(filePath: String): Long {
     } catch (e: Exception) {
         e.printStackTrace()
         0
+    }
+}
+
+/**
+ * 将语音文件复制到铃声目录
+ * @param context 上下文
+ * @param sourceFile 源文件
+ * @return 复制后的文件对象，如果失败则返回null
+ */
+private fun copyToRingtoneDirectory(context: Context, sourceFile: File): File? {
+    try {
+        // 创建Music/ringtone目录（如果不存在）
+        val ringtoneDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), 
+            "ringtone"
+        )
+        
+        if (!ringtoneDir.exists()) {
+            if (!ringtoneDir.mkdirs()) {
+                Log.w("SynthesizedAudioListScreen", "无法创建ringtone目录: ${ringtoneDir.absolutePath}")
+                return null
+            }
+        }
+        
+        // 创建目标文件
+        val destFile = File(ringtoneDir, sourceFile.name)
+        
+        // 如果目标文件已存在，先删除
+        if (destFile.exists()) {
+            destFile.delete()
+        }
+        
+        // 复制文件
+        sourceFile.inputStream().use { input ->
+            FileOutputStream(destFile).use { output ->
+                input.copyTo(output)
+            }
+        }
+        
+        // 立即通知媒体库刷新，传入ringtone目录中文件的绝对路径
+        MediaScannerConnection.scanFile(
+            context,
+            arrayOf(destFile.absolutePath),
+            arrayOf("audio/mpeg"),
+            null
+        )
+        
+        Log.d("SynthesizedAudioListScreen", "成功复制语音文件到ringtone目录: ${destFile.absolutePath}")
+        return destFile
+    } catch (e: Exception) {
+        Log.e("SynthesizedAudioListScreen", "复制语音文件到ringtone目录失败: ${e.message}", e)
+        return null
     }
 } 

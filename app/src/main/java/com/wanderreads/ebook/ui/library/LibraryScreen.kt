@@ -21,6 +21,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.BackHandler
 import com.wanderreads.ebook.domain.model.BookFile
 import androidx.core.content.FileProvider
+import android.media.MediaScannerConnection
+import android.os.Environment
+import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
+import android.content.Context
 
 /**
  * 书库屏幕
@@ -83,56 +89,66 @@ fun LibraryScreen() {
                             if (file != null) {
                                 // 使用FileProvider获取Uri
                                 val fileObj = java.io.File(file.filePath)
-                                val fileUri = FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    fileObj
-                                )
                                 
-                                // 创建闹钟设置Intent - 使用标准的ACTION_SET_ALARM操作
-                                val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
-                                    // 添加铃声URI
-                                    putExtra(AlarmClock.EXTRA_RINGTONE, fileUri.toString())
+                                // 在设置闹钟前，先将语音文件复制到Music/ringtone目录
+                                val ringtoneFile = copyToRingtoneDirectory(context, fileObj)
+                                
+                                if (ringtoneFile != null) {
+                                    // 使用复制后的铃声文件URI
+                                    val ringtoneUri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        ringtoneFile
+                                    )
                                     
-                                    // 设置其他闹钟参数
-                                    putExtra(AlarmClock.EXTRA_MESSAGE, file.fileName) // 闹钟标签
-                                    putExtra(AlarmClock.EXTRA_HOUR, 8) // 默认时间8点
-                                    putExtra(AlarmClock.EXTRA_MINUTES, 0) // 默认0分
-                                    putExtra(AlarmClock.EXTRA_SKIP_UI, false) // 显示闹钟设置界面
-                                    
-                                    // 添加授权标志
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                }
-                                
-                                // 添加临时权限
-                                // 为常见的闹钟应用授予权限
-                                val commonClockPackages = arrayOf(
-                                    "com.android.deskclock", // 原生Android闹钟
-                                    "com.google.android.deskclock", // Google闹钟
-                                    "com.sec.android.app.clockpackage", // 三星闹钟
-                                    "com.huawei.deskclock", // 华为闹钟
-                                    "com.android.alarmclock", // 其他常见闹钟
-                                    "com.oneplus.deskclock", // 一加闹钟
-                                    "com.oppo.alarmclock", // OPPO闹钟
-                                    "com.vivo.alarmclock" // vivo闹钟
-                                )
-                                
-                                // 为所有可能的闹钟应用授予权限
-                                for (packageName in commonClockPackages) {
-                                    try {
-                                        context.grantUriPermission(
-                                            packageName, 
-                                            fileUri, 
-                                            Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                        )
-                                    } catch (e: Exception) {
-                                        Log.w("LibraryScreen", "授予 $packageName 权限失败: ${e.message}")
-                                        // 继续尝试下一个包名
+                                    // 创建闹钟设置Intent - 使用标准的ACTION_SET_ALARM操作
+                                    val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+                                        // 添加铃声URI
+                                        putExtra(AlarmClock.EXTRA_RINGTONE, ringtoneUri.toString())
+                                        
+                                        // 设置其他闹钟参数
+                                        putExtra(AlarmClock.EXTRA_MESSAGE, file.fileName) // 闹钟标签
+                                        putExtra(AlarmClock.EXTRA_HOUR, 8) // 默认时间8点
+                                        putExtra(AlarmClock.EXTRA_MINUTES, 0) // 默认0分
+                                        putExtra(AlarmClock.EXTRA_SKIP_UI, false) // 显示闹钟设置界面
+                                        
+                                        // 添加授权标志
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
                                     }
+                                    
+                                    // 添加临时权限
+                                    // 为常见的闹钟应用授予权限
+                                    val commonClockPackages = arrayOf(
+                                        "com.android.deskclock", // 原生Android闹钟
+                                        "com.google.android.deskclock", // Google闹钟
+                                        "com.sec.android.app.clockpackage", // 三星闹钟
+                                        "com.huawei.deskclock", // 华为闹钟
+                                        "com.android.alarmclock", // 其他常见闹钟
+                                        "com.oneplus.deskclock", // 一加闹钟
+                                        "com.oppo.alarmclock", // OPPO闹钟
+                                        "com.vivo.alarmclock" // vivo闹钟
+                                    )
+                                    
+                                    // 为所有可能的闹钟应用授予权限
+                                    for (packageName in commonClockPackages) {
+                                        try {
+                                            context.grantUriPermission(
+                                                packageName, 
+                                                ringtoneUri, 
+                                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                            )
+                                        } catch (e: Exception) {
+                                            Log.w("LibraryScreen", "授予 $packageName 权限失败: ${e.message}")
+                                            // 继续尝试下一个包名
+                                        }
+                                    }
+                                    
+                                    context.startActivity(intent)
+                                    Log.d("LibraryScreen", "启动系统闹钟设置: ${ringtoneUri}")
+                                } else {
+                                    // 复制到ringtone目录失败，显示错误提示
+                                    viewModel.setError("设置闹钟失败: 无法将文件复制到ringtone目录")
                                 }
-                                
-                                context.startActivity(intent)
-                                Log.d("LibraryScreen", "启动系统闹钟设置: ${fileUri}")
                             }
                         } catch (e: Exception) {
                             Log.e("LibraryScreen", "设置闹钟失败: ${e.message}", e)
@@ -290,5 +306,57 @@ fun CategoryItem(
                 )
             }
         }
+    }
+}
+
+/**
+ * 将语音文件复制到铃声目录
+ * @param context 上下文
+ * @param sourceFile 源文件
+ * @return 复制后的文件对象，如果失败则返回null
+ */
+private fun copyToRingtoneDirectory(context: Context, sourceFile: File): File? {
+    try {
+        // 创建Music/ringtone目录（如果不存在）
+        val ringtoneDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), 
+            "ringtone"
+        )
+        
+        if (!ringtoneDir.exists()) {
+            if (!ringtoneDir.mkdirs()) {
+                Log.w("LibraryScreen", "无法创建ringtone目录: ${ringtoneDir.absolutePath}")
+                return null
+            }
+        }
+        
+        // 创建目标文件
+        val destFile = File(ringtoneDir, sourceFile.name)
+        
+        // 如果目标文件已存在，先删除
+        if (destFile.exists()) {
+            destFile.delete()
+        }
+        
+        // 复制文件
+        sourceFile.inputStream().use { input ->
+            FileOutputStream(destFile).use { output ->
+                input.copyTo(output)
+            }
+        }
+        
+        // 立即通知媒体库刷新，传入ringtone目录中文件的绝对路径
+        MediaScannerConnection.scanFile(
+            context,
+            arrayOf(destFile.absolutePath),
+            arrayOf("audio/mpeg"),
+            null
+        )
+        
+        Log.d("LibraryScreen", "成功复制语音文件到ringtone目录: ${destFile.absolutePath}")
+        return destFile
+    } catch (e: Exception) {
+        Log.e("LibraryScreen", "复制语音文件到ringtone目录失败: ${e.message}", e)
+        return null
     }
 } 
