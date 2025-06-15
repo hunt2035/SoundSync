@@ -68,6 +68,7 @@ import android.os.Build
  * @param totalDuration 当前播放记录的总时长（毫秒）
  * @param onSeekTo 调整播放位置的回调
  * @param isAudioPlaying 当前是否正在播放音频
+ * @param onOpenFileLocation 打开文件所在目录的回调
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,7 +83,8 @@ fun SynthesizedAudioListScreen(
     currentPlaybackPosition: Int = 0,
     totalDuration: Int = 0,
     onSeekTo: (Record, Int) -> Unit = { _, _ -> },
-    isAudioPlaying: Boolean = false
+    isAudioPlaying: Boolean = false,
+    onOpenFileLocation: (Context, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     var recordToRename by remember { mutableStateOf<Record?>(null) }
@@ -378,43 +380,10 @@ fun SynthesizedAudioListScreen(
                                     }
                                 },
                                 onOpenFileLocation = {
-                                    // 打开文件所在目录
+                                    // 使用ViewModel的openFileLocation方法打开文件所在目录
                                     val file = File(record.voiceFilePath)
                                     if (file.exists()) {
-                                        try {
-                                            // 使用LibraryViewModel中的方法打开文件所在目录
-                                            // 这里我们直接在UI层实现类似功能
-                                            val parentDir = file.parentFile
-                                            if (parentDir != null && parentDir.exists()) {
-                                                try {
-                                                    // 使用FileProvider获取内容URI
-                                                    val contentUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                                        androidx.core.content.FileProvider.getUriForFile(
-                                                            context,
-                                                            "${context.packageName}.fileprovider",
-                                                            parentDir
-                                                        )
-                                                    } else {
-                                                        Uri.fromFile(parentDir)
-                                                    }
-                                                    
-                                                    val viewIntent = Intent(Intent.ACTION_VIEW)
-                                                    viewIntent.setDataAndType(contentUri, "resource/folder")
-                                                    viewIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                                    context.startActivity(viewIntent)
-                                                } catch (e: Exception) {
-                                                    Log.d("SynthesizedAudioListScreen", "尝试使用content URI打开失败: ${e.message}")
-                                                    
-                                                    // 尝试使用文件浏览器选择器
-                                                    val finalIntent = Intent(Intent.ACTION_VIEW)
-                                                    finalIntent.setDataAndType(Uri.fromFile(parentDir), "resource/folder")
-                                                    finalIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                                    context.startActivity(Intent.createChooser(finalIntent, "选择文件浏览器打开目录"))
-                                                }
-                                            }
-                                        } catch (e: Exception) {
-                                            Log.e("SynthesizedAudioListScreen", "打开文件所在目录失败", e)
-                                        }
+                                        onOpenFileLocation(context, record.voiceFilePath)
                                     }
                                 },
                                 onSetAlarm = {

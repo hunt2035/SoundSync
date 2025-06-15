@@ -13,11 +13,13 @@ import android.graphics.Bitmap
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.MediaRecorder
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
+import android.provider.DocumentsContract
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeech.OnInitListener
 import android.speech.tts.UtteranceProgressListener
@@ -1374,6 +1376,193 @@ class UnifiedReaderViewModel(
      */
     fun playNextSentence() {
         ttsManager.playNextSentence()
+    }
+
+    /**
+     * 打开文件所在目录并定位到该文件
+     */
+    fun openFileLocation(context: Context, filePath: String) {
+        try {
+            val file = File(filePath)
+            if (!file.exists()) {
+                _uiState.update { it.copy(error = "文件不存在") }
+                return
+            }
+            
+            val parentDir = file.parentFile
+            if (parentDir == null || !parentDir.exists()) {
+                _uiState.update { it.copy(error = "父目录不存在") }
+                return
+            }
+            
+            Log.d(TAG, "尝试打开文件所在目录: ${parentDir.absolutePath}")
+            Log.d(TAG, "文件名: ${file.name}")
+            
+            // 获取相对路径
+            val relativeDirPath = if (parentDir.absolutePath.contains("WanderReads")) {
+                parentDir.absolutePath.substringAfter("WanderReads")
+            } else {
+                ""
+            }
+            
+            // 优先使用FileProvider生成content URI
+            try {
+                val contentUri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    parentDir
+                )
+                
+                val viewIntent = Intent(Intent.ACTION_VIEW)
+                viewIntent.setDataAndType(contentUri, "vnd.android.document/directory")
+                viewIntent.putExtra("org.openintents.extra.ABSOLUTE_PATH", parentDir.absolutePath)
+                viewIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.startActivity(viewIntent)
+                Log.d(TAG, "成功使用ACTION_VIEW和content URI打开文件所在目录")
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "使用ACTION_VIEW和content URI打开失败: ${e.message}", e)
+            }
+            
+            // 尝试方法2: 使用ACTION_GET_CONTENT打开文件浏览器
+            try {
+                val intent = Intent(Intent.ACTION_GET_CONTENT)
+                intent.type = "*/*"
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.putExtra(Intent.EXTRA_LOCAL_ONLY, true)
+                
+                // 构建指向Documents/WanderReads目录的URI
+                val documentPath = if (parentDir.absolutePath.contains("WanderReads")) {
+                    "primary:Documents/WanderReads${relativeDirPath}"
+                } else {
+                    "primary:Documents/WanderReads${relativeDirPath}"
+                }
+                
+                // 尝试设置初始目录
+                val initialUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
+                } else {
+                    Uri.parse("content://com.android.externalstorage.documents/document/$documentPath")
+                }
+                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
+                
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.startActivity(Intent.createChooser(intent, "选择文件浏览器"))
+                Log.d(TAG, "成功使用ACTION_GET_CONTENT打开文件浏览器")
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "使用ACTION_GET_CONTENT打开文件浏览器失败: ${e.message}", e)
+            }
+            
+            // 尝试使用外部应用选择器
+            try {
+                val contentUri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    parentDir
+                )
+                
+                val finalIntent = Intent(Intent.ACTION_VIEW)
+                finalIntent.setDataAndType(contentUri, "vnd.android.document/directory")
+                finalIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.startActivity(Intent.createChooser(finalIntent, "选择文件浏览器打开目录"))
+                Log.d(TAG, "成功使用文件浏览器选择器打开")
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "使用文件浏览器选择器打开失败: ${e.message}", e)
+            }
+            
+            // 尝试方法3: 使用特定文件管理器的Intent
+            try {
+                // 构建指向Documents/WanderReads目录的URI
+                val documentPath = if (parentDir.absolutePath.contains("WanderReads")) {
+                    "primary:Documents/WanderReads${relativeDirPath}"
+                } else {
+                    "primary:Documents/WanderReads${relativeDirPath}"
+                }
+                Log.d(TAG, "目标文档路径: $documentPath")
+                
+                // 尝试使用系统文件管理器打开
+                val systemFileManagerPackages = arrayOf(
+                    // 通用Android系统文件管理器
+                    Pair("com.android.documentsui", "com.android.documentsui.files.FilesActivity"),
+                    // 三星设备
+                    Pair("com.sec.android.app.myfiles", "com.sec.android.app.myfiles.common.MainActivity"),
+                    // 华为设备
+                    Pair("com.huawei.filemanager", "com.huawei.filemanager.activity.MainActivity"),
+                    // 小米设备
+                    Pair("com.miui.fileexplorer", "com.miui.fileexplorer.FileExplorerTabActivity"),
+                    // OPPO设备
+                    Pair("com.coloros.filemanager", "com.coloros.filemanager.MainActivity"),
+                    // VIVO设备
+                    Pair("com.vivo.filemanager", "com.vivo.filemanager.activity.MainActivity")
+                )
+                
+                var launched = false
+                for ((packageName, className) in systemFileManagerPackages) {
+                    try {
+                        val contentUri = androidx.core.content.FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            parentDir
+                        )
+                        
+                        val fileManagerIntent = Intent(Intent.ACTION_VIEW)
+                        fileManagerIntent.setDataAndType(contentUri, "vnd.android.document/directory")
+                        fileManagerIntent.putExtra("org.openintents.extra.ABSOLUTE_PATH", parentDir.absolutePath)
+                        fileManagerIntent.component = ComponentName(packageName, className)
+                        fileManagerIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        
+                        context.startActivity(fileManagerIntent)
+                        launched = true
+                        Log.d(TAG, "成功使用 $packageName 打开文件所在目录")
+                        break
+                    } catch (e: Exception) {
+                        Log.d(TAG, "尝试使用 $packageName 打开文件所在目录失败: ${e.message}")
+                    }
+                }
+                
+                if (launched) return
+            } catch (e: Exception) {
+                Log.e(TAG, "使用特定文件管理器打开失败: ${e.message}", e)
+            }
+            
+            // 如果以上方法都失败，尝试SAF方法
+            try {
+                // 构建指向Documents/WanderReads目录的URI
+                val documentPath = if (parentDir.absolutePath.contains("WanderReads")) {
+                    "primary:Documents/WanderReads${relativeDirPath}"
+                } else {
+                    "primary:Documents/WanderReads${relativeDirPath}"
+                }
+                
+                val initialUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", documentPath)
+                } else {
+                    Uri.parse("content://com.android.externalstorage.documents/document/$documentPath")
+                }
+                
+                val treeIntent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    treeIntent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, initialUri)
+                } else {
+                    treeIntent.putExtra("android.provider.extra.INITIAL_URI", initialUri)
+                    treeIntent.putExtra("android.content.extra.SHOW_ADVANCED", true)
+                }
+                
+                treeIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                context.startActivity(treeIntent)
+                Log.d(TAG, "成功使用ACTION_OPEN_DOCUMENT_TREE打开文件所在目录")
+                return
+            } catch (e: Exception) {
+                Log.e(TAG, "使用ACTION_OPEN_DOCUMENT_TREE打开失败: ${e.message}", e)
+                _uiState.update { it.copy(error = "无法打开文件所在目录: ${e.message}") }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "打开文件所在目录失败", e)
+            _uiState.update { it.copy(error = "无法打开文件所在目录: ${e.message}") }
+        }
     }
 }
 

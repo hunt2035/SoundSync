@@ -1448,7 +1448,10 @@ fun UnifiedReaderScreen(
                 currentPlayingRecordId = uiState.currentPlayingRecordId,
                 currentPlaybackPosition = uiState.currentPlaybackPosition,
                 totalDuration = uiState.totalAudioDuration,
-                isAudioPlaying = uiState.isAudioPlaying
+                isAudioPlaying = uiState.isAudioPlaying,
+                onOpenFileLocation = { context, filePath ->
+                    viewModel.openFileLocation(context, filePath)
+                }
             )
         }
         

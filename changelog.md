@@ -438,3 +438,14 @@
    - 在阅读界面的合成语音列表中设置闹钟时也会弹出确认对话框
    - 与书库中的语音文件列表设置闹钟体验保持一致
    - 提高了用户操作的一致性和可预测性
+
+## 2025-06-15
+### 修复
+- 修复了在书库界面点击文件夹图标打开文件管理工具失败的问题
+  - 原因：Android 7.0及以上版本不允许直接通过file://URI共享文件给其他应用
+  - 解决方案：优先使用FileProvider生成content URI，而不是直接使用file URI
+  - 修改了LibraryViewModel中的openFileExplorer和openFileLocation方法
+- 修复了文件浏览器无法正确打开的问题
+  - 原因：MIME类型"resource/folder"不是标准的目录MIME类型
+  - 解决方案：将MIME类型更改为标准的"vnd.android.document/directory"
+  - 添加了ACTION_GET_CONTENT作为备用打开方式，提高了兼容性
