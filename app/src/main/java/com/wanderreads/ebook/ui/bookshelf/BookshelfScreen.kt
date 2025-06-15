@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.activity.compose.BackHandler
 import android.util.Log
+import androidx.compose.material.icons.filled.PhotoCamera
 
 // 使用类型别名解决命名冲突
 typealias EbookModel = com.wanderreads.ebook.domain.model.Book
@@ -101,6 +102,7 @@ fun BookshelfScreen(
     onBookClick: (EbookModel) -> Unit,
     onImportClick: () -> Unit,
     onWebImportClick: () -> Unit = {},
+    onOcrImportClick: () -> Unit = {},
     onOpenWebUrl: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -331,6 +333,19 @@ fun BookshelfScreen(
                                 },
                                 onClick = { 
                                     onImportClick()
+                                    showMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("拍照导入") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.PhotoCamera,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = { 
+                                    onOcrImportClick()
                                     showMenu = false
                                 }
                             )

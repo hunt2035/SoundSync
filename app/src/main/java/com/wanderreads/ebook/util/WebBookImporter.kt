@@ -304,8 +304,8 @@ object WebBookImporter {
                     .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
                     .timeout(CONNECT_TIMEOUT)
                     .followRedirects(true)
-                    .ignoreHttpErrors(false)
-                    .ignoreContentType(false)
+                    .ignoreHttpErrors(true)  // 忽略HTTP错误，以便处理各种状态码
+                    .ignoreContentType(true)  // 忽略内容类型，以便处理各种响应
                     .maxBodySize(0) // 不限制内容大小
                     .get()
             } catch (e: SocketTimeoutException) {

@@ -86,6 +86,9 @@ import com.wanderreads.ebook.domain.model.BookType
 import android.app.Application
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.wanderreads.ebook.ui.components.BookshelfAudioPlayerControl
+import com.wanderreads.ebook.ui.ocrimport.OcrImportScreen
+import com.wanderreads.ebook.ui.ocrimport.OcrImportViewModel
+import com.wanderreads.ebook.ui.ocrimport.OcrImportViewModelFactory
 
 /**
  * 应用导航路由
@@ -148,6 +151,14 @@ sealed class Screen(
     data object ImportBook : Screen(
         route = "import",
         title = "导入",
+        selectedIcon = Icons.AutoMirrored.Filled.List,
+        unselectedIcon = Icons.AutoMirrored.Outlined.List,
+        hasBottomBar = false
+    )
+    
+    data object OcrImport : Screen(
+        route = "ocr_import",
+        title = "拍照导入",
         selectedIcon = Icons.AutoMirrored.Filled.List,
         unselectedIcon = Icons.AutoMirrored.Outlined.List,
         hasBottomBar = false
@@ -358,18 +369,30 @@ fun AppNavigation(
         ) {
             // 书架屏幕
             composable(Screen.Bookshelf.route) {
-                val bookshelfViewModel = viewModel<BookshelfViewModel>(
-                    factory = BookshelfViewModelFactory(
-                        application = context.applicationContext as Application,
-                        bookRepository = bookRepository
+                var showWebImportDialog by remember { mutableStateOf(false) }
+                
+                // 显示网址导入对话框
+                if (showWebImportDialog) {
+                    WebImportDialog(
+                        onDismiss = { showWebImportDialog = false },
+                        onConfirm = { url ->
+                            try {
+                                // 处理导入网页的逻辑
+                                bookshelfViewModel.importBookFromUrl(url)
+                                showWebImportDialog = false
+                            } catch (e: Exception) {
+                                importError = "导入失败: ${e.message}"
+                            }
+                        }
                     )
-                )
+                }
                 
                 BookshelfScreen(
                     viewModel = bookshelfViewModel,
                     onBookClick = { book ->
-                        when(book.type) {
-                            BookType.EPUB -> navController.navigate(Screen.EpubReader.createRoute(book.id))
+                        // 根据书籍类型选择不同的阅读器
+                        when (book.type) {
+                            BookType.EPUB -> navController.navigate(Screen.UnifiedReader.createRoute(book.id))
                             else -> navController.navigate(Screen.UnifiedReader.createRoute(book.id))
                         }
                     },
@@ -377,12 +400,10 @@ fun AppNavigation(
                         navController.navigate(Screen.ImportBook.route)
                     },
                     onWebImportClick = {
-                        // 显示网址导入对话框
                         showWebImportDialog = true
                     },
-                    onOpenWebUrl = { url ->
-                        // 这一部分代码会保留但不再被调用
-                        navController.navigate(Screen.WebView.createRoute(url))
+                    onOcrImportClick = {
+                        navController.navigate(Screen.OcrImport.route)
                     }
                 )
             }
@@ -521,9 +542,31 @@ fun AppNavigation(
                         // 刷新书架
                         bookshelfViewModel.refreshBooks()
                     },
-                    onBookImported = {
-                        // 刷新书架
-                        bookshelfViewModel.refreshBooks()
+                    onNavigateToOcrImport = {
+                        navController.navigate(Screen.OcrImport.route)
+                    }
+                )
+            }
+            
+            // OCR导入
+            composable(Screen.OcrImport.route) {
+                val ocrImportViewModel = remember {
+                    OcrImportViewModel(bookRepository = bookRepository)
+                }
+                
+                // 确保每次进入都重置导入方式选择状态
+                LaunchedEffect(Unit) {
+                    ocrImportViewModel.resetImportMethodSelection()
+                }
+                
+                OcrImportScreen(
+                    viewModel = ocrImportViewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    },
+                    onBookCreated = { book ->
+                        navController.popBackStack()
+                        navController.navigate(Screen.UnifiedReader.createRoute(book.id))
                     }
                 )
             }

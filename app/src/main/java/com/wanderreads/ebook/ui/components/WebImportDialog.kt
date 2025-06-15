@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,7 +50,7 @@ fun WebImportDialog(
     onConfirm: (String) -> Unit
 ) {
     // 默认显示的网址
-    val defaultUrl = "http://wanderreads.com/book01.html"
+    val defaultUrl = "https://example.com"
     
     // 使用空字符串作为初始值，但在UI中显示默认网址
     var url by remember { mutableStateOf("") }
@@ -61,13 +62,12 @@ fun WebImportDialog(
     val context = LocalContext.current
     
     // 自动获取焦点
-    DisposableEffect(Unit) {
+    LaunchedEffect(Unit) {
         try {
             focusRequester.requestFocus()
         } catch (e: Exception) {
             Log.e("WebImportDialog", "焦点请求失败: ${e.message}")
         }
-        onDispose { }
     }
     
     Dialog(onDismissRequest = onDismiss) {
@@ -102,7 +102,7 @@ fun WebImportDialog(
                     onValueChange = { 
                         url = it
                         isError = false
-                        isPlaceholderVisible = false
+                        isPlaceholderVisible = it.isEmpty()
                     },
                     modifier = Modifier
                         .fillMaxWidth()

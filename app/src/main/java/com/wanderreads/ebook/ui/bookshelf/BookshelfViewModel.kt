@@ -232,6 +232,14 @@ class BookshelfViewModel(
                                 "网页加载超时，请检查网络连接或稍后重试"
                             error.message?.contains("外部存储不可写") == true -> 
                                 "外部存储不可写，请在系统设置中授予应用存储权限"
+                            error.message?.contains("Status=404") == true ->
+                                "网页不存在(404错误)，请检查网址是否正确"
+                            error.message?.contains("Status=403") == true ->
+                                "访问被拒绝(403错误)，该网站可能禁止爬取内容"
+                            error.message?.contains("Status=5") == true ->
+                                "服务器错误，请稍后重试"
+                            error.message?.contains("UnknownHostException") == true ->
+                                "无法解析网址，请检查网址是否正确或网络连接是否正常"
                             else -> 
                                 "导入网页内容失败: ${error.message}"
                         }
