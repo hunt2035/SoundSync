@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace = "com.wanderreads.ebook"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.wanderreads.ebook"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 2
         versionName = "0.36"
 
@@ -67,7 +67,18 @@ kapt {
     useBuildCache = true
 }
 
+// 添加JitPack仓库
+repositories {
+    maven { url = uri("https://jitpack.io") }
+    maven { url = uri("https://maven.google.com") }
+}
+
 dependencies {
+    // 强制使用兼容的Kotlin版本
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
+    
     // AndroidX 核心库
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -132,6 +143,9 @@ dependencies {
     // 添加依赖冲突解决配置
     configurations.all {
         resolutionStrategy {
+            force("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.22")
+            force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
             force("androidx.core:core:1.12.0")
             exclude(group = "com.android.support", module = "support-compat")
         }
@@ -169,6 +183,9 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.1")
     implementation("androidx.camera:camera-view:1.3.1")
 
-    // ImageCropView
-    implementation("io.github.rroohit:ImageCropView:3.1.1")
+    // 图片裁剪库 - 使用 ArthurHub 的 Android-Image-Cropper 替代 ImageCropView
+    implementation("com.theartofdev.edmodo:android-image-cropper:2.8.0")
+    
+    // 原来的图片裁剪库（已废弃）
+    // implementation("io.github.rroohit:ImageCropView:2.8.0")
 } 

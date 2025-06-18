@@ -33,6 +33,28 @@ class OcrImportViewModel(
     val uiState: StateFlow<OcrImportUiState> = _uiState.asStateFlow()
     
     /**
+     * 设置待裁剪的图片URI
+     */
+    fun setCropImageUri(uri: Uri) {
+        _uiState.update { it.copy(
+            cropImageUri = uri,
+            showCropScreen = true,
+            showImportMethodSelection = false
+        )}
+    }
+    
+    /**
+     * 取消裁剪操作
+     */
+    fun cancelCrop() {
+        _uiState.update { it.copy(
+            showCropScreen = false,
+            cropImageUri = null,
+            showImportMethodSelection = true
+        )}
+    }
+
+    /**
      * 从图片URI提取文本
      */
     fun extractTextFromImage(context: Context, imageUri: Uri) {
@@ -59,7 +81,8 @@ class OcrImportViewModel(
                     isLoading = false,
                     extractedText = extractedText,
                     showTextPreview = true,
-                    showImportMethodSelection = false
+                    showImportMethodSelection = false,
+                    showCropScreen = false
                 )}
                 
             } catch (e: Exception) {
@@ -99,7 +122,8 @@ class OcrImportViewModel(
                     isLoading = false,
                     extractedText = extractedText,
                     showTextPreview = true,
-                    showImportMethodSelection = false
+                    showImportMethodSelection = false,
+                    showCropScreen = false
                 )}
                 
             } catch (e: Exception) {
@@ -252,6 +276,8 @@ data class OcrImportUiState(
     val extractedText: String = "",
     val showTextPreview: Boolean = false,
     val showImportMethodSelection: Boolean = true,
+    val showCropScreen: Boolean = false,
+    val cropImageUri: Uri? = null,
     val saveSuccess: Boolean = false,
     val savedBook: Book? = null,
     val errorMessage: String? = null
