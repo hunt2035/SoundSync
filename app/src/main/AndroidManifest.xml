@@ -95,7 +95,7 @@
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTask"
-            android:taskAffinity="com.wanderreads.ebook"
+            android:taskAffinity="org.soundsync.ebook"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         
         <!-- WorkManager初始化提供程序 -->
@@ -115,9 +115,9 @@
             android:name=".service.TtsNotificationReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.wanderreads.ebook.PAUSE_TTS" />
-                <action android:name="com.wanderreads.ebook.RESUME_TTS" />
-                <action android:name="com.wanderreads.ebook.STOP_TTS" />
+                <action android:name="org.soundsync.ebook.PAUSE_TTS" />
+                <action android:name="org.soundsync.ebook.RESUME_TTS" />
+                <action android:name="org.soundsync.ebook.STOP_TTS" />
             </intent-filter>
         </receiver>
         

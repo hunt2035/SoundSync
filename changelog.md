@@ -76,7 +76,7 @@
 - **错误处理增强**：添加了更完善的错误处理机制，当文件复制失败时会向用户显示明确的错误提示
 
 ### 技术改进
-- 将铃声文件从原先的DIRECTORY_RINGTONES/WanderReads更改为DIRECTORY_MUSIC/ringtone
+- 将铃声文件从原先的DIRECTORY_RINGTONES/SoundSync更改为DIRECTORY_MUSIC/ringtone
 - 使用MediaScannerConnection.scanFile立即通知媒体库刷新，确保系统能够识别到新音频文件
 - 简化铃声目录创建逻辑，减少冗余代码，提高代码可维护性
 - 在SynthesizedAudioListScreen中添加Toast提示，优化用户体验
@@ -153,7 +153,7 @@
 
 2. 文件浏览器定位问题修复
    - 修复了书库界面点击文件夹图标时，文件浏览器默认定位到Download目录而非指定目录的问题
-   - 优化了文件浏览器打开逻辑，添加多层备用方案确保能够正确定位到Documents\WanderReads目录
+   - 优化了文件浏览器打开逻辑，添加多层备用方案确保能够正确定位到Documents\SoundSync目录
    - 实现方法：
      1. 使用ACTION_GET_CONTENT替代ACTION_OPEN_DOCUMENT_TREE，提高目录定位成功率
      2. 使用DocumentsContract.EXTRA_INITIAL_URI正确设置初始目录
@@ -344,7 +344,7 @@
 - **句子分割保留分隔符**：改进了句子分割算法，现在分割后的每个句子都会保留其末尾的分隔符（如句号、感叹号、问号等），使朗读更加自然，高亮显示更加完整。
 - **句子匹配逻辑优化**：修复了带有分隔符的句子无法正确匹配的问题，解决了某些页面整页文字被高亮的异常情况。添加了多级匹配策略，即使句子格式有微小差异也能正确匹配。
 - 优化了句子分割逻辑，取消了段落划分机制，使用整个页面的句子序列进行TTS朗读和高亮显示。
-- 修复了TextUtils导入冲突问题，解决了android.text.TextUtils与com.wanderreads.ebook.util.TextUtils的命名冲突。
+- 修复了TextUtils导入冲突问题，解决了android.text.TextUtils与org.soundsync.ebook.util.TextUtils的命名冲突。
 - 修复了UtteranceProgressListener的导入引用问题，确保TTS功能正常工作。
 
 ### 优化
@@ -448,7 +448,7 @@
    - 优化了语音文件设置为闹钟铃声的功能
    - 解决了某些设备闹钟无法识别语音文件的问题
    - 现在会自动将语音文件复制到系统铃声目录(Ringtones)并刷新媒体库
-   - 复制的文件保存在Ringtones/WanderReads目录下，便于管理
+   - 复制的文件保存在Ringtones/SoundSync目录下，便于管理
    - 通过MediaScannerConnection.scanFile立即刷新媒体库，确保系统能及时识别
    - 支持更多设备的闹钟应用，大幅提高兼容性
    - 当系统无法创建指定目录时会尝试备用路径，进一步提高成功率

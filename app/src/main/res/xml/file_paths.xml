@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- 共享外部存储的Documents目录下的整个WanderReads目录 -->
-    <external-path name="external_files" path="Documents/WanderReads" />
+    <!-- 共享外部存储的Documents目录下的整个SoundSync目录 -->
+    <external-path name="external_files" path="Documents/SoundSync" />
     
     <!-- 共享应用专属外部存储目录 -->
     <external-files-path name="external_files_app" path="." />

@@ -1,17 +1,20 @@
-# 电子书管理助手
+# 随声阅（英文名：SoundSync），电子书朗读应用
 
-本项目是一个功能强大的电子书管理应用，帮助用户导入、组织和阅读电子书。基于Android平台开发，使用现代Jetpack Compose UI框架构建。
+本项目是一个功能强大的电子书朗读应用，帮助用户导入、阅读和朗读电子书。基于Android平台开发，使用现代Jetpack Compose UI框架构建。
 
 ## 技术栈
+  项目中开发的代码、引入的软件库尽量采用主流的、非过时的，且确保软件库的版本与以下组件的版本是兼容的！
 - Android Studio Ladybug （Build AI-242，属于 2024 年 Q2 版本）
 - AGP (Android Gradle Plugin):8.8.2
+- Kotlin：1.9.22
+- core-ktx：1.12.0
+- Room：2.6.1
+- compileSdk：35
+- targetSdk：35
 - Gradle:8.11
-- 所有开发的代码需在符合以上技术栈的前提下，尽量采用主流的、先进的技术，且确保各软件包/软件库的版本是匹配的。不要使用不推荐的、过时的技术！
 
-### 开发语言选择
- **Kotlin**
 
-###  开发环境
+### 开发环境及工具
   Windows10，Android Studio，Cursor，bash，power shell
 
 ###  测试终端
@@ -81,7 +84,7 @@
 1. 访问网址对应的网页，提取HTML的中的文本内容，为了优化文本格式，需要将<br>、<P></P>这些换行符转换成\r\n换行符，如果文本的前n行为空行，则自动删除。 然后将第1行文本内容作为标题，居中显示。之后的各行，前面都空出2个字符，表示段落的开始；
 2. 在书架里的导入数据，标题不再是web开头字符串，而是文本的第1行内容；
 3. 元数据保存时，需将网址保存到书籍表 (books)的urlPath字段；
-4. 书籍文件保存到外部公共目录Documents\WanderReads目录的webbook目录下。
+4. 书籍文件保存到外部公共目录Documents\SoundSync目录的webbook目录下。
 
 #### 网址导入HTML转MD格式技术实现
 网址导入功能通过`WebBookImporter`类实现，主要处理流程如下：
@@ -118,7 +121,7 @@
      - Android 10：尝试legacy方式访问或使用应用专属目录
      - Android 9及以下：直接访问外部存储
    - 保存路径优先级：
-     1. 外部公共目录：Documents/WanderReads/webbook/
+     1. 外部公共目录：Documents/SoundSync/webbook/
      2. 应用专属外部目录（Android 10）
      3. 应用私有目录（最终备用方案）
 
@@ -142,7 +145,7 @@
 5. 文本将被保存为TXT文件并自动添加到书架中，以第一行非空文本内容为书名。
 
 ### 拍照导入
-- 包括用相机拍照或从相册导入图片两种方式，app通过OCR识别并提取图片中的文字，经过换行符处理，之后的处理逻辑与新建文本的处理逻辑相同。
+- 包括用相机拍照或从相册导入图片两种方式，图片支持裁减，app通过OCR识别并提取图片中的文字，经过换行符处理，之后的处理逻辑与新建文本的处理逻辑相同。
 - OCR提取的文本，换行符处理规则：如果换行符右边是2个空格或TAB符，则保留换行符；否则需剔除掉换行符。
 - 在拍照或从相册选择图片后，会先进入图片裁剪界面，用户可以调整照片边框大小和位置，确认后才开始进行OCR识别。
 
@@ -174,10 +177,10 @@
 - 点击主页的底部导航栏的书库图标，进入书库界面，一级页面列出以下几个分类名称：新建文本书籍、网址导入书籍、本地导入书籍、合成语音文件。分类名称左边有一个合适的图标，分类名称右边是文件的数量、文件浏览器图标。点击文件浏览器图标，可以打开系统自带的文件浏览器，自动定位到对应的目录。
 
 #### 书库二级界面
-- 点"新建文本"，列出Documents\WanderReads\txtfiles目录下的文件，包括文件名、创建时间、文件大小。
-- 点"网址导入"，列出Documents\WanderReads\webbook目录下的文件，包括文件名、创建时间、文件大小。
-- 点"本地导入"，列出Documents\WanderReads\books目录下的文件，包括文件名、创建时间、文件大小。
-- 点"语音文件"，列出Documents\WanderReads\voices目录下的文件，包括文件名、创建时间、文件大小。
+- 点"新建文本"，列出Documents\SoundSync\txtfiles目录下的文件，包括文件名、创建时间、文件大小。
+- 点"网址导入"，列出Documents\SoundSync\webbook目录下的文件，包括文件名、创建时间、文件大小。
+- 点"本地导入"，列出Documents\SoundSync\books目录下的文件，包括文件名、创建时间、文件大小。
+- 点"语音文件"，列出Documents\SoundSync\voices目录下的文件，包括文件名、创建时间、文件大小。
 - 以上文件列表，可以进行删除、修改文件名操作，以及批量删除操作。
   - 点击右上角的"选择"或长按文件名称，进入选择模式，右上角会出现删除图标、全选图标和"取消"按钮。
   - 点击全选图标，会将文件列表复选框全部选中，此时全选图标变成取消全选图标。
@@ -290,7 +293,7 @@
 
 #### 自动翻页机制
 
-WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面返回到书架页面，TTS朗读完当前页后也能自动翻到下一页并继续朗读。这是通过将自动翻页逻辑从ViewModel移到TtsService中实现的：
+SoundSync的TTS朗读功能支持自动翻页，即使用户退出阅读界面返回到书架页面，TTS朗读完当前页后也能自动翻到下一页并继续朗读。这是通过将自动翻页逻辑从ViewModel移到TtsService中实现的：
 
 1. **TtsService**：作为前台服务运行，生命周期独立于UI界面，负责：
    - 监听TTS状态变化
@@ -378,7 +381,7 @@ WanderReads的TTS朗读功能支持自动翻页，即使用户退出阅读界面
 ## 项目结构
 
 ```
-app/src/main/java/com/wanderreads/ebook/
+app/src/main/java/com/soundsync/ebook/
 ├── data/            # 数据层，包含存储库和数据源
 ├── domain/          # 领域层，包含模型和业务逻辑
 ├── ui/              # 表现层，包含视图和ViewModel
@@ -393,10 +396,10 @@ app/src/main/java/com/wanderreads/ebook/
 
 ## 数据存储结构
 
-应用将电子书和相关数据保存在Android外部存储的Documents目录下的WanderReads文件夹中，即使卸载应用后，这些数据也会保留。结构如下：
+应用将电子书和相关数据保存在Android外部存储的Documents目录下的SoundSync文件夹中，即使卸载应用后，这些数据也会保留。结构如下：
 
 ```
-Documents/WanderReads/
+Documents/SoundSync/
 ├── books/       - 存储电子书文件
 ├── covers/      - 存储封面图片
 ├── webbook/     - 存储网页导入的文本文件
@@ -407,7 +410,7 @@ Documents/WanderReads/
 
 应用内部私有目录仅用于存储：
 ```
-/data/data/com.wanderreads.ebook/
+/data/data/org.soundsync.ebook/
 └── cache/       - 临时缓存数据
 ```
 

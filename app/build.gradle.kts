@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.wanderreads.ebook"
+    namespace = "org.soundsync.ebook"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.wanderreads.ebook"
+        applicationId = "org.soundsync.ebook"
         minSdk = 26
         targetSdk = 35
         versionCode = 2

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Wander Reads</string>
+    <string name="app_name">SoundSync</string>
     <string name="accessibility_service_description">Enable this service to allow internal audio recording for text-to-speech.</string>
-    <string name="app_name_audio_capture_service">Wander Reads Audio Capture</string>
+    <string name="app_name_audio_capture_service">SoundSync Audio Capture</string>
     <string name="huawei_accessibility_guide_title">Accessibility Service Permission Required</string>
     <string name="huawei_accessibility_guide_message">On Huawei devices, enabling the accessibility service is required for internal audio recording. Please go to settings and enable \"Wander Reads Audio Capture Service\"</string>
     <string name="go_to_settings">Go to Settings</string>
