@@ -590,8 +590,8 @@ class TxtReaderEngine(private val context: Context) : BookReaderEngine {
         val lineHeight = textPaint.fontSpacing * config.lineHeight
         
         // 计算每页可容纳的最大字符数
-        val charsPerLine = (availableWidth / textPaint.measureText("A")).toInt()
-        val linesPerPage = (availableHeight / lineHeight).toInt()
+        val charsPerLine = (availableWidth / textPaint.measureText("A")).toInt()-1
+        val linesPerPage = (availableHeight / lineHeight).toInt()-1
         val charsPerPage = charsPerLine * linesPerPage
         
         // 分割段落

@@ -91,6 +91,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.activity.compose.BackHandler
 import android.util.Log
 import androidx.compose.material.icons.filled.PhotoCamera
+import org.soundsync.ebook.ui.bookshelf.UiEvent
 
 // 使用类型别名解决命名冲突
 typealias EbookModel = org.soundsync.ebook.domain.model.Book
@@ -110,6 +111,20 @@ fun BookshelfScreen(
     var showNewTextDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
+    
+    // 收集UI事件并显示Toast
+    LaunchedEffect(key1 = true) {
+        viewModel.uiEvents.collect { event ->
+            when (event) {
+                is UiEvent.ShowToast -> {
+                    android.widget.Toast.makeText(context, event.message, android.widget.Toast.LENGTH_SHORT).show()
+                }
+                is UiEvent.Navigate -> {
+                    // 处理导航事件
+                }
+            }
+        }
+    }
     
     // 确保每次进入书架界面时，重置readBookId并更新TTS同步状态
     LaunchedEffect(Unit) {
@@ -358,7 +373,8 @@ fun BookshelfScreen(
                                     )
                                 },
                                 onClick = { 
-                                    // 书架管理逻辑
+                                    // 显示功能开发中的提示对话框
+                                    viewModel.showFeatureInDevelopmentMessage()
                                     showMenu = false
                                 }
                             )

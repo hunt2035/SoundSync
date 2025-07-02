@@ -3,9 +3,9 @@
 本项目是一个功能强大的电子书朗读应用，帮助用户导入、阅读和朗读电子书。基于Android平台开发，使用现代Jetpack Compose UI框架构建。
 
 ## 技术栈
-  项目中开发的代码、引入的软件库尽量采用主流的、非过时的，且确保软件库的版本与以下组件的版本是兼容的！
+  项目中开发的代码、引入的依赖库尽量采用主流的、非过时的，且确保依赖库的版本与本项目使用的工具或组件（如下）的版本是完全兼容的！
 - Android Studio Ladybug （Build AI-242，属于 2024 年 Q2 版本）
-- AGP (Android Gradle Plugin):8.8.2
+- AGP (Android Gradle Plugin)：8.8.2
 - Kotlin：1.9.22
 - core-ktx：1.12.0
 - Room：2.6.1

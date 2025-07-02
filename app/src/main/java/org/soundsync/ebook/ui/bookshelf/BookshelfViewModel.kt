@@ -512,4 +512,13 @@ class BookshelfViewModel(
             }
         }
     }
+    
+    /**
+     * 显示功能开发中的提示信息
+     */
+    fun showFeatureInDevelopmentMessage() {
+        viewModelScope.launch {
+            _uiEvents.emit(UiEvent.ShowToast("功能开发中，敬请期待..."))
+        }
+    }
 } 
