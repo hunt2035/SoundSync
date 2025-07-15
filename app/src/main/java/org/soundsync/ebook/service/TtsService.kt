@@ -191,6 +191,25 @@ class TtsService : Service() {
                                 }
                             }
                             
+                            // 更新数据库中的lastReadPage字段
+                            try {
+                                // 获取当前书籍
+                                val book = bookRepository?.getBookById(bookId)
+                                if (book != null) {
+                                    // 更新阅读进度
+                                    bookRepository?.updateReadingProgress(
+                                        bookId = bookId,
+                                        lastReadPage = nextPage,
+                                        lastReadPosition = 0f // 由于是自动翻页，设置为页面开始位置
+                                    )
+                                    Log.d(TAG, "已更新数据库中的lastReadPage: bookId=$bookId, page=$nextPage")
+                                } else {
+                                    Log.e(TAG, "无法更新lastReadPage，找不到书籍: $bookId")
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "更新数据库中的lastReadPage失败: ${e.message}", e)
+                            }
+                            
                             // 再次检查同步状态
                             val newSyncState = ttsManager.isSyncPageState.value
                             Log.d(TAG, "开始朗读新页面后的同步状态: ${newSyncState}")
@@ -238,6 +257,25 @@ class TtsService : Service() {
                     intent.putExtra("pageIndex", nextPage)
                     applicationContext.sendBroadcast(intent)
                     Log.d(TAG, "在异常恢复中发送UI更新广播: 页面=${nextPage}")
+                }
+                
+                // 更新数据库中的lastReadPage字段
+                try {
+                    // 获取当前书籍
+                    val book = bookRepository?.getBookById(bookId)
+                    if (book != null) {
+                        // 更新阅读进度
+                        bookRepository?.updateReadingProgress(
+                            bookId = bookId,
+                            lastReadPage = nextPage,
+                            lastReadPosition = 0f // 由于是自动翻页，设置为页面开始位置
+                        )
+                        Log.d(TAG, "异常恢复中已更新数据库中的lastReadPage: bookId=$bookId, page=$nextPage")
+                    } else {
+                        Log.e(TAG, "异常恢复中无法更新lastReadPage，找不到书籍: $bookId")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "异常恢复中更新数据库中的lastReadPage失败: ${e.message}", e)
                 }
             } catch (ex: Exception) {
                 Log.e(TAG, "尝试恢复TTS朗读失败: ${ex.message}", ex)

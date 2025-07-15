@@ -665,7 +665,7 @@ fun AboutDialog(
                 
                 // 2. 应用中文名
                 Text(
-                    text = "漫阅",
+                    text = "随声阅",
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 2.sp
@@ -678,7 +678,7 @@ fun AboutDialog(
                 
                 // 3. 应用英文名和版本号
                 Text(
-                    text = "Wander Reads v0.36",
+                    text = "SoundSync v0.36",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontStyle = FontStyle.Italic
                     ),

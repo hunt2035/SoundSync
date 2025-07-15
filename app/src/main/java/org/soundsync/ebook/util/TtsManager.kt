@@ -12,6 +12,9 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 
 /**
  * TTS管理器
@@ -334,6 +337,43 @@ class TtsManager private constructor(private val context: Context) {
             // 记录调用后的同步状态
             val newSyncState = _isSyncPageState.value
             Log.d(TAG, "startReading后更新同步状态: bookId=$bookId, page=$pageIndex, 同步状态从${oldSyncState}变为${newSyncState}")
+            
+            // 更新数据库中的lastReadPage字段
+            try {
+                // 获取应用上下文
+                val context = org.soundsync.ebook.MainActivity.getInstance()?.applicationContext
+                if (context != null) {
+                    // 获取应用依赖
+                    val ebookApplication = context as? org.soundsync.ebook.EbookApplication
+                    ebookApplication?.let {
+                        val dependencies = it.provideDependencies()
+                        val bookRepository = dependencies.bookRepository
+                        
+                        // 在协程中更新数据库
+                        GlobalScope.launch(Dispatchers.IO) {
+                            try {
+                                // 获取当前书籍
+                                val book = bookRepository.getBookById(bookId)
+                                if (book != null) {
+                                    // 更新阅读进度
+                                    bookRepository.updateReadingProgress(
+                                        bookId = bookId,
+                                        lastReadPage = pageIndex,
+                                        lastReadPosition = 0f // 由于是开始朗读，设置为页面开始位置
+                                    )
+                                    Log.d(TAG, "TTS开始朗读时已更新数据库中的lastReadPage: bookId=$bookId, page=$pageIndex")
+                                } else {
+                                    Log.e(TAG, "TTS开始朗读时无法更新lastReadPage，找不到书籍: $bookId")
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "TTS开始朗读时更新数据库中的lastReadPage失败: ${e.message}", e)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "获取BookRepository失败: ${e.message}", e)
+            }
             
             // 如果有句子，开始逐句朗读
             if (sentencesList.isNotEmpty()) {

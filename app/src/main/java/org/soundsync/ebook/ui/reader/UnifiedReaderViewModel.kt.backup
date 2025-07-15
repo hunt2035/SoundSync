@@ -1496,7 +1496,7 @@ class UnifiedReaderViewModel(
             Log.e(TAG, "无法打开无障碍服务设置页面: ${e.message}", e)
             _uiState.update { 
                 it.copy(
-                    error = "请手动前往设置 > 无障碍 > 已安装的服务，开启"漫阅内录服务""
+                    error = "请手动前往设置 > 无障碍 > 已安装的服务，开启"随声阅内录服务""
                 ) 
             }
         }

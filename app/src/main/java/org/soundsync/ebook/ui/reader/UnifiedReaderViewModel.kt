@@ -519,6 +519,9 @@ class UnifiedReaderViewModel(
                     }
                 }
                 
+                // 保存阅读进度到数据库
+                saveReadingProgress()
+                
                 // 更新全局阅读位置与TTS同步状态
                 try {
                     val mainActivity = org.soundsync.ebook.MainActivity.getInstance()

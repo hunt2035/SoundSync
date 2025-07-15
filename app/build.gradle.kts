@@ -13,8 +13,8 @@ android {
         applicationId = "org.soundsync.ebook"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.36"
+        versionCode = 3
+        versionName = "0.37"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
