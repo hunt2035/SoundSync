@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.kt": "kotlin",
+        "*.kts": "kotlin"
+    },
+    "kotlin.languageServer.enabled": true,
+    "kotlin.compiler.jvm.target": "1.8"
+}

@@ -221,9 +221,13 @@ class UnifiedReaderViewModel(
                 if (book != null) {
                     // 创建适合此书籍格式的阅读引擎
                     readerEngine = BookReaderEngine.create(getApplication(), book.type)
-                    
+
+                    // 确定初始页码：如果传入了具体页码则使用传入的，否则使用数据库中保存的lastReadPage
+                    val targetPage = if (initialPage > 0) initialPage else book.lastReadPage
+                    Log.d(TAG, "确定初始页码: initialPage=$initialPage, book.lastReadPage=${book.lastReadPage}, targetPage=$targetPage")
+
                     // 初始化引擎
-                    readerEngine?.initialize(book, initialPage)
+                    readerEngine?.initialize(book, targetPage)
                     
                     // 加载内容
                     readerEngine?.loadContent()
@@ -246,11 +250,11 @@ class UnifiedReaderViewModel(
                     
                     // 更新全局阅读位置
                     val mainActivity = org.soundsync.ebook.MainActivity.getInstance()
-                    mainActivity?.updateReadingPosition(book.id, initialPage, readerEngine?.getTotalPages() ?: 0)
-                    
+                    mainActivity?.updateReadingPosition(book.id, targetPage, readerEngine?.getTotalPages() ?: 0)
+
                     // 更新TTS同步状态
                     ttsManager.updateSyncPageState()
-                    Log.d(TAG, "书籍加载完成后更新TTS同步状态: bookId=${book.id}, page=${initialPage}, IsSyncPageState=${ttsManager.isSyncPageState.value}")
+                    Log.d(TAG, "书籍加载完成后更新TTS同步状态: bookId=${book.id}, page=${targetPage}, IsSyncPageState=${ttsManager.isSyncPageState.value}")
                 } else {
                     _uiState.update { it.copy(error = "找不到图书") }
                 }
