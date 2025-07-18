@@ -17,7 +17,7 @@ class BookshelfViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(BookshelfViewModel::class.java)) {
             return BookshelfViewModel(
-                context = application,
+                application = application,
                 bookRepository = bookRepository
             ) as T
         }

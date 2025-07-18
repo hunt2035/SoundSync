@@ -192,7 +192,12 @@ fun LibraryScreen() {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("书库") }
+                    title = {
+                        Text(
+                            "书库",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    }
                 )
             }
         ) { paddingValues ->

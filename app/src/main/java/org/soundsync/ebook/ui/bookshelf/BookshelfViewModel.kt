@@ -1,10 +1,11 @@
 package org.soundsync.ebook.ui.bookshelf
 
+import android.app.Application
 import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import org.soundsync.ebook.MainActivity
 import org.soundsync.ebook.data.repository.BookRepository
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.soundsync.ebook.util.ReadingProgressDebugger
 import java.io.File
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -63,9 +65,11 @@ sealed class UiEvent {
  * 书架ViewModel
  */
 class BookshelfViewModel(
-    private val context: Context,
+    application: Application,
     val bookRepository: BookRepository
-) : ViewModel() {
+) : AndroidViewModel(application) {
+
+    private val context: Context = application.applicationContext
     
     // 日志标签
     companion object {
@@ -91,6 +95,19 @@ class BookshelfViewModel(
                     initialValue = emptyList()
                 )
                 .collect { books ->
+                    // 添加调试日志
+                    Log.d(TAG, "加载书籍列表: 总数=${books.size}")
+                    books.forEachIndexed { index, book ->
+                        if (index < 3) { // 只记录前3本书的详细信息
+                            Log.d(TAG, "书籍[$index]: ${book.title}, totalPages=${book.totalPages}, lastReadPage=${book.lastReadPage}, progress=${(book.readingProgress * 100).toInt()}%")
+                        }
+                    }
+
+                    val problemBooks = books.filter { it.totalPages == 0 }
+                    if (problemBooks.isNotEmpty()) {
+                        Log.w(TAG, "发现${problemBooks.size}本书籍的totalPages为0，这会导致阅读进度显示为0%")
+                    }
+
                     _uiState.value = BookshelfUiState(
                         books = books,
                         isLoading = false,
@@ -521,4 +538,45 @@ class BookshelfViewModel(
             _uiEvents.emit(UiEvent.ShowToast("功能开发中，敬请期待..."))
         }
     }
-} 
+
+    /**
+     * 检查所有书籍的阅读进度状态
+     * 用于调试阅读进度显示问题
+     */
+    fun checkReadingProgress() {
+        viewModelScope.launch {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val debugger = ReadingProgressDebugger(context, bookRepository)
+                debugger.checkAllBooksProgress()
+            } catch (e: Exception) {
+                Log.e(TAG, "检查阅读进度失败", e)
+                _uiEvents.emit(UiEvent.ShowToast("检查阅读进度失败: ${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * 修复所有书籍的阅读进度问题
+     */
+    fun fixReadingProgress() {
+        viewModelScope.launch {
+            try {
+                _uiState.value = _uiState.value.copy(isLoading = true)
+
+                val context = getApplication<Application>().applicationContext
+                val debugger = ReadingProgressDebugger(context, bookRepository)
+                debugger.fixAllBooksProgress()
+
+                // 刷新书架
+                loadBooks()
+
+                _uiEvents.emit(UiEvent.ShowToast("阅读进度修复完成"))
+            } catch (e: Exception) {
+                Log.e(TAG, "修复阅读进度失败", e)
+                _uiState.value = _uiState.value.copy(isLoading = false)
+                _uiEvents.emit(UiEvent.ShowToast("修复阅读进度失败: ${e.message}"))
+            }
+        }
+    }
+}

@@ -217,7 +217,7 @@ class UnifiedReaderViewModel(
             try {
                 // 从仓库获取书籍信息
                 val book = bookRepository.getBookById(bookId)
-                
+
                 if (book != null) {
                     // 创建适合此书籍格式的阅读引擎
                     readerEngine = BookReaderEngine.create(getApplication(), book.type)

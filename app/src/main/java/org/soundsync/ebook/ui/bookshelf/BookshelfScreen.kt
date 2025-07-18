@@ -27,6 +27,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowRight
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.Delete
@@ -206,9 +208,7 @@ fun BookshelfScreen(
                     ) {
                         Text(
                             "我的书架",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontWeight = FontWeight.Bold
-                            ),
+                            style = MaterialTheme.typography.titleLarge,
                             color = Color.White
                         )
                     }
@@ -452,8 +452,38 @@ fun BookshelfScreen(
                                         contentDescription = null
                                     )
                                 },
-                                onClick = { 
+                                onClick = {
                                     viewModel.toggleSelectionMode()
+                                    showMenu = false
+                                }
+                            )
+
+                            // 调试选项
+                            Divider()
+                            DropdownMenuItem(
+                                text = { Text("检查阅读进度") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.BugReport,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.checkReadingProgress()
+                                    showMenu = false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("修复阅读进度") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Build,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.fixReadingProgress()
                                     showMenu = false
                                 }
                             )

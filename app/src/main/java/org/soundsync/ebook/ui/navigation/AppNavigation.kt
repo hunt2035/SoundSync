@@ -251,11 +251,11 @@ fun AppNavigation(
     }
     
     // 书架ViewModel
-    val bookshelfViewModel = remember { 
+    val bookshelfViewModel = remember {
         BookshelfViewModel(
-            context = context,
+            application = context.applicationContext as Application,
             bookRepository = bookRepository
-        ) 
+        )
     }
     
     // 收集UI状态

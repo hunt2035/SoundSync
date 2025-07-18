@@ -264,12 +264,28 @@ class TtsService : Service() {
                     // 获取当前书籍
                     val book = bookRepository?.getBookById(bookId)
                     if (book != null) {
+                        Log.d(TAG, "异常恢复前的书籍状态: title=${book.title}, totalPages=${book.totalPages}, lastReadPage=${book.lastReadPage}, progress=${(book.readingProgress * 100).toInt()}%")
+
+                        // 检查totalPages是否合理
+                        if (book.totalPages == 0) {
+                            Log.w(TAG, "警告: 书籍totalPages为0，TTS更新进度将无效! 需要先修复书籍的totalPages")
+                        } else if (nextPage >= book.totalPages) {
+                            Log.w(TAG, "警告: TTS页面索引($nextPage) >= 书籍总页数(${book.totalPages})")
+                        }
+
                         // 更新阅读进度
                         bookRepository?.updateReadingProgress(
                             bookId = bookId,
                             lastReadPage = nextPage,
                             lastReadPosition = 0f // 由于是自动翻页，设置为页面开始位置
                         )
+
+                        // 验证更新后的状态
+                        val updatedBook = bookRepository?.getBookById(bookId)
+                        if (updatedBook != null) {
+                            Log.d(TAG, "异常恢复后的书籍状态: lastReadPage=${updatedBook.lastReadPage}, progress=${(updatedBook.readingProgress * 100).toInt()}%")
+                        }
+
                         Log.d(TAG, "异常恢复中已更新数据库中的lastReadPage: bookId=$bookId, page=$nextPage")
                     } else {
                         Log.e(TAG, "异常恢复中无法更新lastReadPage，找不到书籍: $bookId")

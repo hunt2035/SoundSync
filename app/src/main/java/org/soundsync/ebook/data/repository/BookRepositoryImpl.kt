@@ -102,11 +102,15 @@ class BookRepositoryImpl(
             
             // 这里简单处理，实际应用中可能需要解析文件内容获取更多信息
             val title = file.nameWithoutExtension
-            
+
+            // 估算页数
+            val totalPages = estimateBookPages(file, bookType)
+
             val book = Book(
                 title = title,
                 filePath = filePath,
-                type = bookType
+                type = bookType,
+                totalPages = totalPages
             )
             
             addBook(book)
@@ -126,4 +130,34 @@ class BookRepositoryImpl(
             else -> BookType.UNKNOWN
         }
     }
-} 
+
+    /**
+     * 估算书籍页数
+     */
+    private fun estimateBookPages(file: File, bookType: BookType): Int {
+        if (!file.exists()) return 1
+
+        return when (bookType) {
+            BookType.TXT -> {
+                // TXT文件：每2000字符算一页
+                (file.length() / 2000).toInt().coerceAtLeast(1)
+            }
+            BookType.PDF -> {
+                // PDF文件：按文件大小估算，每50KB一页
+                (file.length() / (50 * 1024)).toInt().coerceAtLeast(1)
+            }
+            BookType.EPUB -> {
+                // EPUB文件：按文件大小估算，每100KB一章
+                (file.length() / (100 * 1024)).toInt().coerceAtLeast(1)
+            }
+            BookType.MD -> {
+                // Markdown文件：每3000字符算一页
+                (file.length() / 3000).toInt().coerceAtLeast(1)
+            }
+            else -> {
+                // 其他格式：按文件大小估算
+                (file.length() / 10000).toInt().coerceAtLeast(1)
+            }
+        }
+    }
+}
