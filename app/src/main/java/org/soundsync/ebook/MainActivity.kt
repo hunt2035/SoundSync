@@ -25,6 +25,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
@@ -39,7 +41,9 @@ import org.soundsync.ebook.ui.settings.SettingsViewModel
 import org.soundsync.ebook.util.LocaleHelper
 import org.soundsync.ebook.data.local.dataStore
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import androidx.compose.foundation.isSystemInDarkTheme
 
 /**
  * 主Activity
@@ -148,12 +152,26 @@ class MainActivity : ComponentActivity() {
         }
         
         setContent {
-            EbookTheme {
+            // 读取主题设置
+            val themeFlow = dataStore.data.map { preferences ->
+                preferences[SettingsViewModel.THEME_KEY]?.toIntOrNull() ?: SettingsViewModel.THEME_DARK
+            }
+            val themeMode by themeFlow.collectAsState(initial = SettingsViewModel.THEME_DARK)
+
+            // 根据主题设置确定是否使用深色模式
+            val darkTheme = when (themeMode) {
+                SettingsViewModel.THEME_LIGHT -> false
+                SettingsViewModel.THEME_DARK -> true
+                SettingsViewModel.THEME_SYSTEM -> isSystemInDarkTheme()
+                else -> true // 默认深色模式
+            }
+
+            EbookTheme(darkTheme = darkTheme) {
                 val navController = rememberNavController()
-                
+
                 // 保存NavController引用
                 this.navController = navController
-                
+
                 // 显示存储权限对话框
                 if (showStoragePermissionDialogState.value) {
                     StoragePermissionDialog(
@@ -164,7 +182,7 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
-                
+
                 // 应用导航
                 AppNavigation(
                     onNavControllerReady = { controller ->

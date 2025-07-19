@@ -98,6 +98,19 @@ class SettingsViewModel(private val context: Context) : ViewModel() {
                 preferences[THEME_KEY] = theme.toString()
             }
             _uiState.value = _uiState.value.copy(theme = theme)
+
+            // 立即重新创建Activity以应用主题变更
+            if (context is Activity) {
+                val activity = context as Activity
+
+                // 创建重启Activity的Intent
+                val intent = activity.intent
+                activity.finish()
+                activity.startActivity(intent)
+
+                // 添加淡入淡出动画
+                activity.overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            }
         }
     }
 

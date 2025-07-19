@@ -48,14 +48,14 @@ private val DarkColorScheme = darkColorScheme(
     secondaryContainer = SecondaryDark,
     onSecondaryContainer = SecondaryLight,
     tertiary = SecondaryLight,
-    background = Neutral95,
-    surface = Neutral95,
-    onBackground = Neutral10,
-    onSurface = Neutral10,
-    surfaceVariant = Neutral90,
-    onSurfaceVariant = Neutral20,
+    background = InkBlue,  // 墨蓝色背景
+    surface = InkBlue,     // 墨蓝色表面
+    onBackground = DeepWarmWhite,  // 深暖白色文字
+    onSurface = DeepWarmWhite,     // 深暖白色文字
+    surfaceVariant = InkBlue,
+    onSurfaceVariant = DeepWarmWhite,
     error = ErrorColorDark,
-    onError = Neutral95
+    onError = InkBlue
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -68,12 +68,12 @@ private val LightColorScheme = lightColorScheme(
     secondaryContainer = SecondaryLight,
     onSecondaryContainer = SecondaryDark,
     tertiary = Secondary,
-    background = Neutral10,
-    surface = Neutral10,
-    onBackground = Neutral99,
-    onSurface = Neutral99,
-    surfaceVariant = Neutral20,
-    onSurfaceVariant = Neutral90,
+    background = WarmWhite,  // 暖白色背景
+    surface = WarmWhite,     // 暖白色表面
+    onBackground = DeepBlueNightText,  // 深蓝夜色文字
+    onSurface = DeepBlueNightText,     // 深蓝夜色文字
+    surfaceVariant = WarmWhite,
+    onSurfaceVariant = DeepBlueNightText,
     error = ErrorColor,
     onError = Color.White
 )
@@ -93,17 +93,22 @@ fun EbookTheme(
         SideEffect {
             try {
                 val window = (view.context as Activity).window
-                // 使用固定的深蓝色作为状态栏颜色，确保在所有主题下都有良好的可见度
-                window.statusBarColor = Color(0xFF1565C0).toArgb()
+                // 根据主题设置状态栏颜色
+                window.statusBarColor = if (darkTheme) InkBlue.toArgb() else WarmWhite.toArgb()
                 
                 // 兼容性处理，避免在低版本Android上调用不支持的API
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false // 固定为深色状态栏模式
+                    WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme // 深色模式用浅色文字，浅色模式用深色文字
                 } else {
                     // 旧版本API处理状态栏
                     @Suppress("DEPRECATION")
-                    window.decorView.systemUiVisibility = window.decorView.systemUiVisibility and 
-                            android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+                    if (darkTheme) {
+                        window.decorView.systemUiVisibility = window.decorView.systemUiVisibility and
+                                android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+                    } else {
+                        window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or
+                                android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                    }
                 }
                 
                 window.setBackgroundDrawable(ColorDrawable(colorScheme.background.toArgb()))
@@ -115,9 +120,9 @@ fun EbookTheme(
     
     // Provide custom theme extras
     val appThemeExtras = if (darkTheme) {
-        AppThemeExtras(readingBackground = DeepBlueNight)
+        AppThemeExtras(readingBackground = InkBlue)  // 深色模式使用墨蓝色
     } else {
-        AppThemeExtras(readingBackground = WarmWhite)
+        AppThemeExtras(readingBackground = WarmWhite)  // 浅色模式使用暖白色
     }
     
     CompositionLocalProvider(LocalAppThemeExtras provides appThemeExtras) {

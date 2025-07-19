@@ -662,8 +662,8 @@ class EpubRenderer(private val context: Context) {
      * 获取页面主题设置的JavaScript代码
      */
     fun getThemeJs(isDarkMode: Boolean = false): String {
-        val textColor = if (isDarkMode) "#E0E0E0" else "#333333"
-        val backgroundColor = if (isDarkMode) "#121212" else "#FFFFFF"
+        val textColor = if (isDarkMode) "#F9F6F0" else "#091018"  // 深色模式：深暖白色，浅色模式：深蓝夜色
+        val backgroundColor = if (isDarkMode) "#0A1929" else "#F9F6F0"  // 深色模式：墨蓝色，浅色模式：暖白色
         
         return """
             javascript:(function() {

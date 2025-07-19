@@ -44,6 +44,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.toArgb
+import org.soundsync.ebook.ui.theme.LocalAppThemeExtras
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -135,8 +137,10 @@ fun UnifiedReaderScreen(
     onNavigateBack: () -> Unit,
     navController: NavController = rememberNavController()
 ) {
-    // 定义颜色
-    val navyBlueBackground = Color(0xFF0A1929) // 墨蓝色背景
+    // 获取主题颜色
+    val appThemeExtras = LocalAppThemeExtras.current
+    val readerBackground = MaterialTheme.colorScheme.background // 使用主题背景色
+    val readerTextColor = MaterialTheme.colorScheme.onBackground // 使用主题文字色
     val themeBlue = Color(0xFF1976D2) // 主题蓝色（工具栏）
     val whiteText = Color.White // 白色文字
     val statusBarBackground = Color.White.copy(alpha = 0.7f) // 半透明白色背景
@@ -281,12 +285,14 @@ fun UnifiedReaderScreen(
         ttsManager.updateSyncPageState()
     }
     
-    // HTML样式（添加CSS样式，设置文字为白色，背景为墨蓝色）
+    // HTML样式（根据主题动态设置背景色和文字色）
+    val backgroundColorHex = String.format("#%06X", (0xFFFFFF and readerBackground.toArgb()))
+    val textColorHex = String.format("#%06X", (0xFFFFFF and readerTextColor.toArgb()))
     val cssStyle = """
         <style>
             body {
-                background-color: #0A1929;
-                color: white;
+                background-color: $backgroundColorHex;
+                color: $textColorHex;
                 font-family: system-ui, -apple-system, sans-serif;
                 line-height: 1.5;
                 padding: 16px;
@@ -417,7 +423,7 @@ fun UnifiedReaderScreen(
                         DropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false },
-                            modifier = Modifier.background(navyBlueBackground)
+                            modifier = Modifier.background(readerBackground)
                         ) {
                             // 添加修改文本选项
                             DropdownMenuItem(
@@ -728,7 +734,7 @@ fun UnifiedReaderScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(navyBlueBackground)
+                .background(readerBackground)
                 .padding(paddingValues)
         ) {
             // 内容区域 - 占据90%的空间
@@ -818,7 +824,7 @@ fun UnifiedReaderScreen(
                                         }
                                     }
                                     webChromeClient = WebChromeClient()
-                                    setBackgroundColor(android.graphics.Color.parseColor("#0A1929"))
+                                    setBackgroundColor(readerBackground.toArgb())
                                     
                                     // 添加JavaScript接口
                                     addJavascriptInterface(object {
@@ -863,8 +869,8 @@ fun UnifiedReaderScreen(
                                         val enhancedStyle = """
                                             <style>
                                                 body {
-                                                    background-color: #0A1929;
-                                                    color: white;
+                                                    background-color: $backgroundColorHex;
+                                                    color: $textColorHex;
                                                     font-family: system-ui, -apple-system, sans-serif;
                                                     line-height: 1.5;
                                                     padding: 16px;
@@ -880,7 +886,7 @@ fun UnifiedReaderScreen(
                                                 h1, h2, h3, h4, h5, h6 {
                                                     margin-top: 1.5em;
                                                     margin-bottom: 0.5em;
-                                                    color: white;
+                                                    color: $textColorHex;
                                                 }
                                                 a {
                                                     color: #64B5F6;
@@ -921,8 +927,8 @@ fun UnifiedReaderScreen(
                                         val enhancedStyle = """
                                             <style>
                                                 body {
-                                                    background-color: #0A1929;
-                                                    color: white;
+                                                    background-color: $backgroundColorHex;
+                                                    color: $textColorHex;
                                                     font-family: system-ui, -apple-system, sans-serif;
                                                     line-height: 1.5;
                                                     padding: 16px;
@@ -938,7 +944,7 @@ fun UnifiedReaderScreen(
                                                 h1, h2, h3, h4, h5, h6 {
                                                     margin-top: 1.5em;
                                                     margin-bottom: 0.5em;
-                                                    color: white;
+                                                    color: $textColorHex;
                                                 }
                                                 a {
                                                     color: #64B5F6;
@@ -979,7 +985,7 @@ fun UnifiedReaderScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(navyBlueBackground)
+                                .background(readerBackground)
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             val textContent = uiState.currentContent?.text ?: ""
@@ -1167,7 +1173,7 @@ fun UnifiedReaderScreen(
             ModalBottomSheet(
                 onDismissRequest = { showToc = false },
                 sheetState = rememberModalBottomSheetState(),
-                containerColor = navyBlueBackground
+                containerColor = readerBackground
             ) {
                 Text(
                     text = "目录",
@@ -1208,7 +1214,7 @@ fun UnifiedReaderScreen(
             ModalBottomSheet(
                 onDismissRequest = { showSettings = false },
                 sheetState = settingsSheetState,
-                containerColor = navyBlueBackground
+                containerColor = readerBackground
             ) {
                 Text(
                     text = "阅读设置",

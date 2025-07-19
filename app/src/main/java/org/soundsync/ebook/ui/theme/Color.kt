@@ -25,6 +25,11 @@ val NightMode = Color(0xFF0F1824)  // Dark blue night mode for reading
 val DeepBlueNight = Color(0xFF091018)  // Deeper blue night mode
 val SepiaTone = Color(0xFFF2E8D9)  // Sepia tone for reading
 
+// New theme colors as requested
+val InkBlue = Color(0xFF0A1929)  // 墨蓝色 - 深色模式背景
+val DeepWarmWhite = Color(0xFFF9F6F0)  // 深暖白色 - 深色模式文字
+val DeepBlueNightText = Color(0xFF091018)  // 深蓝夜色 - 浅色模式文字
+
 // Error colors
 val ErrorColor = Color(0xFFB3261E)
 val ErrorColorDark = Color(0xFFF2B8B5)

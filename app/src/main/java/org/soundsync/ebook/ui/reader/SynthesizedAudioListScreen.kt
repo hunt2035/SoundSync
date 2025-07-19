@@ -172,22 +172,22 @@ fun SynthesizedAudioListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // 顶部栏
         TopAppBar(
-            title = { Text("合成语音列表", color = Color.White) },
+            title = { Text("合成语音列表", color = MaterialTheme.colorScheme.onSurface) },
             navigationIcon = {
                 IconButton(onClick = onDismiss) {  // 这是唯一应该调用onDismiss的地方
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowLeft,
                         contentDescription = "返回",
-                        tint = Color.White
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color(0xFF222222)
+                containerColor = MaterialTheme.colorScheme.surface
             )
         )
         
@@ -196,13 +196,13 @@ fun SynthesizedAudioListScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF1A1A1A))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
                 .padding(vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = totalSpaceText,
-                color = Color.White.copy(alpha = 0.7f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
         
@@ -216,7 +216,7 @@ fun SynthesizedAudioListScreen(
             ) {
                 Text(
                     text = "暂无合成语音文件",
-                    color = Color.White.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                 )
             }
         } else {
@@ -259,18 +259,18 @@ fun SynthesizedAudioListScreen(
                             // 文件名
                             Text(
                                 text = truncateMiddle(record.title, 25),
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 style = MaterialTheme.typography.titleMedium,
                                 modifier = Modifier.weight(1f)
                             )
-                            
+
                             Spacer(modifier = Modifier.width(8.dp))
-                            
+
                             // 总时长
                             Text(
                                 text = formatDuration(duration),
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -291,7 +291,7 @@ fun SynthesizedAudioListScreen(
                                 // 生成时间
                                 Text(
                                     text = formatDate(record.addedDate),
-                                    color = Color.Gray,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.bodySmall
                                 )
                                 
@@ -312,7 +312,7 @@ fun SynthesizedAudioListScreen(
                                                 modifier = Modifier
                                                     .width(3.dp)
                                                     .height((3 + (i % 7) * 2).dp)
-                                                    .background(Color.Gray.copy(alpha = 0.5f))
+                                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                             )
                                         }
                                     }
@@ -322,7 +322,7 @@ fun SynthesizedAudioListScreen(
                             // 右侧：文件大小
                             Text(
                                 text = fileSize,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -680,7 +680,7 @@ fun AudioControlPanel(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .background(Color(0xFF252525), RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
             .padding(8.dp)
     ) {
         // 播放进度条和时间显示
@@ -696,7 +696,7 @@ fun AudioControlPanel(
             // 当前播放时间
             Text(
                 text = formattedCurrentTime,
-                color = Color.White.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.bodySmall
             )
             
@@ -725,16 +725,16 @@ fun AudioControlPanel(
                     .weight(1f)
                     .padding(horizontal = 6.dp),
                 colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF8AFFDD),
-                    activeTrackColor = Color(0xFF8AFFDD),
-                    inactiveTrackColor = Color.Gray
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
                 )
             )
             
             // 剩余时间
             Text(
                 text = formattedRemainingTime,
-                color = Color.White.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -850,7 +850,7 @@ fun ControlButton(
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = if (isHighlighted) Color(0xFF8AFFDD) else Color.White.copy(alpha = 0.9f),
+            tint = if (isHighlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f),
             modifier = Modifier.size(24.dp)
         )
     }
