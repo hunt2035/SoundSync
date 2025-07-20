@@ -1,5 +1,22 @@
 ## 2024-07-19 更新日志
 
+### 重要修复
+- **文本文件导入totalPages字段为0的问题**：修复了导入文本文件后数据库中totalPages字段为0导致阅读进度显示为0%的问题
+  - 修复了网页导入功能中没有设置totalPages字段的问题
+  - 修复了OCR导入功能中没有设置totalPages字段的问题
+  - 修复了新建文本功能中没有设置totalPages字段的问题
+  - 修复了BookshelfViewModel.addBook方法中没有设置totalPages字段的问题
+  - 为BookshelfViewModel添加了estimateBookPages方法，用于估算不同格式文件的页数
+  - 统一使用每2000字符算一页的标准来计算TXT文件页数
+
+### 技术改进
+- 在所有创建Book对象的地方添加了totalPages字段的正确计算
+- 确保TXT、MD等文本格式文件都能正确计算页数
+- 统一了页数估算算法：TXT文件每2000字符一页，PDF文件每50KB一页，EPUB文件每100KB一章
+- 修复了阅读进度计算公式：readingProgress = lastReadPage / totalPages
+
+## 2024-07-19 更新日志（早期）
+
 ### 修复
 - **阅读界面主题适配问题**：修复了阅读界面在浅色模式下背景颜色不正确的问题
   - 将硬编码的深蓝色背景（#0A1929）替换为动态主题背景色

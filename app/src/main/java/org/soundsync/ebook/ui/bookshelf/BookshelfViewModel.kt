@@ -215,13 +215,17 @@ class BookshelfViewModel(
                             // 读取文件获取第一行作为标题
                             val fileText = file.readText(Charsets.UTF_8)
                             val firstLine = fileText.trim().split("\n").firstOrNull()?.trim() ?: file.nameWithoutExtension
-                            
+
+                            // 计算总页数 (每页约2000字符)
+                            val totalPages = (file.length() / 2000).toInt().coerceAtLeast(1)
+
                             // 创建书籍模型
                             val book = Book(
                                 title = firstLine,  // 使用第一行作为标题
                                 filePath = file.absolutePath,
                                 type = BookType.TXT,
                                 urlPath = urlPath,  // 保存网址
+                                totalPages = totalPages,  // 设置总页数
                                 addedDate = System.currentTimeMillis(),
                                 fileHash = generateFileHash(file)
                             )
@@ -301,11 +305,15 @@ class BookshelfViewModel(
                 // 保存文本到文件
                 TextProcessor.saveTextToFile(context, text, title)
                     .onSuccess { file ->
+                        // 计算总页数 (每页约2000字符)
+                        val totalPages = (file.length() / 2000).toInt().coerceAtLeast(1)
+
                         // 创建书籍模型
                         val book = Book(
                             title = title,
                             filePath = file.absolutePath,
-                            type = BookType.TXT
+                            type = BookType.TXT,
+                            totalPages = totalPages  // 设置总页数
                         )
                         
                         // 添加到书库
@@ -348,7 +356,10 @@ class BookshelfViewModel(
                 
                 // 根据文件扩展名判断图书类型
                 val bookType = determineBookType(fileName)
-                
+
+                // 估算页数
+                val totalPages = estimateBookPages(file, bookType)
+
                 // 创建新书
                 val book = Book(
                     title = title,
@@ -357,6 +368,7 @@ class BookshelfViewModel(
                     coverPath = coverPath,
                     fileHash = fileHash,
                     type = bookType,
+                    totalPages = totalPages,  // 设置总页数
                     addedDate = System.currentTimeMillis(),
                     lastOpenedDate = System.currentTimeMillis()
                 )
@@ -576,6 +588,36 @@ class BookshelfViewModel(
                 Log.e(TAG, "修复阅读进度失败", e)
                 _uiState.value = _uiState.value.copy(isLoading = false)
                 _uiEvents.emit(UiEvent.ShowToast("修复阅读进度失败: ${e.message}"))
+            }
+        }
+    }
+
+    /**
+     * 估算书籍页数
+     */
+    private fun estimateBookPages(file: File, bookType: BookType): Int {
+        if (!file.exists()) return 1
+
+        return when (bookType) {
+            BookType.TXT -> {
+                // TXT文件：每2000字符算一页
+                (file.length() / 2000).toInt().coerceAtLeast(1)
+            }
+            BookType.PDF -> {
+                // PDF文件：按文件大小估算，每50KB一页
+                (file.length() / (50 * 1024)).toInt().coerceAtLeast(1)
+            }
+            BookType.EPUB -> {
+                // EPUB文件：按文件大小估算，每100KB一章
+                (file.length() / (100 * 1024)).toInt().coerceAtLeast(1)
+            }
+            BookType.MD -> {
+                // Markdown文件：每3000字符算一页
+                (file.length() / 3000).toInt().coerceAtLeast(1)
+            }
+            else -> {
+                // 其他格式：按文件大小估算
+                (file.length() / 10000).toInt().coerceAtLeast(1)
             }
         }
     }

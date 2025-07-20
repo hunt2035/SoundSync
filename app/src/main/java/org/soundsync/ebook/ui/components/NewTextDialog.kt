@@ -160,11 +160,15 @@ private fun saveTextToFile(
                 
                 TextProcessor.saveTextToFile(context, processedText, fileName)
                     .onSuccess { file ->
+                        // 计算总页数 (每页约2000字符)
+                        val totalPages = (file.length() / 2000).toInt().coerceAtLeast(1)
+
                         // 创建书籍对象
                         val book = Book(
                             title = title,
                             filePath = file.absolutePath,
                             type = BookType.TXT,
+                            totalPages = totalPages,  // 设置总页数
                             addedDate = System.currentTimeMillis()
                         )
                         
