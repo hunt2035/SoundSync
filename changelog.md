@@ -1,3 +1,39 @@
+## 2025-07-20 更新日志
+
+### 重要修复
+- **顶部标题栏文字垂直居中问题**：修复了书库界面和设置界面顶部标题栏文字不居中的问题
+  - 修复了设置界面（SettingsScreen）标题文字"设置"垂直居中问题，使用Box和Alignment.Center包装Text组件
+  - 修复了书库界面（LibraryScreen）标题文字"书库"垂直居中问题，使用Box和Alignment.Center包装Text组件
+  - 修复了文件列表界面（FileListScreen）标题文字垂直居中问题，使用Box和Alignment.Center包装Text组件
+  - 修复了合成语音列表界面（SynthesizedAudioListScreen）标题文字垂直居中问题，使用Box和Alignment.Center包装Text组件
+  - 修复了阅读器界面（ReaderScreen）标题文字垂直居中问题，使用Box和Alignment.Center包装Text组件
+  - 添加了必要的import语句（fillMaxHeight）以支持垂直居中布局
+  - 现在所有界面的标题文字都能在TopAppBar中完美垂直居中显示，提升了界面美观度
+
+## 2024-07-20 更新日志
+
+### 重要修复
+- **书库和设置界面顶部标题栏背景色缺失问题**：修复了书库界面和设置界面顶部标题栏缺少背景色的问题
+  - 为书库界面（LibraryScreen）的TopAppBar添加了与书架界面一致的蓝色背景（#1565C0）
+  - 为设置界面（SettingsScreen）的TopAppBar添加了与书架界面一致的蓝色背景（#1565C0）
+  - 为书库文件列表界面（FileListScreen）的TopAppBar添加了与书架界面一致的蓝色背景（#1565C0）
+  - 统一了所有界面的标题栏样式，包括背景色、文字颜色、图标颜色、高度和阴影效果
+  - 修复了选择模式下图标和文字的颜色显示问题，确保在蓝色背景下清晰可见
+
+- **阅读界面弹出菜单主题适配问题**：修复了阅读界面右上角三个点弹出菜单在浅色模式下菜单项文字看不清楚的问题
+  - 将所有菜单项的文字颜色从硬编码的白色改为动态主题颜色（MaterialTheme.colorScheme.onSurface）
+  - 将所有菜单项的图标颜色从硬编码的白色改为动态主题颜色（MaterialTheme.colorScheme.onSurface）
+  - 将菜单背景色从硬编码的readerBackground改为MaterialTheme.colorScheme.surface
+  - 浅色模式下菜单项文字现在显示为深蓝色，确保在浅色背景下清晰可见
+  - 深色模式下菜单项文字显示为浅色，保持良好的对比度
+
+### 技术改进
+- 统一了应用中所有TopAppBar的样式配置，确保界面一致性
+- 添加了必要的import语句（Color、shadow等）以支持新的样式设置
+- 在UnifiedReaderScreen中添加了menuTextColor和menuIconColor变量，统一管理菜单颜色
+- 更新了所有DropdownMenuItem的text和leadingIcon颜色设置，使用主题颜色替代硬编码颜色
+- 确保菜单在不同主题模式下都能提供良好的视觉体验和可读性
+
 ## 2024-07-19 更新日志
 
 ### 重要修复

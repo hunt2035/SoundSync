@@ -176,7 +176,14 @@ fun SynthesizedAudioListScreen(
     ) {
         // 顶部栏
         TopAppBar(
-            title = { Text("合成语音列表", color = MaterialTheme.colorScheme.onSurface) },
+            title = {
+                Box(
+                    modifier = Modifier.fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("合成语音列表", color = MaterialTheme.colorScheme.onSurface)
+                }
+            },
             navigationIcon = {
                 IconButton(onClick = onDismiss) {  // 这是唯一应该调用onDismiss的地方
                     Icon(

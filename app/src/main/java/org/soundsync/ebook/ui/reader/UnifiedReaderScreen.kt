@@ -142,7 +142,9 @@ fun UnifiedReaderScreen(
     val readerBackground = MaterialTheme.colorScheme.background // 使用主题背景色
     val readerTextColor = MaterialTheme.colorScheme.onBackground // 使用主题文字色
     val themeBlue = Color(0xFF1976D2) // 主题蓝色（工具栏）
-    val whiteText = Color.White // 白色文字
+    val whiteText = Color.White // 白色文字（仅用于工具栏）
+    val menuTextColor = MaterialTheme.colorScheme.onSurface // 菜单文字颜色（根据主题动态调整）
+    val menuIconColor = MaterialTheme.colorScheme.onSurface // 菜单图标颜色（根据主题动态调整）
     val statusBarBackground = Color.White.copy(alpha = 0.7f) // 半透明白色背景
     
     val uiState by viewModel.uiState.collectAsState()
@@ -423,29 +425,29 @@ fun UnifiedReaderScreen(
                         DropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false },
-                            modifier = Modifier.background(readerBackground)
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                         ) {
                             // 添加修改文本选项
                             DropdownMenuItem(
-                                text = { Text("修改文本", color = whiteText) },
-                                onClick = { 
+                                text = { Text("修改文本", color = menuTextColor) },
+                                onClick = {
                                     showMenu = false
-                                    showEditText = true 
+                                    showEditText = true
                                 },
                                 leadingIcon = {
                                     Icon(
                                         Icons.Default.Edit,
                                         contentDescription = "修改文本",
-                                        tint = whiteText
+                                        tint = menuIconColor
                                     )
                                 }
                             )
-                            
+
                             // 添加打开网址选项，仅当urlPath不为空时显示
                             if (uiState.book?.urlPath != null) {
                                 DropdownMenuItem(
-                                    text = { Text("打开网址", color = whiteText) },
-                                    onClick = { 
+                                    text = { Text("打开网址", color = menuTextColor) },
+                                    onClick = {
                                         showMenu = false
                                         navController.navigate(Screen.WebView.createRoute(uiState.book?.urlPath!!))
                                     },
@@ -453,31 +455,31 @@ fun UnifiedReaderScreen(
                                         Icon(
                                             Icons.Default.Share,
                                             contentDescription = "打开网址",
-                                            tint = whiteText
+                                            tint = menuIconColor
                                         )
                                     }
                                 )
                             }
-                            
+
                             DropdownMenuItem(
-                                text = { Text("查看目录", color = whiteText) },
-                                onClick = { 
+                                text = { Text("查看目录", color = menuTextColor) },
+                                onClick = {
                                     showMenu = false
-                                    showToc = true 
+                                    showToc = true
                                 },
                                 leadingIcon = {
                                     Icon(
                                         Icons.Default.List,
                                         contentDescription = "目录",
-                                        tint = whiteText
+                                        tint = menuIconColor
                                     )
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text(if (isTtsActive) "停止朗读" else "朗读本页", color = whiteText) },
-                                onClick = { 
+                                text = { Text(if (isTtsActive) "停止朗读" else "朗读本页", color = menuTextColor) },
+                                onClick = {
                                     showMenu = false
-                                    isTtsActive = viewModel.toggleTts() 
+                                    isTtsActive = viewModel.toggleTts()
                                     if (isTtsActive && showControls) {
                                         showAudioControl = true
                                     } else {
@@ -488,13 +490,13 @@ fun UnifiedReaderScreen(
                                     Icon(
                                         imageVector = if (isTtsActive) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
                                         contentDescription = if (isTtsActive) "停止朗读" else "朗读本页",
-                                        tint = whiteText
+                                        tint = menuIconColor
                                     )
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("合成语音", color = whiteText) },
-                                onClick = { 
+                                text = { Text("合成语音", color = menuTextColor) },
+                                onClick = {
                                     showMenu = false
                                     showSynthesisDialog = true  // 显示语音合成对话框
                                 },
@@ -502,13 +504,13 @@ fun UnifiedReaderScreen(
                                     Icon(
                                         Icons.Default.Mic,
                                         contentDescription = "合成语音",
-                                        tint = whiteText
+                                        tint = menuIconColor
                                     )
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("语音列表", color = whiteText) },
-                                onClick = { 
+                                text = { Text("语音列表", color = menuTextColor) },
+                                onClick = {
                                     showMenu = false
                                     viewModel.showSynthesizedAudioList()
                                 },
@@ -516,13 +518,13 @@ fun UnifiedReaderScreen(
                                     Icon(
                                         Icons.Default.MicNone,
                                         contentDescription = "语音列表",
-                                        tint = whiteText
+                                        tint = menuIconColor
                                     )
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("分享内容", color = whiteText) },
-                                onClick = { 
+                                text = { Text("分享内容", color = menuTextColor) },
+                                onClick = {
                                     showMenu = false
                                     // 获取当前页文本内容
                                     val currentText = uiState.currentContent?.text ?: ""
@@ -530,19 +532,19 @@ fun UnifiedReaderScreen(
                                         // 准备分享文本，包含书名和当前阅读内容
                                         val bookTitle = uiState.book?.title ?: "电子书"
                                         val shareText = "我正在阅读《$bookTitle》，分享一段内容：\n\n${
-                                            if (currentText.length > 300) 
-                                                currentText.substring(0, 300) + "..." 
-                                            else 
+                                            if (currentText.length > 300)
+                                                currentText.substring(0, 300) + "..."
+                                            else
                                                 currentText
                                         }"
-                                        
+
                                         // 使用系统分享功能
                                         val shareIntent = Intent().apply {
                                             action = Intent.ACTION_SEND
                                             putExtra(Intent.EXTRA_TEXT, shareText)
                                             type = "text/plain"
                                         }
-                                        
+
                                         context.startActivity(Intent.createChooser(shareIntent, "分享到"))
                                     } else {
                                         Toast.makeText(context, "当前页面没有可分享的文本内容", Toast.LENGTH_SHORT).show()
@@ -552,21 +554,21 @@ fun UnifiedReaderScreen(
                                     Icon(
                                         Icons.Default.Share,
                                         contentDescription = "分享",
-                                        tint = whiteText
+                                        tint = menuIconColor
                                     )
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("阅读设置", color = whiteText) },
-                                onClick = { 
+                                text = { Text("阅读设置", color = menuTextColor) },
+                                onClick = {
                                     showMenu = false
-                                    showSettings = true 
+                                    showSettings = true
                                 },
                                 leadingIcon = {
                                     Icon(
                                         Icons.Default.Settings,
                                         contentDescription = "阅读设置",
-                                        tint = whiteText
+                                        tint = menuIconColor
                                     )
                                 }
                             )

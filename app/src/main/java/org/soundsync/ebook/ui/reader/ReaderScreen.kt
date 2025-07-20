@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -193,12 +194,17 @@ fun ReaderScreen(
             
             // 顶部工具栏
                 TopAppBar(
-                    title = { 
-                        Text(
-                            text = uiState.book?.title ?: "阅读器",
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1
-                        ) 
+                    title = {
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = uiState.book?.title ?: "阅读器",
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1
+                            )
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = onBackClick) {

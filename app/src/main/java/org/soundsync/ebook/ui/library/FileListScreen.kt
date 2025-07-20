@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -127,10 +129,24 @@ fun FileListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(category.displayName) },
+                title = {
+                    Box(
+                        modifier = Modifier.fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            category.displayName,
+                            color = Color.White
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "返回",
+                            tint = Color.White
+                        )
                     }
                 },
                 actions = {
@@ -145,12 +161,12 @@ fun FileListScreen(
                             enabled = uiState.selectedFiles.isNotEmpty()
                         ) {
                             Icon(
-                                Icons.Default.Delete, 
+                                Icons.Default.Delete,
                                 contentDescription = "删除选中",
-                                tint = if (uiState.selectedFiles.isEmpty()) 
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                else 
-                                    LocalContentColor.current
+                                tint = if (uiState.selectedFiles.isEmpty())
+                                    Color.White.copy(alpha = 0.38f)
+                                else
+                                    Color.White
                             )
                         }
                         
@@ -168,27 +184,45 @@ fun FileListScreen(
                                 // 已全选状态，显示取消全选图标
                                 Icon(
                                     imageVector = Icons.Default.IndeterminateCheckBox,
-                                    contentDescription = "取消全选"
+                                    contentDescription = "取消全选",
+                                    tint = Color.White
                                 )
                             } else {
                                 // 未全选状态，显示全选图标
                                 Icon(
                                     imageVector = Icons.Default.CheckBox,
-                                    contentDescription = "全选"
+                                    contentDescription = "全选",
+                                    tint = Color.White
                                 )
                             }
                         }
                         
                         // 取消按钮
                         IconButton(onClick = { viewModel.toggleSelectionMode() }) {
-                            Text("取消")
+                            Text(
+                                "取消",
+                                color = Color.White
+                            )
                         }
                     } else {
                         IconButton(onClick = { viewModel.toggleSelectionMode() }) {
-                            Text("选择")
+                            Text(
+                                "选择",
+                                color = Color.White
+                            )
                         }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFF1565C0),
+                    titleContentColor = Color.White,
+                    actionIconContentColor = Color.White,
+                    navigationIconContentColor = Color.White
+                ),
+                modifier = Modifier
+                    .height(64.dp)
+                    .shadow(elevation = 8.dp),
+                windowInsets = WindowInsets(0, 0, 0, 0)
             )
         },
         bottomBar = {
