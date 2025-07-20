@@ -1175,15 +1175,15 @@ fun UnifiedReaderScreen(
             ModalBottomSheet(
                 onDismissRequest = { showToc = false },
                 sheetState = rememberModalBottomSheetState(),
-                containerColor = readerBackground
+                containerColor = MaterialTheme.colorScheme.surface
             ) {
                 Text(
                     text = "目录",
                     style = MaterialTheme.typography.titleMedium,
-                    color = whiteText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(16.dp)
                 )
-                
+
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1204,7 +1204,7 @@ fun UnifiedReaderScreen(
                             color = if (chapter.index == uiState.currentChapter)
                                 Color(0xFF64B5F6) // 亮蓝色
                             else
-                                whiteText
+                                MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -1216,15 +1216,15 @@ fun UnifiedReaderScreen(
             ModalBottomSheet(
                 onDismissRequest = { showSettings = false },
                 sheetState = settingsSheetState,
-                containerColor = readerBackground
+                containerColor = MaterialTheme.colorScheme.surface
             ) {
                 Text(
                     text = "阅读设置",
                     style = MaterialTheme.typography.titleMedium,
-                    color = whiteText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(16.dp)
                 )
-                
+
                 // 字体大小设置
                 Row(
                     modifier = Modifier
@@ -1235,12 +1235,12 @@ fun UnifiedReaderScreen(
                     Text(
                         text = "字体大小",
                         modifier = Modifier.width(80.dp),
-                        color = whiteText
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    
+
                     Slider(
                         value = currentConfig.fontSize.toFloat(),
-                        onValueChange = { 
+                        onValueChange = {
                             currentConfig = currentConfig.copy(fontSize = it.toInt())
                         },
                         onValueChangeFinished = {
@@ -1250,15 +1250,15 @@ fun UnifiedReaderScreen(
                         steps = 9,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     Text(
                         text = "${currentConfig.fontSize}",
                         modifier = Modifier.width(30.dp),
                         textAlign = TextAlign.End,
-                        color = whiteText
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 // 行高设置
                 Row(
                     modifier = Modifier
@@ -1269,12 +1269,12 @@ fun UnifiedReaderScreen(
                     Text(
                         text = "行间距",
                         modifier = Modifier.width(80.dp),
-                        color = whiteText
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    
+
                     Slider(
                         value = currentConfig.lineHeight,
-                        onValueChange = { 
+                        onValueChange = {
                             currentConfig = currentConfig.copy(lineHeight = it)
                         },
                         onValueChangeFinished = {
@@ -1284,15 +1284,15 @@ fun UnifiedReaderScreen(
                         steps = 4,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     Text(
                         text = "%.1f".format(currentConfig.lineHeight),
                         modifier = Modifier.width(30.dp),
                         textAlign = TextAlign.End,
-                        color = whiteText
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 // 主题设置 (亮/暗)
                 Row(
                     modifier = Modifier
@@ -1303,9 +1303,9 @@ fun UnifiedReaderScreen(
                     Text(
                         text = "暗色模式",
                         modifier = Modifier.width(80.dp),
-                        color = whiteText
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    
+
                     Switch(
                         checked = currentConfig.isDarkMode,
                         onCheckedChange = {
@@ -1314,11 +1314,11 @@ fun UnifiedReaderScreen(
                         }
                     )
                 }
-                
+
                 // 添加TTS语速设置
                 val ttsSettings = remember { TtsSettings.getInstance(context) }
                 var speechRate by remember { mutableFloatStateOf(ttsSettings.getSpeechRate()) }
-                
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1328,12 +1328,12 @@ fun UnifiedReaderScreen(
                     Text(
                         text = "TTS语速",
                         modifier = Modifier.width(80.dp),
-                        color = whiteText
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    
+
                     Slider(
                         value = speechRate,
-                        onValueChange = { 
+                        onValueChange = {
                             speechRate = it
                             ttsSettings.setSpeechRate(it)
                         },
@@ -1341,12 +1341,12 @@ fun UnifiedReaderScreen(
                         steps = 6,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     Text(
                         text = "%.1f".format(speechRate),
                         modifier = Modifier.width(30.dp),
                         textAlign = TextAlign.End,
-                        color = whiteText
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 

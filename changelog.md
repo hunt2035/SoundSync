@@ -1,6 +1,14 @@
 ## 2025-07-20 更新日志
 
 ### 重要修复
+- **阅读设置界面主题适配问题**：修复了阅读界面右下角阅读设置弹出界面在浅色模式下文字看不清楚的问题
+  - 将阅读设置界面（UnifiedReaderScreen）中所有文字颜色从硬编码的白色改为动态主题颜色（MaterialTheme.colorScheme.onSurface）
+  - 将设置界面背景色从硬编码的readerBackground改为MaterialTheme.colorScheme.surface
+  - 将目录界面背景色和文字颜色也改为动态主题颜色，确保主题一致性
+  - 浅色模式下设置界面文字现在显示为深蓝色，确保在浅色背景下清晰可见
+  - 深色模式下设置界面文字显示为浅色，保持良好的对比度
+  - 修复了字体大小、行间距、暗色模式、TTS语速等所有设置项的文字颜色问题
+
 - **顶部标题栏文字垂直居中问题**：修复了书库界面和设置界面顶部标题栏文字不居中的问题
   - 修复了设置界面（SettingsScreen）标题文字"设置"垂直居中问题，使用Box和Alignment.Center包装Text组件
   - 修复了书库界面（LibraryScreen）标题文字"书库"垂直居中问题，使用Box和Alignment.Center包装Text组件
