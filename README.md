@@ -15,7 +15,7 @@
 
 
 ### 开发环境及工具
-  Windows10，Android Studio，Cursor，bash，power shell
+  Windows10，Android Studio，bash，power shell
 
 ###  测试终端
 手机：华为P30 Pro
